@@ -27,6 +27,6 @@ The following functionality will be implemented soon:
 4. 3D view op bitmap data
 
 ## Current screenshot
-![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/edit/master/screenshot.jpg "June 16, 2018")
+![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/blob/master/screenshot.jpg "June 16, 2018")
 
 
