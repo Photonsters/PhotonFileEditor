@@ -22,10 +22,11 @@ Since I myself do not (yet) have my own Anycubic Photon, there are a few things 
 3) Check if edited/saved Photon files print as expected on your Photon printer.
 4) Let me know of any bugs you find
 #### GUI
-Until now I have to put much time in the User Interface or its esthetics. Any suggestions are more than welcome.
+Until now I have not put much time in the User Interface or its esthetics. Any suggestions are more than welcome.
 #### Functionality
-If you are missing functionality which is not below, please let me know.
+If you are missing functionality which is not mentioned below, please let me know.
 
+Since this is very much an alpha version (or rather an alpha *of* an alpha version), all suggestions of any kind are more than welcome!
 
 ## Implemented functionality
 Currently the following functionality is implemented:
