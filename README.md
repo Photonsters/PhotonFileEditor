@@ -1,4 +1,4 @@
-# PhotonFileUtils v0.1
+# PhotonFileUtils
 
 Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer.
 
