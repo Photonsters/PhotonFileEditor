@@ -4,8 +4,8 @@ from GUI import *
 from PhotonFile import *
 from FileSystem import *
 
+#todo: import set of bitmaps in photon file as template
 #todo: if we cancel on filedialog the next time we open filedialog and click on listbox an error occurs
-#todo: check input of fields after enter or write to datasource
 #todo: Exe/distribution made with
 #           cmd.com - prompt, type...
 #           pyinstaller --onefile --windowed PhotonViewer.py
@@ -48,6 +48,8 @@ def init_pygame_surface():
     def doNothing():
         return
     def saveFile():
+        saveHeaderAndCommon2PhotonFile()
+        saveLayer2PhotonFile()
         dialog = FileDialog(screen, (40, 40), ext=".photon",parentRedraw=redrawMainWindow)
         filename=dialog.newFile()
         if not filename==None:
@@ -81,6 +83,7 @@ def init_pygame_surface():
     def layerDown():
         global layerNr, layerimg, photonfile
         if photonfile == None: return
+        saveLayer2PhotonFile()
 
         layerNr = layerNr - 1
         if layerNr < 0: layerNr = 0
@@ -91,8 +94,9 @@ def init_pygame_surface():
     def layerUp():
         global layerNr, layerimg, photonfile
         if photonfile == None: return
+        saveLayer2PhotonFile()
 
-        maxLayer = photonfile.convBytes(photonfile.Header["nLayers"], photonfile.tpInt)
+        maxLayer = PhotonFile.convBytes(photonfile.Header["nLayers"], photonfile.tpInt)
         layerNr = layerNr + 1
         if layerNr == maxLayer: layerNr = maxLayer - 1
         layerimg = photonfile.getBitmap(layerNr)
@@ -102,42 +106,22 @@ def init_pygame_surface():
     controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
 
-
-    def updatePhotonFile(textbox, val,linkedData):
-        global photonfile
-        print ("updatePhotonFile")
-        for control in controls:
-            if control==textbox:
-                pVarGroup=linkedData["VarGroup"]
-                pTitle= linkedData["Title"]
-                pBNr = linkedData["NrBytes"]
-                pType = linkedData["Type"]
-                pLayerNr = None
-                if "LayerNr" in linkedData:linkedData["LayerNr"]
-                bytes=None
-                #do some check if val is of correct type and length
-                if pType == PhotonFile.tpChar:bytes=PhotonFile.hex_to_bytes(val)
-                if pType == PhotonFile.tpByte:bytes = PhotonFile.hex_to_bytes(val)
-                if pType == PhotonFile.tpInt: bytes = PhotonFile.int_to_bytes(val)
-                if pType == PhotonFile.tpFloat: bytes = PhotonFile.float_to_bytes(val)
-                if linkedData["VarGroup"]=="Header":photonfile.Header[pTitle]=bytes
-                if linkedData["VarGroup"]=="Common":photonfile.Common[pTitle]=bytes
-                if linkedData["VarGroup"]=="LayerDef": photonfile.LayerDefs[pTitle] = bytes
-                print ("Found. New Val: ",val,linkedData)
-        return
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
     # Add Header data fields
     row=0
     controls.append(TextBox(screen, text="HEADER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
-    for row,  (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
+        bcolor=(255,255,255) if bEditable else (128,128,128)
         controls.append(TextBox(screen, text="", \
                                 rect=GRect(settingsleft+130, 10 + row * 24+viewport_yoffset, 60, 16),\
-                                editable=True, \
+                                editable=bEditable, \
+                                backcolor=bcolor, \
+                                textcolor=(0,0,0),\
                                 inputType=tbType, \
-                                onEnter=updatePhotonFile, \
+                                onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
 
@@ -145,47 +129,122 @@ def init_pygame_surface():
     row=0
     settingsleft = settingsleft+200
     controls.append(TextBox(screen, text="COMMON", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Common,1):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,1):
         controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Common,1):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,1):
         tbType = transTypes[bType]
-        controls.append(TextBox(screen, text="", rect=GRect(settingsleft+130, 10 + row * 24+viewport_yoffset, 60, 16),editable=True,inputType=tbType))
+        bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
+        controls.append(TextBox(screen, text="", \
+                                rect=GRect(settingsleft+130, 10 + row * 24+viewport_yoffset, 60, 16),\
+                                editable=bEditable, \
+                                backcolor=bcolor, \
+                                textcolor=(0, 0, 0), \
+                                inputType=tbType, \
+                                onEnter=updateTextBox2PhotonFile, \
+                                linkedData={"VarGroup": "Common", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
+                                ))
 
     # Add Current Layer meta fields
     row=14
     controls.append(TextBox(screen, text="LAYER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_LayerDef,15):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,15):
         controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
     row=14
     controls.append(TextBox(screen, text=str(layerNr), rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16),editable=False, drawBorder=False,backcolor=(128,128,128)))
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_LayerDef, 15):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 15):
         tbType = transTypes[bType]
-        controls.append(TextBox(screen, text="", rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16),editable=True,inputType=tbType))
+        bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
+        controls.append(TextBox(screen, text="", \
+                                rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16),\
+                                editable=bEditable, \
+                                backcolor=bcolor, \
+                                textcolor=(0, 0, 0), \
+                                inputType=tbType,\
+                                onEnter=updateTextBox2PhotonFile, \
+                                linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
+                                ))
 
+def updateTextBox2PhotonFile(textbox, val,linkedData):
+    global photonfile
+    #print ("updateTextBox2PhotonFile")
+    #print ("data: ",val, linkedData)
+    for control in controls:
+        if control==textbox:
+            pVarGroup=linkedData["VarGroup"]
+            pTitle= linkedData["Title"]
+            pBNr = linkedData["NrBytes"]
+            pType = linkedData["Type"]
+            pLayerNr = None
+            if "LayerNr" in linkedData:linkedData["LayerNr"]
+            bytes=None
+            #do some check if val is of correct type and length
+            if pType == PhotonFile.tpChar:bytes=PhotonFile.hex_to_bytes(val)
+            if pType == PhotonFile.tpByte:bytes = PhotonFile.hex_to_bytes(val)
+            if pType == PhotonFile.tpInt: bytes = PhotonFile.int_to_bytes(int(val))
+            if pType == PhotonFile.tpFloat: bytes = PhotonFile.float_to_bytes(float(val))
+            if not len(bytes)==pBNr:
+                print ("Error: Data size not expected in PhotonViewer.updateTextBox2PhotonFile!")
+                return
+            if pVarGroup=="Header":photonfile.Header[pTitle]=bytes
+            if pVarGroup=="Common":photonfile.Common[pTitle]=bytes
+            if pVarGroup=="LayerDef": photonfile.LayerDefs[layerNr][pTitle] = bytes
+            #print ("Found. New Val: ",val,linkedData)
+
+    return
+
+def saveHeaderAndCommon2PhotonFile():
+    #print ("saveHeaderAndCommon2PhotonFile")
+    global photonfile
+    if photonfile==None:return
+    # Header data fields
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,22):#enum start at 22
+        if bEditable:
+            textBox=controls[row]
+            updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Header", "Title": bTitle, "NrBytes": bNr, "Type": bType})
+    # Common data fields
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,54):
+        if bEditable:
+            textBox=controls[row]
+            updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Common", "Title": bTitle, "NrBytes": bNr, "Type": bType})
+
+def saveLayer2PhotonFile():
+    #print ("saveLayer2PhotonFile")
+    global photonfile
+    global layerNr
+    if photonfile == None: return
+    # Current Layer meta fields
+    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 74):
+        if bEditable:
+            textBox=controls[row]
+    #        print (row,bTitle,textBox.text)
+            updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
 def refreshHeaderAndCommonControls():
     global photonfile
     if photonfile==None:return
     # Header data fields
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Header,22):#enum start at 22
-        nr=photonfile.convBytes(photonfile.Header[bTitle],bType)
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,22):#enum start at 22
+        nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
+        if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
     # Common data fields
-    for row, (bTitle, bNr, bType) in enumerate(PhotonFile.pfStruct_Common,54):
-        nr=photonfile.convBytes(photonfile.Common[bTitle],bType)
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,54):
+        nr=PhotonFile.convBytes(photonfile.Common[bTitle],bType)
+        if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
 def refreshLayerControls():
     global photonfile
+    global layerNr
     if photonfile==None:return
     # Current Layer meta fields
-    global layerNr
     row=73
     controls[row].setText(str(layerNr))
-    print (layerNr)
-    for row, (bTitle, bNr, bType) in enumerate(photonfile.pfStruct_LayerDef,74):
-        nr=photonfile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
+    #print (layerNr)
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,74):
+        nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
+        if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
 
@@ -248,7 +307,7 @@ while running:
             for ctrl in controls:
                 ctrl.handleMouseDown(pos,event.button)
 
-            print (event.button)
+            #print (event.button)
 
 
         if event.type == pygame.MOUSEMOTION:

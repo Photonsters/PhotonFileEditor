@@ -533,6 +533,7 @@ class TextBox():
                                  (self.rect.x+self.margin.x+text_width,self.rect.y+self.margin.y,2,self.rect.height-2*self.margin.y-1),
                                  0)
 
+
     def handleMouseMove(self,pos):
         return
 
@@ -585,7 +586,7 @@ class TextBox():
             if not self.inputType==self.TEXT and (pygame.key.get_mods() & pygame.KMOD_SHIFT): return #shift (uppercase and specials chars only allowed in text
             if self.inputType==self.INT and key==K_PERIOD: return                                    #float/period not allowed if int
             if self.inputType==self.INT or self.inputType==self.FLOAT:
-                if key not in range(K_0,K_9) and not key==K_PERIOD: return                           #only numbers/period allowed for int/float
+                if key not in range(K_0,K_COLON) and not key==K_PERIOD: return                           #only numbers/period allowed for int/float
             if self.inputType==self.HEX and (key not in range (K_0,K_9) and key not in range(K_a,K_f)): return
             if self.inputType==self.FLOAT and (key==K_KP_PERIOD or key==K_PERIOD) and "." in self.text:return # only allow one . in a float
 
