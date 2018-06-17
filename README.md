@@ -9,8 +9,8 @@ If you want to test it follow these instructions:
 2) install the pygame library: https://www.pygame.org/wiki/GettingStarted
 3) download this repository as a zip file and extract
 4) you have two options to run PhotonFileEditor:
-   a) from your file explorer run PhotonEditor.py 
-   b) go to the commandline and go to the directory where you extracted the zip file and type "phyton PhotonEditor.py"
+   * from your file explorer run PhotonEditor.py 
+   * go to the commandline and go to the directory where you extracted the zip file and type "phyton PhotonEditor.py"
 
 In the near future (approaching version 1.0), I will make windows executables and a linux package available.
 
