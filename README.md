@@ -3,14 +3,14 @@
 Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer.
 
 ## Installation
-PhotonFileEditor is programmed in Python 3.6 and makes use of the pygame library. 
+PhotonFileEditor is programmed in Python 3.6 and makes use of only one external library:pygame. 
 If you want to test it follow these instructions:
 1) install Python from https://www.python.org/downloads/ 
 2) install the pygame library: https://www.pygame.org/wiki/GettingStarted
 3) download this repository as a zip file and extract
-4) you have two options to run PhotonViewer:
-   a) from your file explorer run PhotonViewer.py 
-   b) go to the commandline and go to the directory where you extracted the zip file and type phyton PhotonViewe.py
+4) you have two options to run PhotonFileEditor:
+   a) from your file explorer run PhotonEditor.py 
+   b) go to the commandline and go to the directory where you extracted the zip file and type "phyton PhotonEditor.py"
 
 In the near future (approaching version 1.0), I will make windows executables and a linux package available.
 
@@ -33,12 +33,12 @@ Currently the following functionality is implemented:
 1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info and  meta-info
 2. Saving data to a .Photon file, however editing the data is not yet possible (couple of days)
 3. Editing all numeric data of the Photon File. Databytes which are internally used (location of bitmaps etc) are shown but readonly.
+4. Not yet tested - Importing bitmaps (from Povray as png-files) in an exisiting Photon File (which is used as a template)
 
 ## Functionality under development
 The following functionality will be implemented soon:
-1. Importing bitmaps (from Povray as png-files) in an exisiting Photon File (which is used as a template)
-2. More polished GUI
-3. 3D view of bitmap data
+1. More polished GUI
+2. 3D view of bitmap data
 
 ## Current screenshot
 ![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/blob/master/screenshot.jpg "June 16, 2018")
