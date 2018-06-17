@@ -27,6 +27,10 @@ class GPoint():
     def inGRect(self,GRect):
         return self.x>=GRect.left and self.x<=GRect.right and self.y >= GRect.top and self.y <= GRect.bottom
 
+    def copy(self):
+        newG=GPoint(self.x,self.y)
+        return newG
+
     def __add__(self, other): return GPoint(self.x+other.x,self.y+other.y)
     def __sub__(self, other): return GPoint(self.x-other.x,self.y-other.y)
     def __mul__(self, other): return GPoint(self.x * other, self.y * other)
@@ -58,6 +62,10 @@ class GLine():
     def height(self):return self.y2 - self.y1
     @property
     def length(self): return (math.sqrt(self.width + self.height))
+
+    def copy(self):
+        newG=GLine(self.x1,self.y1)
+        return newG
 
 class GRect():
     __x = 0
@@ -127,6 +135,10 @@ class GRect():
     @property
     def rightline(self):return GLine(self.x2,self.y1,self.x2,self.y2)
 
+    def copy(self):
+        newG=GRect(self.x,self.y,self.width,self.height)
+        return newG
+
     def move(self,gpos):
         self.x=self.x+gpos.x
         self.y=self.y+gpos.y
@@ -137,7 +149,7 @@ class GRect():
 
     def shrink(self,grect):
         self.x=self.x+grect.x
-        self.y=self.y+gtect.y
+        self.y=self.y+grect.y
         self.width=self.width-grect.x-grect.width
         self.height=self.height-grect.y-grect.height
 

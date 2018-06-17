@@ -2,12 +2,21 @@ import pygame
 from pygame.locals import *
 import math
 from math import *
+import os
 
 ########################################################################################################################
 ## PhotonFile class
 ## - reads file
 ## - draws layer
 ########################################################################################################################
+def hexStr(bytes):
+    if isinstance(bytes,bytearray):
+       return ' '.join(format(h, '02X') for h in bytes)
+    if isinstance(bytes,int):
+       return format(bytes, '02X')
+    return ("No Byte (Array)")
+
+
 
 class PhotonFile:
     isDrawing=False
@@ -32,10 +41,10 @@ class PhotonFile:
         ("nBottomLayers", 4,tpInt,True),
         ("resolutionX", 4,tpInt,True),
         ("resolutionY", 4,tpInt,True),
-        ("unknown3", 4,tpInt,False),
-        ("unknown4", 4,tpInt,False),
+        ("unknown3", 4,tpInt,False),       #start of unknown8
+        ("defStartPos", 4,tpInt,False),    #start of layerDefs
         ("nLayers", 4,tpInt,True),
-        ("unknown5", 4,tpInt,False),
+        ("unknown5", 4,tpInt,False),       #start of unknown14
         ("unknown6", 4,tpInt,False),
         ("unknown7", 4,tpInt,False),
         ("padding1", 6 * 4,tpInt,False)
@@ -44,14 +53,14 @@ class PhotonFile:
     pfStruct_Common = [
         ("unknown8", 4,tpInt,False),
         ("unknown9", 4,tpInt,False),
-        ("dataStartPos0", 4,tpInt,False),
-        ("dataSize0", 4,tpInt,False),
+        ("dataStartPos0", 4,tpInt,False), #start of C0 (commandLikeData)
+        ("dataSize0", 4,tpInt,False),     #size of C0 (commandLikeData)
         ("padding0", 4 * 4,tpInt,False),
         ("c0", -1,tpByte,False),
         ("unknown14", 4,tpInt,False),
         ("unknown15", 4,tpInt,False),
-        ("dataStartPos1", 4,tpInt,False),
-        ("dataSize1", 4,tpInt,False),
+        ("dataStartPos1", 4,tpInt,False), #start of C1 (commandLikeData)
+        ("dataSize1", 4,tpInt,False),     #size of C1 (commandLikeData)
         ("padding1", 4 * 4,tpInt,False),
         ("c1", -1,tpByte,False),
     ]
@@ -64,6 +73,10 @@ class PhotonFile:
         ("rawDataSize", 4,tpInt,False),
         ("padding", 4 * 4,tpInt,False)
     ]
+
+    #pfLayerDataDef =
+    #    rawData  - rle encoded bytes except last one
+    #    lastByte - last byte of encoded bitmap data
 
     Header = {}
     Common = {}
@@ -156,9 +169,8 @@ class PhotonFile:
         return nr
 
 
-    def __init__(self, photonfilename, pyscreen):
+    def __init__(self, photonfilename):
         self.filename = photonfilename
-        self.pyscreen = pyscreen
 
     def readFile(self):
         with open(self.filename, "rb") as binary_file:
@@ -203,12 +215,127 @@ class PhotonFile:
             # print (' '.join(format(x, '02X') for x in header))
 
 
+    def encodedBitmap_Bytes(filename):
+        imgsurf=pygame.image.load(filename)
+        bitDepth=imgsurf.get_bitsize()
+        bytePerPixel=imgsurf.get_bytesize()
+        (width,height)=imgsurf.get_size()
+        if not (width,height)==(2560,1440):
+            raise Exception ("Your image dimensions are off and should be 2560x1440")
+
+
+        '''
+        dst = pygame.Surface(imgsurf.get_size(), 0, bitDepth)
+        dst.fill((0, 0, 0, 0))
+        print (imgsurf.get_size(),imgarr)
+        #imgarr= [None(dst_dims, t) for t in self.dst_types]
+        pygame.pixelcopy.surface_to_array(imgarr,imgsurf)
+        
+        del imgarr
+        '''
+        '''
+        dst = pygame.Surface(imgsurf.get_size(), 0, bitDepth)
+        dst.fill((0, 0, 0, 0))
+        #imgarr = dst.get_view('2')
+        imgarr = dst.get_buffer()
+        imgbytes=imgarr.raw
+        print (imgarr)
+        del imgarr
+        '''
+        rleData=bytearray()
+        prevColor=None
+        nrOfColor=0
+        color=0
+        black=0
+        white=1
+        colList=""
+        #for y in range(height):
+        for y in range(height):
+            colList=colList+"+ "
+            for x in range(width):
+                #print (imgsurf.get_at((x, y)))
+                (r,g,b,a)=imgsurf.get_at((x,y))
+                color=black if ((r+g+b)//3)<128 else white
+                if prevColor==None: prevColor=color
+                isLastPixel=x==(width-1) and y==(height-1)
+                if color==prevColor and nrOfColor <0x7D and not isLastPixel:
+                    nrOfColor=nrOfColor+1
+                    colList = colList + str(color) + " "
+                else:
+                    #print (nrOfColor,hexStr(nrOfColor))
+                    encValue=color<<7 | nrOfColor
+                    colorByte=(encValue).to_bytes(1, 'little')
+                    rleData.append(encValue)
+                    print(hexStr(encValue), " = ", colorByte, " : ",rleData)
+                    #print (hexStr(encValue)," : ",colList)
+                    colList="+ "+str(color)+" "
+                    prevColor=color
+                    nrOfColor=1
+        return rleData
+
+    def replaceBitmaps(self, dirPath):
+        #get all png-files and sort them alphabetically
+        direntries = os.listdir(dirPath)
+        files = []
+        for entry in direntries:
+            fullpath = os.path.join(dirPath, entry)
+            if entry.endswith("png"): files.append(fullpath)
+        files.sort()
+
+        print ("Following files will be inserted:")
+        for fullpath in files:
+            print ("  ",fullpath)
+
+        #Check if files avaiable and if so check first file for correct dimensions
+        if len(files) == 0: raise Exception("No files of type png are found!")
+        rawData = PhotonFile.encodedBitmap_Bytes(files[0])
+        raise Exception("Your image dimensions are off and should be 2560x1440")
+
+        #remove old data
+        nLayers = len(files)
+        self.Header["nLayers"] = nLayers
+        oldLayerDef=self.LayerDefs[0]
+        self.LayerDefs = [dict() for x in range(nLayers)]
+        self.LayerData = [dict() for x in range(nLayers)]
+
+        #calc start position of rawData
+        rawDataStartPos=0
+        for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            rawDataStartPos=rawDataStartPos+bNr
+        for bTitle, bNr, bType, bEditable in self.pfStruct_Common:
+            rawDataStartPos = rawDataStartPos + bNr
+        for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+            rawDataStartPos = rawDataStartPos + bNr*nLayers
+
+        #add all files
+        for layerNr, file in enumerate(files):
+           #get raw data
+           rawData=PhotonFile.encodedBitmap_Bytes(file)
+           rawDataTrunc=rawData[:-1]
+           rawDataLastByte=rawData[-1:]
+
+           #update LayerDef
+           self.LayerDefs[layerNr]["layerHeight"]=oldLayerDef["layerHeight"]
+           self.LayerDefs[layerNr]["bottomExposureTime"] = oldLayerDef["bottomExposureTime"]
+           self.LayerDefs[layerNr]["offTime"] = oldLayerDef["offTime"]
+           self.LayerDefs[layerNr]["dataStartPos"] = rawDataStartPos
+           self.LayerDefs[layerNr]["rawDataSize"]=len(rawData)
+           self.LayerDefs[layerNr]["padding"] = oldLayerDef["padding"]
+           # update LayerData
+           self.LayerData[layerNr]["Raw"]=rawDataTrunc
+           self.LayerData[layerNr]["EndOfLayer"] =rawDataLastByte
+           # update startRawData
+           rawDataStartPos=rawDataStartPos+len(rawData)
+
     def getBitmap(self, layerNr):
+        #debug layerNr=PhotonFile.bytes_to_int(self.Header["nLayers"])-1
         scale=(0.25,0.25)
         memory = pygame.Surface((int(1440*scale[0]), int(2560*scale[1])))
         self.isDrawing=True
 
         bA = self.LayerData[layerNr]["Raw"]
+        #add endOfLayer Byte
+        bA=bA+self.LayerData[layerNr]["EndOfLayer"]
 
         # Seek position and read N bytes
         x = 0
@@ -224,6 +351,8 @@ class PhotonFile:
             col=(55*val,255*val,255)
             if x2>int(1440/4): x2=int(1440/4)
             pygame.draw.line(memory, col, (x1, y1), (x2, y2))
+            #debug nr2=nr-(x+nr-1440) if (x+nr)>=1440 else nr
+            #debug print("draw line: ", x, y, " - ", nr2)
             x=x+nr
             if x>=1440:
                 nr=x-1440
@@ -234,8 +363,11 @@ class PhotonFile:
                 x2 = int((x + nr) / 4)
                 y2 = y1
                 pygame.draw.line(memory, col, (x1, y1), (x2, y2))
+                #debug print ("draw line: ",x,y," - ",nr)
                 x=x+nr
-        #print("Screen Drawn")
+        print("Screen Drawn")
+        #debug print ("layer: ", layerNr)
+        #debug print ("lastByte:", self.LayerData[layerNr]["EndOfLayer"])
         self.isDrawing = False
         return memory
 
@@ -339,5 +471,12 @@ def testDataConversions():
     print("-----------")
     quit()
 #testDataConversions()
-#quit()
 
+def testImageReplacement():
+    PhotonFile.encodedBitmap_Bytes("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/testencoding_0.png")
+    photonfile = PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
+    photonfile.readFile()
+    photonfile.replaceBitmaps("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/")
+    quit()
+
+#testImageReplacement()

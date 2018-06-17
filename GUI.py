@@ -459,6 +459,109 @@ class ListBox():
     def handleKeyDown(self,key,unicode):
         return
 
+class Label():
+    rect=GRect(0, 0, 80, 32)
+    margin = GRect(4, 4, 4, 4)
+    innerRect=GRect()
+    bordercolor = (128, 128, 128)
+    backcolor = (255, 255, 255)
+    textcolor = (0, 0, 0)
+    borderwidth = 1
+    autoheight=True
+    text = ["text"]
+    font=None
+    fontname = "Consolas"
+    fontsize = 16
+    drawBorder=True
+    visible=True
+    center=False
+
+    def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
+                 bordercolor=(128,128,128), backcolor=(255,255,255), textcolor=(0,0,0),
+                 borderwidth=1, drawBorder=True,center=False,
+                 text="text", fontname=None, fontsize=24, autoheight=True):
+        self.pyscreen = pyscreen
+        self.rect = rect
+        self.margin=margin
+        self.innerRect=rect.copy()
+        self.innerRect.shrink(self.margin)
+        self.center=center
+        self.bordercolor=bordercolor
+        self.backcolor=backcolor
+        self.textcolor=textcolor
+        self.borderwidth=borderwidth
+        self.autoheight=autoheight
+        self.font = pygame.font.SysFont(fontname, fontsize)
+        self.setText(text)
+        self.drawBorder=drawBorder
+
+        # We want to make sure the text fully fits in the TextBox
+        text_width, text_height = self.font.size("M[].j")
+        #And that the textbox has enough height to show each letter
+        if self.rect.height<(text_height+2*self.margin.y): self.rect.height=text_height+2*self.margin.y
+
+    def setText(self,text):
+        # We want to make sure the text fully fits in the TextBox
+        self.text = text
+        self.innerRect = self.rect.copy()
+        self.innerRect.shrink(self.margin)
+
+        lines=text.split("\n")
+        newlines=[]
+        for line in lines:
+            newline=""
+            words=line.split(" ")
+        #    print ("["+line+"]")
+            lastIdx=len(words)-1
+        #    print("------")
+            for idx,word in enumerate(words):
+                oldline=newline
+                newline=newline+word+" "
+                text_width, text_height = self.font.size(newline)
+                if text_width>self.innerRect.width:
+                    #todo: check for words which are longer than width, in which case oldline is empty
+                    text_width > self.innerRect.width
+                    newlines.append(oldline.strip())
+                    newline = word + " "
+        #            print("|"+ oldline.strip()+ "|")
+            newlines.append(newline.strip())
+        #    print("|" + newline.strip() + "|")
+        #print("------")
+        #print ("Total result:")
+        #print (newlines)
+        self.text=newlines
+        if self.autoheight:
+            self.rect.height=len(newlines)*text_height+self.margin.y+self.margin.height
+
+    def show(self):
+        self.waiting=True
+        self.waitforuser()
+
+    def redraw(self):
+        if not self.visible: return
+        pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
+        if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
+        dummy, lineHeight = self.font.size(self.text[0])
+        if self.center:
+            dY=int((self.innerRect.height-len(self.text)*lineHeight)/2)
+        else: dY=0
+        for row,line in enumerate(self.text):
+            textsurface = self.font.render(line, False, self.textcolor)
+            lineWidth, dummy= self.font.size(line)
+            if self.center:
+                dX = int((self.innerRect.width - lineWidth)/ 2)
+            else: dX=0
+            self.pyscreen.blit(textsurface, (self.innerRect.x+dX, self.innerRect.y + dY+row*lineHeight))
+
+    def handleMouseMove(self, pos):
+        return
+    def handleMouseUp(self, pos,button):
+        return
+    def handleMouseDown(self,pos,button):
+        return
+    def handleKeyDown(self,key,unicode):
+        return
+
 class TextBox():
     rect=GRect(0, 0, 80, 32)
     margin = GRect(4, 4, 4, 4)
