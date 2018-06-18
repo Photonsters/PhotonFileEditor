@@ -5,10 +5,10 @@ from PhotonFile import *
 from FileDialog import *
 from MessageDialog import *
 
-
-#todo: listbox should also have navbuttons
-#todo:   check if import bitmap succeeds... make set of images of 2560x1440
-#todo: use pygame.font.Font.get_ascent to correctly vertical align text on menubar
+#todo: beautify layer bar at right edge of slice image
+#todo: On Vista error occur on loading photon files
+#todo: Navigating layers should be done faster...scrollbar?
+#todo: Check if import bitmap succeeds... make set of images of 2560x1440
 #todo: Exe/distribution made with
 #todo: after click on menuitem, the menulist should close
 
@@ -20,11 +20,13 @@ from MessageDialog import *
 ########################################################################################################################
 screen=None
 layerimg=None
-previmg=None
+previmg=[None,None]
 settingscolwidth=250
 settingslabelwidth=160
 settingslabelmargin=10
 settingstextboxmargin=10
+settingsrowheight=16
+settingsrowspacing=28
 settingstextboxwidth=settingscolwidth-settingslabelmargin-settingslabelwidth-settingstextboxmargin
 settingswidth = settingscolwidth* 2  # 2 columns
 settingsleft = int(1440 / 4)
@@ -39,12 +41,21 @@ firstHeaderTextbox=-1
 firstPreviewTextbox=-1
 firstLayerTextbox=-1
 
+#Scroll button at top left
+layerLabel=None
+
+#Scroll bar to the right
+scrollLayerWidth=30
+scrollLayerVMargin=30
+scrollLayerRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin,scrollLayerWidth,2560/4-scrollLayerVMargin*2)
+layerCursorActive=True
+layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWidth,4)
+
 def init_pygame_surface():
     global screen
     global dispimg
     global layerimg
-    global previmg0
-    global previmg1
+    global previmg
     global windowwidth
     global windowheight
     global settingsleft
@@ -55,12 +66,13 @@ def init_pygame_surface():
     global firstHeaderTextbox
     global firstPreviewTextbox
     global firstLayerTextbox
+    global layerLabel
 
     pygame.init()
     pygame.display.set_caption("Photon File Editor")
     # load and set the logo
-    # logo = pygame.image.load("logo32x32.png")
-    # pygame.display.set_icon(logo)
+    logo = pygame.image.load("PhotonEditor32x32.png")
+    pygame.display.set_icon(logo)
     pygame.font.init()
 
     # create a surface on screen width room for settings
@@ -68,8 +80,8 @@ def init_pygame_surface():
     scale = (0.25, 0.25)
     dispimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
     dispimg.fill((0,0,0))
-    previmg0=dispimg
-    previmg1 = dispimg
+    previmg[0]=dispimg
+    previmg[1] = dispimg
     layerimg = dispimg
 
     # create menu
@@ -156,10 +168,11 @@ def init_pygame_surface():
         dispimg=layerimg
     def showPrev0():
         global dispimg
-        dispimg = previmg0
+        dispimg = previmg[0]
     def showPrev1():
         global dispimg
-        dispimg = previmg1
+        dispimg = previmg[1]
+
     menubar=MenuBar(screen)
     menubar.addMenu("File","F")
     menubar.addItem("File","Load",loadFile)
@@ -174,6 +187,20 @@ def init_pygame_surface():
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
     viewport_yoffset=menubar.height+8
+
+    # Prev Nav Buttons call back methods
+    def prevUp():
+        global prevNr
+        global dispimg
+        if prevNr==0:prevNr=1
+        dispimg=previmg[prevNr]
+        refreshPreviewControls()
+    def prevDown():
+        global prevNr
+        global dispimg
+        if prevNr==1:prevNr=0
+        dispimg = previmg[prevNr]
+        refreshPreviewControls()
 
     # Add Up/Down Layer Buttons
     layerNr = 0
@@ -202,8 +229,13 @@ def init_pygame_surface():
         refreshLayerControls()
         return
 
+
+    #layer nav buttons
     controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
+    layerLabel.font.set_bold(True)
+    controls.append(layerLabel)
 
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
     # Add Header data fields
@@ -212,13 +244,13 @@ def init_pygame_surface():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingslabelwidth,16)))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
     firstHeaderTextbox=len(controls)
     for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
+                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0,0,0),\
@@ -230,19 +262,24 @@ def init_pygame_surface():
     # Add Preview data fields
     row=0
     settingsleft = settingsleft+settingscolwidth
-    titlebox = Label(screen, text="Preview", rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingscolwidth,16))
+    titlebox = Label(screen, text="Preview", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingslabelwidth,16)))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
+
+    row = 0
+    #nav buttons for previewNr
+    controls.append(Button(screen, rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin + settingstextboxwidth - 40,10 + row * settingsrowspacing + viewport_yoffset, 18, 20), text="<",func_on_click=prevDown))
+    controls.append(Button(screen,rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin+settingstextboxwidth-18,10+row*settingsrowspacing+viewport_yoffset,18,20),text=">",func_on_click=prevUp))
+    #PrevNr and Prev TextBoxes
     firstPreviewTextbox = len(controls)
-    row=0
-    controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24 + viewport_yoffset, settingslabelwidth, 16)))
+    controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth-40, settingsrowheight)))
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
+                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
@@ -253,19 +290,19 @@ def init_pygame_surface():
 
     # Add Current Layer meta fields
     row=8
-    titlebox = Label(screen, text="Layer", rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingscolwidth,16))
+    titlebox = Label(screen, text="Layer", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,9):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,120,16)))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,120,16)))
     row=8
     firstLayerTextbox = len(controls)
-    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingslabelwidth, 16)))
+    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight)))
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
+                                rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
@@ -366,8 +403,8 @@ def refreshPreviewControls():
     global firstPreviewTextbox
     if photonfile == None: return
     # Preview data fields
-    row = firstLayerTextbox
-    controls[row].setText(str(prevNr)+" / 2")
+    row = firstPreviewTextbox
+    controls[row].setText(str(prevNr)+"/2")
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
@@ -376,6 +413,7 @@ def refreshPreviewControls():
 def refreshLayerControls():
     global photonfile
     global layerNr
+    global layerLabel
     if photonfile==None:return
     # Current Layer meta fields
     row=firstLayerTextbox
@@ -386,16 +424,24 @@ def refreshLayerControls():
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
+    #finally we update layerLabel in between the up and down ^ on the top left of the screen
+        layerLabel.setText(str(layerNr))
+
 
 def openPhotonFile(filename):
-    global photonfile, dispimg, layerimg,previmg0,previmg1
+    global photonfile
+    global dispimg
+    global layerimg
+    global previmg
+    global layerNr
     # read file
     photonfile = PhotonFile(filename)
     photonfile.readFile()
     layerimg=photonfile.getBitmap(0,(255,255,255),(0,0,0))
-    previmg0=photonfile.getPreviewBitmap(0)
-    previmg1 = photonfile.getPreviewBitmap(1)
+    previmg[0]=photonfile.getPreviewBitmap(0)
+    previmg[1] = photonfile.getPreviewBitmap(1)
     dispimg=layerimg
+    layerNr=0 # reset this to 0 so we prevent crash if previous photonfile was navigated to layer above the last layer of new photonfile
     refreshHeaderControls()
     refreshPreviewControls()
     refreshLayerControls()
@@ -419,14 +465,18 @@ def redrawMainWindow():
     if not photonfile==None:
         if not photonfile.isDrawing:
             screen.blit(dispimg, (dw, dh))
-            if not previmg==None: screen.blit(previmg,(0,100))
-    else:#also if we have no photonfile we need to draw to cover up menu/filedialog etc
+    else:#also if we have no photonfile we still need to draw to cover up menu/filedialog etc
         screen.blit(dispimg, (dw, dh))
 
     for ctrl in controls:
         ctrl.redraw()
 
     menubar.redraw()
+
+    if layerCursorActive and not photonfile==None:
+        pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
+        pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
+
 
 
 # main loop
@@ -454,7 +504,24 @@ while running:
             for ctrl in controls:
                 ctrl.handleMouseDown(pos,event.button)
 
-            #print (event.button)
+            #Calc position of layerCursor
+            if not photonfile==None:
+                mousePoint=GPoint.fromTuple(pos)
+                if mousePoint.inGRect(scrollLayerRect):
+                    relY=(mousePoint.y-scrollLayerVMargin)/(2560/4-scrollLayerVMargin*2)
+                    layerNr=int((photonfile.nrLayers()-1)*relY)
+                    layerCursorRect=scrollLayerRect.copy()
+                    layerCursorRect.y=mousePoint.y-2
+                    layerCursorRect.height=4
+                    print("layercursor:", layerCursorRect, layerNr,"/",photonfile.nrLayers())
+                    #layerCursorActive=True
+                    layerimg = photonfile.getBitmap(layerNr)
+                    dispimg = layerimg
+                    refreshLayerControls()
+                else:
+                    None
+                    #layerCursorActive=False
+                #print (event.button)
 
 
         if event.type == pygame.MOUSEMOTION:

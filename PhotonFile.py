@@ -47,9 +47,9 @@ class PhotonFile:
         ("Preview 0 (addr)", 4, tpInt, False),  # start of preview 0
         ("Layer Defs (addr)", 4, tpInt, False),  # start of layerDefs
         (nrLayersString, 4, tpInt, False),
-        ("Preview 1 (addr)", 4, tpInt, False),  # start of unknown14
+        ("Preview 1 (addr)", 4, tpInt, False),  # start of preview 1
         ("unknown6", 4, tpInt, False),
-        ("unknown7", 4, tpInt, False),
+        ("Proj.type-Cast/Mirror", 4, tpInt, False),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
         ("padding1", 6 * 4, tpByte, False)  # 6 ints
     ]
 
@@ -68,11 +68,11 @@ class PhotonFile:
     ]
 
     pfStruct_LayerDef = [
-        ("layerHeight", 4, tpFloat, True),
-        ("bottomExposureTime", 4, tpFloat, True),
-        ("offTime", 4, tpFloat, True),
-        ("dataStartPos", 4, tpInt, False),
-        ("rawDataSize", 4, tpInt, False),
+        ("layer height", 4, tpFloat, True),
+        ("Exp. bottom (ms)", 4, tpFloat, True),
+        ("Off time (ms)", 4, tpFloat, True),
+        ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
+        ("Data Length", 4, tpInt, False), #rawDataSize -> Data Length
         ("padding", 4 * 4, tpByte, False) # 4 ints
     ]
 
@@ -217,7 +217,7 @@ class PhotonFile:
             # print("Reading layer image-info")
             self.LayerData = [dict() for x in range(nLayers)]
             for lNr in range(0, nLayers):
-                rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["rawDataSize"])
+                rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Data Length"])
                 # print("  layer: ", lNr, " size: ",rawDataSize)
                 self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1)
                 # -1 because we don count byte for endOfLayer
@@ -327,8 +327,8 @@ class PhotonFile:
             self.LayerDefs[layerNr]["layerHeight"] = oldLayerDef["layerHeight"]
             self.LayerDefs[layerNr]["bottomExposureTime"] = oldLayerDef["bottomExposureTime"]
             self.LayerDefs[layerNr]["offTime"] = oldLayerDef["offTime"]
-            self.LayerDefs[layerNr]["dataStartPos"] = rawDataStartPos
-            self.LayerDefs[layerNr]["rawDataSize"] = len(rawData)
+            self.LayerDefs[layerNr]["Image Address"] = rawDataStartPos
+            self.LayerDefs[layerNr]["Data Length"] = len(rawData)
             self.LayerDefs[layerNr]["padding"] = oldLayerDef["padding"]
             # update LayerData
             self.LayerData[layerNr]["Raw"] = rawDataTrunc

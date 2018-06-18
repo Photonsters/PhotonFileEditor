@@ -17,7 +17,8 @@ class GPoint():
     @y.setter
     def y(self, y):self.__y = y
 
-    def fromTuple(self,pos):
+    @staticmethod
+    def fromTuple(pos):
         return GPoint(pos[0],pos[1])
     @property
     def tuple(self):return (self.x, self.y)
