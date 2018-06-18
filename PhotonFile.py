@@ -4,82 +4,87 @@ import math
 from math import *
 import os
 
+
 ########################################################################################################################
 ## PhotonFile class
 ## - reads file
 ## - draws layer
 ########################################################################################################################
 def hexStr(bytes):
-    if isinstance(bytes,bytearray):
-       return ' '.join(format(h, '02X') for h in bytes)
-    if isinstance(bytes,int):
-       return format(bytes, '02X')
+    if isinstance(bytes, bytearray):
+        return ' '.join(format(h, '02X') for h in bytes)
+    if isinstance(bytes, int):
+        return format(bytes, '02X')
     return ("No Byte (Array)")
 
 
-
 class PhotonFile:
-    isDrawing=False
+    isDrawing = False
 
     tpByte = 0
     tpChar = 1
     tpInt = 2
     tpFloat = 3
 
-    #each item in dictionary has format "Title", nr bytes to read/write, type of data stored, editable
+    # each item in dictionary has format "Title", nr bytes to read/write, type of data stored, editable
 
     pfStruct_Header = [
-        ("unknown0", 8,tpByte,False),
-        ("sizeX", 4,tpFloat,True),
-        ("sizeY", 4,tpFloat,True),
-        ("sizeZ", 4,tpFloat,True),
-        ("padding0", 3 * 4,tpInt,False),
-        ("layerThickness", 4,tpFloat,True),
-        ("normalExposure", 4,tpFloat,True),
-        ("bottomExposure", 4,tpFloat,True),
-        ("offTime", 4,tpFloat,True),
-        ("nBottomLayers", 4,tpInt,True),
-        ("resolutionX", 4,tpInt,True),
-        ("resolutionY", 4,tpInt,True),
-        ("unknown3", 4,tpInt,False),       #start of unknown8
-        ("defStartPos", 4,tpInt,False),    #start of layerDefs
-        ("nLayers", 4,tpInt,True),
-        ("unknown5", 4,tpInt,False),       #start of unknown14
-        ("unknown6", 4,tpInt,False),
-        ("unknown7", 4,tpInt,False),
-        ("padding1", 6 * 4,tpInt,False)
+        ("unknown0", 8, tpByte, False),
+        ("sizeX", 4, tpFloat, True),
+        ("sizeY", 4, tpFloat, True),
+        ("sizeZ", 4, tpFloat, True),
+        ("padding0", 3 * 4, tpInt, False),
+        ("layerThickness", 4, tpFloat, True),
+        ("normalExposure", 4, tpFloat, True),
+        ("bottomExposure", 4, tpFloat, True),
+        ("offTime", 4, tpFloat, True),
+        ("nBottomLayers", 4, tpInt, True),
+        ("resolutionX", 4, tpInt, True),
+        ("resolutionY", 4, tpInt, True),
+        ("startPrev0", 4, tpInt, False),  # start of preview 0
+        ("defStartPos", 4, tpInt, False),  # start of layerDefs
+        ("nLayers", 4, tpInt, True),
+        ("startPrev1", 4, tpInt, False),  # start of unknown14
+        ("unknown6", 4, tpInt, False),
+        ("unknown7", 4, tpInt, False),
+        ("padding1", 6 * 4, tpInt, False)
     ]
 
-    pfStruct_Common = [
-        ("unknown8", 4,tpInt,False),
-        ("unknown9", 4,tpInt,False),
-        ("dataStartPos0", 4,tpInt,False), #start of C0 (commandLikeData)
-        ("dataSize0", 4,tpInt,False),     #size of C0 (commandLikeData)
-        ("padding0", 4 * 4,tpInt,False),
-        ("c0", -1,tpByte,False),
-        ("unknown14", 4,tpInt,False),
-        ("unknown15", 4,tpInt,False),
-        ("dataStartPos1", 4,tpInt,False), #start of C1 (commandLikeData)
-        ("dataSize1", 4,tpInt,False),     #size of C1 (commandLikeData)
-        ("padding1", 4 * 4,tpInt,False),
-        ("c1", -1,tpByte,False),
+    # In specific, the prev1StartPos and prev2StartPos fields are offsets to structs describing the preview image data
+    # that gets displayed on the printer.
+    # The color of a pixel is 2 bytes (little endian) with each bit like this: RRRRR GGGGG X BBBBB
+    # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
+
+    pfStruct_Previews = [
+        ("sizeX_prev0", 4, tpInt, False),
+        ("sizeY_prev0", 4, tpInt, False),
+        ("dataStartPos0", 4, tpInt, False),  # start of rawData0
+        ("dataSize0", 4, tpInt, False),  # size of rawData0
+        ("padding0", 4 * 4, tpInt, False),
+        ("rawData0", -1, tpByte, False),
+        ("sizeX_prev1", 4, tpInt, False),
+        ("sizeY_prev1", 4, tpInt, False),
+        ("dataStartPos1", 4, tpInt, False),  # start of rawData1
+        ("dataSize1", 4, tpInt, False),  # size of rawData1
+        ("padding1", 4 * 4, tpInt, False),
+        ("rawData1", -1, tpByte, False),
     ]
 
     pfStruct_LayerDef = [
-        ("layerHeight", 4,tpFloat,True),
-        ("bottomExposureTime", 4,tpFloat,True),
-        ("offTime", 4,tpFloat,True),
-        ("dataStartPos", 4,tpInt,False),
-        ("rawDataSize", 4,tpInt,False),
-        ("padding", 4 * 4,tpInt,False)
+        ("layerHeight", 4, tpFloat, True),
+        ("bottomExposureTime", 4, tpFloat, True),
+        ("offTime", 4, tpFloat, True),
+        ("dataStartPos", 4, tpInt, False),
+        ("rawDataSize", 4, tpInt, False),
+        ("padding", 4 * 4, tpInt, False)
     ]
 
-    #pfLayerDataDef =
+    # pfLayerDataDef =
     #    rawData  - rle encoded bytes except last one
     #    lastByte - last byte of encoded bitmap data
 
     Header = {}
-    Common = {}
+    Previews = {}
     LayerDefs = []
     LayerData = []
 
@@ -104,15 +109,15 @@ class PhotonFile:
         return ' '.join(format(h, '02X') for h in bytes)
 
     def hex_to_bytes(hexStr):
-        return  bytearray.fromhex(hexStr)
+        return bytearray.fromhex(hexStr)
 
-    #handles only positive ints
+    # handles only positive ints
     def int_to_bytes(intVal):
         return intVal.to_bytes(4, byteorder='little')
 
     # handles only positive floats
     def float_to_bytes(floatVal):
-        if floatVal==0: return (0).to_bytes(4, byteorder='big')
+        if floatVal == 0: return (0).to_bytes(4, byteorder='big')
 
         # http: //www.simplymodbus.ca/ieeefloats.xls
         # todo: remove binary string steps
@@ -150,24 +155,23 @@ class PhotonFile:
         print("resul: ", bin(rem_1))
         print("EIND-------")
         '''
-        bin1=(exponent127 & 0b11111110)>>1 | firstBit<<7
-        bin2=(exponent127 & 0b00000001)<<7 | divint_2
-        bin3=rem_2
-        bin4=rem_1
-        #print ("ALT: ",bin(bin1_new), bin(bin2_new),bin(bin3_new),bin(bin4_new))
-        bin1234=bin1 | bin2<<8 | bin3<<16 | bin4<<24
+        bin1 = (exponent127 & 0b11111110) >> 1 | firstBit << 7
+        bin2 = (exponent127 & 0b00000001) << 7 | divint_2
+        bin3 = rem_2
+        bin4 = rem_1
+        # print ("ALT: ",bin(bin1_new), bin(bin2_new),bin(bin3_new),bin(bin4_new))
+        bin1234 = bin1 | bin2 << 8 | bin3 << 16 | bin4 << 24
         return bin1234.to_bytes(4, byteorder='big')
 
-    def convBytes(bytes,bType):
-        nr=None
-        if bType==PhotonFile.tpInt:
-            nr=PhotonFile.bytes_to_int(bytes)
+    def convBytes(bytes, bType):
+        nr = None
+        if bType == PhotonFile.tpInt:
+            nr = PhotonFile.bytes_to_int(bytes)
         if bType == PhotonFile.tpFloat:
             nr = PhotonFile.bytes_to_float(bytes)
         if bType == PhotonFile.tpByte:
             nr = PhotonFile.bytes_to_hex(bytes)
         return nr
-
 
     def __init__(self, photonfilename):
         self.filename = photonfilename
@@ -178,51 +182,49 @@ class PhotonFile:
             binary_file.seek(0)
 
             # HEADER
-            for bTitle, bNr, bType,bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
                 self.Header[bTitle] = binary_file.read(bNr)
 
             # COMMON
-            for bTitle, bNr,bType,bEditable in self.pfStruct_Common:
-                # if C0 or C1 the number bytes to read is given bij dataSize0 and dataSize1
-                if bTitle == "c0":bNr = dataSize0
-                if bTitle == "c1": bNr = dataSize1
-                self.Common[bTitle] = binary_file.read(bNr)
-                if bTitle == "dataSize0":dataSize0 = PhotonFile.bytes_to_int(self.Common[bTitle])
-                if bTitle == "dataSize1": dataSize1 = PhotonFile.bytes_to_int(self.Common[bTitle])
+            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                # if rawData0 or rawData1 the number bytes to read is given bij dataSize0 and dataSize1
+                if bTitle == "rawData0": bNr = dataSize0
+                if bTitle == "rawData1": bNr = dataSize1
+                self.Previews[bTitle] = binary_file.read(bNr)
+                if bTitle == "dataSize0": dataSize0 = PhotonFile.bytes_to_int(self.Previews[bTitle])
+                if bTitle == "dataSize1": dataSize1 = PhotonFile.bytes_to_int(self.Previews[bTitle])
 
             # LAYERDEFS
             nLayers = PhotonFile.bytes_to_int(self.Header["nLayers"])
-            self.LayerDefs =[dict() for x in range(nLayers)]
-            #print("nLayers:", nLayers)
-            #print("  hex:", ' '.join(format(x, '02X') for x in self.Header["nLayers"]))
-            #print("  dec:", nLayers)
-            #print("Reading layer meta-info")
+            self.LayerDefs = [dict() for x in range(nLayers)]
+            # print("nLayers:", nLayers)
+            # print("  hex:", ' '.join(format(x, '02X') for x in self.Header["nLayers"]))
+            # print("  dec:", nLayers)
+            # print("Reading layer meta-info")
             for lNr in range(0, nLayers):
-                #print("  layer: ", lNr)
-                for bTitle, bNr,bType,bEditable in self.pfStruct_LayerDef:
+                # print("  layer: ", lNr)
+                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
                     self.LayerDefs[lNr][bTitle] = binary_file.read(bNr)
 
             # LAYERRAWDATA
-            #print("Reading layer image-info")
+            # print("Reading layer image-info")
             self.LayerData = [dict() for x in range(nLayers)]
             for lNr in range(0, nLayers):
                 rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["rawDataSize"])
-                #print("  layer: ", lNr, " size: ",rawDataSize)
+                # print("  layer: ", lNr, " size: ",rawDataSize)
                 self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1)
                 # -1 because we don count byte for endOfLayer
                 self.LayerData[lNr]["EndOfLayer"] = binary_file.read(1)
 
             # print (' '.join(format(x, '02X') for x in header))
 
-
     def encodedBitmap_Bytes(filename):
-        imgsurf=pygame.image.load(filename)
-        bitDepth=imgsurf.get_bitsize()
-        bytePerPixel=imgsurf.get_bytesize()
-        (width,height)=imgsurf.get_size()
-        if not (width,height)==(2560,1440):
-            raise Exception ("Your image dimensions are off and should be 2560x1440")
-
+        imgsurf = pygame.image.load(filename)
+        bitDepth = imgsurf.get_bitsize()
+        bytePerPixel = imgsurf.get_bytesize()
+        (width, height) = imgsurf.get_size()
+        if not (width, height) == (2560, 1440):
+            raise Exception("Your image dimensions are off and should be 2560x1440")
 
         '''
         dst = pygame.Surface(imgsurf.get_size(), 0, bitDepth)
@@ -230,7 +232,7 @@ class PhotonFile:
         print (imgsurf.get_size(),imgarr)
         #imgarr= [None(dst_dims, t) for t in self.dst_types]
         pygame.pixelcopy.surface_to_array(imgarr,imgsurf)
-        
+
         del imgarr
         '''
         '''
@@ -242,39 +244,39 @@ class PhotonFile:
         print (imgarr)
         del imgarr
         '''
-        rleData=bytearray()
-        prevColor=None
-        nrOfColor=0
-        color=0
-        black=0
-        white=1
-        colList=""
-        #for y in range(height):
+        rleData = bytearray()
+        prevColor = None
+        nrOfColor = 0
+        color = 0
+        black = 0
+        white = 1
+        colList = ""
+        # for y in range(height):
         for y in range(height):
-            colList=colList+"+ "
+            colList = colList + "+ "
             for x in range(width):
-                #print (imgsurf.get_at((x, y)))
-                (r,g,b,a)=imgsurf.get_at((x,y))
-                color=black if ((r+g+b)//3)<128 else white
-                if prevColor==None: prevColor=color
-                isLastPixel=x==(width-1) and y==(height-1)
-                if color==prevColor and nrOfColor <0x7D and not isLastPixel:
-                    nrOfColor=nrOfColor+1
+                # print (imgsurf.get_at((x, y)))
+                (r, g, b, a) = imgsurf.get_at((x, y))
+                color = black if ((r + g + b) // 3) < 128 else white
+                if prevColor == None: prevColor = color
+                isLastPixel = x == (width - 1) and y == (height - 1)
+                if color == prevColor and nrOfColor < 0x7D and not isLastPixel:
+                    nrOfColor = nrOfColor + 1
                     colList = colList + str(color) + " "
                 else:
-                    #print (nrOfColor,hexStr(nrOfColor))
-                    encValue=color<<7 | nrOfColor
-                    colorByte=(encValue).to_bytes(1, 'little')
+                    # print (nrOfColor,hexStr(nrOfColor))
+                    encValue = color << 7 | nrOfColor
+                    colorByte = (encValue).to_bytes(1, 'little')
                     rleData.append(encValue)
-                    print(hexStr(encValue), " = ", colorByte, " : ",rleData)
-                    #print (hexStr(encValue)," : ",colList)
-                    colList="+ "+str(color)+" "
-                    prevColor=color
-                    nrOfColor=1
+                    print(hexStr(encValue), " = ", colorByte, " : ", rleData)
+                    # print (hexStr(encValue)," : ",colList)
+                    colList = "+ " + str(color) + " "
+                    prevColor = color
+                    nrOfColor = 1
         return rleData
 
     def replaceBitmaps(self, dirPath):
-        #get all png-files and sort them alphabetically
+        # get all png-files and sort them alphabetically
         direntries = os.listdir(dirPath)
         files = []
         for entry in direntries:
@@ -282,60 +284,60 @@ class PhotonFile:
             if entry.endswith("png"): files.append(fullpath)
         files.sort()
 
-        print ("Following files will be inserted:")
+        print("Following files will be inserted:")
         for fullpath in files:
-            print ("  ",fullpath)
+            print("  ", fullpath)
 
-        #Check if files avaiable and if so check first file for correct dimensions
+        # Check if files avaiable and if so check first file for correct dimensions
         if len(files) == 0: raise Exception("No files of type png are found!")
         rawData = PhotonFile.encodedBitmap_Bytes(files[0])
         raise Exception("Your image dimensions are off and should be 2560x1440")
 
-        #remove old data
+        # remove old data
         nLayers = len(files)
         self.Header["nLayers"] = nLayers
-        oldLayerDef=self.LayerDefs[0]
+        oldLayerDef = self.LayerDefs[0]
         self.LayerDefs = [dict() for x in range(nLayers)]
         self.LayerData = [dict() for x in range(nLayers)]
 
-        #calc start position of rawData
-        rawDataStartPos=0
+        # calc start position of rawData
+        rawDataStartPos = 0
         for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
-            rawDataStartPos=rawDataStartPos+bNr
+            rawDataStartPos = rawDataStartPos + bNr
         for bTitle, bNr, bType, bEditable in self.pfStruct_Common:
             rawDataStartPos = rawDataStartPos + bNr
         for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
-            rawDataStartPos = rawDataStartPos + bNr*nLayers
+            rawDataStartPos = rawDataStartPos + bNr * nLayers
 
-        #add all files
+        # add all files
         for layerNr, file in enumerate(files):
-           #get raw data
-           rawData=PhotonFile.encodedBitmap_Bytes(file)
-           rawDataTrunc=rawData[:-1]
-           rawDataLastByte=rawData[-1:]
+            # get raw data
+            rawData = PhotonFile.encodedBitmap_Bytes(file)
+            rawDataTrunc = rawData[:-1]
+            rawDataLastByte = rawData[-1:]
 
-           #update LayerDef
-           self.LayerDefs[layerNr]["layerHeight"]=oldLayerDef["layerHeight"]
-           self.LayerDefs[layerNr]["bottomExposureTime"] = oldLayerDef["bottomExposureTime"]
-           self.LayerDefs[layerNr]["offTime"] = oldLayerDef["offTime"]
-           self.LayerDefs[layerNr]["dataStartPos"] = rawDataStartPos
-           self.LayerDefs[layerNr]["rawDataSize"]=len(rawData)
-           self.LayerDefs[layerNr]["padding"] = oldLayerDef["padding"]
-           # update LayerData
-           self.LayerData[layerNr]["Raw"]=rawDataTrunc
-           self.LayerData[layerNr]["EndOfLayer"] =rawDataLastByte
-           # update startRawData
-           rawDataStartPos=rawDataStartPos+len(rawData)
+            # update LayerDef
+            self.LayerDefs[layerNr]["layerHeight"] = oldLayerDef["layerHeight"]
+            self.LayerDefs[layerNr]["bottomExposureTime"] = oldLayerDef["bottomExposureTime"]
+            self.LayerDefs[layerNr]["offTime"] = oldLayerDef["offTime"]
+            self.LayerDefs[layerNr]["dataStartPos"] = rawDataStartPos
+            self.LayerDefs[layerNr]["rawDataSize"] = len(rawData)
+            self.LayerDefs[layerNr]["padding"] = oldLayerDef["padding"]
+            # update LayerData
+            self.LayerData[layerNr]["Raw"] = rawDataTrunc
+            self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+            # update startRawData
+            rawDataStartPos = rawDataStartPos + len(rawData)
 
     def getBitmap(self, layerNr):
-        #debug layerNr=PhotonFile.bytes_to_int(self.Header["nLayers"])-1
-        scale=(0.25,0.25)
-        memory = pygame.Surface((int(1440*scale[0]), int(2560*scale[1])))
-        self.isDrawing=True
+        # debug layerNr=PhotonFile.bytes_to_int(self.Header["nLayers"])-1
+        scale = (0.25, 0.25)
+        memory = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+        self.isDrawing = True
 
         bA = self.LayerData[layerNr]["Raw"]
-        #add endOfLayer Byte
-        bA=bA+self.LayerData[layerNr]["EndOfLayer"]
+        # add endOfLayer Byte
+        bA = bA + self.LayerData[layerNr]["EndOfLayer"]
 
         # Seek position and read N bytes
         x = 0
@@ -346,58 +348,133 @@ class PhotonFile:
 
             x1 = int(x / 4)
             y1 = int(y / 4)
-            x2 = int((x+nr)/4)
+            x2 = int((x + nr) / 4)
             y2 = y1
-            col=(55*val,255*val,255)
-            if x2>int(1440/4): x2=int(1440/4)
+            col = (55 * val, 255 * val, 255)
+            if x2 > int(1440 / 4): x2 = int(1440 / 4)
             pygame.draw.line(memory, col, (x1, y1), (x2, y2))
-            #debug nr2=nr-(x+nr-1440) if (x+nr)>=1440 else nr
-            #debug print("draw line: ", x, y, " - ", nr2)
-            x=x+nr
-            if x>=1440:
-                nr=x-1440
-                x=0
-                y=y+1
+            # debug nr2=nr-(x+nr-1440) if (x+nr)>=1440 else nr
+            # debug print("draw line: ", x, y, " - ", nr2)
+            x = x + nr
+            if x >= 1440:
+                nr = x - 1440
+                x = 0
+                y = y + 1
                 x1 = int(x / 4)
                 y1 = int(y / 4)
                 x2 = int((x + nr) / 4)
                 y2 = y1
                 pygame.draw.line(memory, col, (x1, y1), (x2, y2))
-                #debug print ("draw line: ",x,y," - ",nr)
-                x=x+nr
+                # debug print ("draw line: ",x,y," - ",nr)
+                x = x + nr
         print("Screen Drawn")
-        #debug print ("layer: ", layerNr)
-        #debug print ("lastByte:", self.LayerData[layerNr]["EndOfLayer"])
+        # debug print ("layer: ", layerNr)
+        # debug print ("lastByte:", self.LayerData[layerNr]["EndOfLayer"])
         self.isDrawing = False
         return memory
 
     def writeFile(self, newfilename=None):
-        if newfilename==None: newfilename=self.filename
+        if newfilename == None: newfilename = self.filename
         with open(newfilename, "wb") as binary_file:
             # Start at beginning
             binary_file.seek(0)
 
             # HEADER
-            for bTitle, bNr, bType,bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
                 binary_file.write(self.Header[bTitle])
 
             # COMMON
-            for bTitle, bNr,bType,bEditable in self.pfStruct_Common:
-                binary_file.write(self.Common[bTitle])
+            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                binary_file.write(self.Previews[bTitle])
 
             # LAYERDEFS
             nLayers = PhotonFile.bytes_to_int(self.Header["nLayers"])
             for lNr in range(0, nLayers):
                 print("  layer: ", lNr)
                 print("    def: ", self.LayerDefs[lNr])
-                for bTitle, bNr,bType,bEditable in self.pfStruct_LayerDef:
+                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
                     binary_file.write(self.LayerDefs[lNr][bTitle])
 
             # LAYERRAWDATA
-            #print("Reading layer image-info")
+            # print("Reading layer image-info")
             for lNr in range(0, nLayers):
                 binary_file.write(self.LayerData[lNr]["Raw"])
                 binary_file.write(self.LayerData[lNr]["EndOfLayer"])
+
+
+    def getPreviewBitmap(self, prevNr):
+        #https://github.com/Reonarudo/pcb2photon/issues/2
+
+        self.isDrawing = True
+        w = PhotonFile.bytes_to_int(self.Previews["sizeX_prev0"])
+        h = PhotonFile.bytes_to_int(self.Previews["sizeY_prev0"])
+        s = PhotonFile.bytes_to_int(self.Previews["dataSize0"])
+        memory = pygame.Surface((w,h))
+        if w==0 or h==0: return memory
+        print ("width, height, nrbytes:",w,h,s)
+       # quit()
+        bA = self.Previews["rawData0"]
+
+        # Seek position and read N bytes
+        x = 0
+        y = 0
+        idx=0
+        nr=1
+        while idx<len(bA):
+            #The color of a pixel is 2 bytes (little endian) with each bit like this: RRRRR GGG GG X BBBBB
+            b1=bA[idx+1]
+            b2=bA[idx+0]
+            red   =  b1>>3
+            green = (b1 & 0b00000111) <<2 | (b2 & 0b11000000)>>6
+            blue  =  b2 & 0b00011111
+            isRep = (b2 & 0b00100000) >> 5
+            idx=idx+2
+
+
+            #If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
+            if isRep==1:
+                nr1=bA[idx+1]
+                nr2=bA[idx+0]
+                idx=idx+2
+                nr12=nr2<<8 | nr1
+                nr=nr12 & 0b0000111111111111
+
+                print("----------------")
+                print(bin(nr2),bin(nr1))
+                print (bin(nr12),bin(nr))
+                print (nr)
+                #print((red, green, blue), isRep, nr)
+            else:
+                nr=1
+                #print((red, green, blue), isRep, "pixel")
+                a=1
+
+
+            col = (red, green, blue)
+            x1 = x
+            y1 = y
+            x2 = x + nr
+            if x2 > w: x2 = w
+            y2 = y
+            pygame.draw.line(memory, col, (x1, y1), (x2, y2))
+            nr2=nr-(x+nr-w) if (x+nr)>=w else nr
+            print("draw line: ", x, y, " - ", nr2)
+            x = x + nr
+            if x >= w:
+                nr = x - w
+                x = 0
+                y = y + 1
+                x1 = x
+                y1 = y
+                x2 = x + nr
+                y2 = y1
+                pygame.draw.line(memory, col, (x1, y1), (x2, y2))
+                print ("cont line: ",x,y," - ",nr)
+                x = x + nr
+        print("Screen Drawn")
+        # debug print ("layer: ", layerNr)
+        self.isDrawing = False
+        return memory
 
 '''
    def float_to_bytes_old(self,floatVal):
@@ -438,11 +515,13 @@ class PhotonFile:
         #print(bin4, bin3, bin2, bin1)
         return int(bin1234, 2).to_bytes(len(bin1234) // 8, byteorder='big')
 '''
+
+
 def testDataConversions():
     print("Testing Data Type Conversions")
     print("-----------")
-    floatVal=9999.9999563227
-    print ("float:",floatVal)
+    floatVal = 9999.9999563227
+    print("float:", floatVal)
     bytes = (PhotonFile.float_to_bytes(floatVal))
     print("raw bytes: ", bytes, len(bytes))
     hexs = ' '.join(format(h, '02X') for h in bytes)
@@ -450,11 +529,11 @@ def testDataConversions():
     f = PhotonFile.bytes_to_float(bytes)
     print("want :", floatVal)
     print("float:", f)
-    if not floatVal==0:print("diff :", 100*(floatVal-f)/floatVal,"%")
+    if not floatVal == 0: print("diff :", 100 * (floatVal - f) / floatVal, "%")
     quit()
     print("-----------")
-    intVal=313
-    print ("int:",intVal)
+    intVal = 313
+    print("int:", intVal)
     bytes = (PhotonFile.int_to_bytes(intVal))
     print("raw bytes: ", bytes)
     hexs = ' '.join(format(h, '02X') for h in bytes)
@@ -462,21 +541,24 @@ def testDataConversions():
     i = PhotonFile.bytes_to_int(bytes)
     print("int:", i)
     print("-----------")
-    hexStr='00 A1 7D DF'
-    print ("hex:",hexStr)
+    hexStr = '00 A1 7D DF'
+    print("hex:", hexStr)
     bytes = (PhotonFile.hex_to_bytes(hexStr))
     print("raw bytes: ", bytes)
     h = PhotonFile.bytes_to_hex(bytes)
     print("hex:", h)
     print("-----------")
     quit()
-#testDataConversions()
+
+
+# testDataConversions()
 
 def testImageReplacement():
-    PhotonFile.encodedBitmap_Bytes("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/testencoding_0.png")
+    PhotonFile.encodedBitmap_Bytes(
+        "C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/testencoding_0.png")
     photonfile = PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
     photonfile.readFile()
     photonfile.replaceBitmaps("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/")
     quit()
 
-#testImageReplacement()
+# testImageReplacement()

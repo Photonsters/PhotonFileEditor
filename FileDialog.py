@@ -12,13 +12,13 @@ class FileDialog():
     dragDiff = None
 
     bordercolor=(0,0,0)
-    titlebackcolor=(192,192,192)
+    titlebackcolor=defTitlebarBackground
     titletextcolor=(0,0,0)
-    formcolor=(128,128,128)
-    filebackcolor=(255,255,255)
+    formcolor=defFormBackground
+    filebackcolor=defEditorBackground
     filetextcolor=(0,0,0)
-    fontname = "Consolas"
-    fontsize = 24
+    fontname = defFontName
+    fontsize = defFontSize
     listbox=None
     btnOK=None
     btnCancel=None
@@ -48,7 +48,7 @@ class FileDialog():
         self.btnCancel.rect= GRect(self.winrect.x + self.winrect.width - 2*self.margins.width - 2*self.buttonWidth,self.footerTop + self.margins.x, self.buttonWidth, self.buttonHeight)
         self.tbFilename.rect =GRect(self.winrect.x+self.margins.x,self.footerTop+self.margins.x,self.winrect.width-4*self.margins.x-2*self.buttonWidth,self.buttonHeight)
 
-    def __init__(self, pyscreen, pos, startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=None,dfontsize=24, ext="*",parentRedraw=None):
+    def __init__(self, pyscreen, pos, startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         if startdir==None: self.startdir=os.getcwd()
@@ -67,10 +67,15 @@ class FileDialog():
         self.tbFilename= TextBox(pyscreen,backcolor=(255,255,255),textcolor=(0,0,0),bordercolor=(0,0,0),rect=GRect(),text=defFilename)
         self.reposControls()
 
+        self.readDirectory()
+        self.listbox.setItems(self.dirsandfiles)
+
         self.controls.append(self.listbox)
         self.controls.append(self.tbFilename)
         self.controls.append(self.btnOK)
         self.controls.append(self.btnCancel)
+
+        #print ("starting with: ", self.startdir)
 
 
     def getFile(self):
@@ -142,14 +147,13 @@ class FileDialog():
         #draw title bar
         pygame.draw.rect(self.pyscreen, self.titlebackcolor,self.titlerect.tuple(), 0)
         self.font.set_bold(True)
-        textsurface = self.font.render(self.title, False, self.titletextcolor)
+        textsurface = self.font.render(self.title, True, self.titletextcolor)
         self.pyscreen.blit(textsurface, (self.winrect.x + self.margins.x, self.winrect.y + self.margins.y))
         self.font.set_bold(False)
         #draw border
         pygame.draw.rect(self.pyscreen, self.bordercolor, self.winrect.tuple(), 1)
 
         # draw listbox with files
-        self.listbox.items=self.dirsandfiles
         self.listbox.redraw()
         self.btnCancel.redraw()
         self.btnOK.redraw()
@@ -180,6 +184,9 @@ class FileDialog():
                     if not self.dragDiff==None:
                         self.winrect.p1=gpos-self.dragDiff
                         self.reposControls()
+                    else:
+                        for ctrl in self.controls:
+                            ctrl.handleMouseMove(pos)
 
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
@@ -192,23 +199,28 @@ class FileDialog():
             self.redraw()
             pygame.display.flip()
 
-    def handleListboxSelect(self):
+    def handleListboxSelect(self,text):
         #print ("[handleListboxSelect]")
-        text=self.listbox.activeText()
+        #text=self.listbox.activeText()
+        #print ("  parse: ", text)
+        #print ("  direct:", itext)
         if text=="..":
             self.startdir=os.path.dirname(self.startdir)
             self.selDirectory = self.startdir
             self.readDirectory()
+            self.listbox.setItems(self.dirsandfiles)
             self.listbox.activeItem=-1
         elif text.endswith("/"):
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
+            self.listbox.setItems(self.dirsandfiles)
             self.listbox.activeItem = -1
+            print ("Nav to dir: ",self.selDirectory)
         else:
             self.tbFilename.text=self.listbox.activeText()
             self.selFilename=self.listbox.activeText()
-        #print ("Selected: ",self.selDirectory,self.selFilename)
+            #print ("Selected: ",self.selFilename," -> ", self.selDirectory,self.selFilename)
 
     def handleCancel(self):
         self.lastaction="Cancel"

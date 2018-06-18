@@ -5,10 +5,12 @@ from PhotonFile import *
 from FileDialog import *
 from MessageDialog import *
 
-#todo: import set of bitmaps in photon file as template
-#todo:   check if import succeeds... make set of images of 2560x1440
+#todo: Common/Preview block - does this really contain image infO? width and height values don't seem right
+#todo:   check if import bitmap succeeds... make set of images of 2560x1440
 #todo: if we cancel on filedialog the next time we open filedialog and click on listbox an error occurs
+#todo: use pygame.font.Font.get_ascent to correctly vertical align text on menubar
 #todo: Exe/distribution made with
+
 #           cmd.com - prompt, type...
 #           pyinstaller --onefile --windowed PhotonViewer.py
 
@@ -17,6 +19,7 @@ from MessageDialog import *
 ########################################################################################################################
 screen=None
 layerimg=None
+previmg=None
 settingswidth = 200 * 2  # 2 columns
 settingsleft = int(1440 / 4)
 windowwidth=int(1440 / 4) + settingswidth
@@ -29,6 +32,7 @@ menubar=None
 def init_pygame_surface():
     global screen
     global layerimg
+    global previmg
     global windowwidth
     global windowheight
     global settingsleft
@@ -67,16 +71,23 @@ def init_pygame_surface():
     def doNothing():
         return
     def saveFile():
-        saveHeaderAndCommon2PhotonFile()
+        if photonfile==None:
+            print ("No photon file loaded!!")
+            infoMessageBox("No photon file loaded!","There is no photonfile loaded to save.")
+            return
+        saveHeaderAndPreview2PhotonFile()
         saveLayer2PhotonFile()
         dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawMainWindow)
         filename=dialog.newFile()
         if not filename==None:
+            photonfile.writeFile(filename)
+            '''            
             print ("Returned: ",filename)
             try:
                 photonfile.writeFile(filename)
             except Exception as err:
                 errMessageBox(str(err))
+            '''
         else:
             print("User Canceled")
         return
@@ -86,10 +97,13 @@ def init_pygame_surface():
         filename=dialog.getFile()
         if not filename==None:
             print ("Returned: ",filename)
+            openPhotonFile(filename)
+            '''
             try:
                 openPhotonFile(filename)
             except Exception as err:
                 errMessageBox(str(err))
+            '''
         else:
             print ("User Canceled")
         return
@@ -162,9 +176,9 @@ def init_pygame_surface():
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
     # Add Header data fields
     row=0
-    controls.append(TextBox(screen, text="HEADER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
+    controls.append(Label(screen,text="HEADER", rect=GRect(settingsleft + 10, 10 + row * 24 + viewport_yoffset, 180, 16),drawBorder=False))
     for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
-        controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
     for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
@@ -178,13 +192,13 @@ def init_pygame_surface():
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
 
-    # Add Common data fields
+    # Add Preview data fields
     row=0
     settingsleft = settingsleft+200
-    controls.append(TextBox(screen, text="COMMON", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,1):
-        controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,1):
+    controls.append(Label(screen, text="PREVIEWS", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16)))
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
@@ -194,16 +208,16 @@ def init_pygame_surface():
                                 textcolor=(0, 0, 0), \
                                 inputType=tbType, \
                                 onEnter=updateTextBox2PhotonFile, \
-                                linkedData={"VarGroup": "Common", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
+                                linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
 
     # Add Current Layer meta fields
     row=14
-    controls.append(TextBox(screen, text="LAYER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False,backcolor=(128,128,128)))
+    controls.append(Label(screen, text="LAYER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,15):
-        controls.append(TextBox(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16),editable=False,drawBorder=False))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
     row=14
-    controls.append(TextBox(screen, text=str(layerNr), rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16),editable=False, drawBorder=False,backcolor=(128,128,128)))
+    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16)))
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 15):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
@@ -239,14 +253,14 @@ def updateTextBox2PhotonFile(textbox, val,linkedData):
                 print ("Error: Data size not expected in PhotonViewer.updateTextBox2PhotonFile!")
                 return
             if pVarGroup=="Header":photonfile.Header[pTitle]=bytes
-            if pVarGroup=="Common":photonfile.Common[pTitle]=bytes
+            if pVarGroup=="Preview":photonfile.Previews[pTitle]=bytes
             if pVarGroup=="LayerDef": photonfile.LayerDefs[layerNr][pTitle] = bytes
             #print ("Found. New Val: ",val,linkedData)
 
     return
 
-def saveHeaderAndCommon2PhotonFile():
-    #print ("saveHeaderAndCommon2PhotonFile")
+def saveHeaderAndPreview2PhotonFile():
+    #print ("saveHeaderAndPreview2PhotonFile")
     global photonfile
     if photonfile==None:return
     # Header data fields
@@ -254,11 +268,11 @@ def saveHeaderAndCommon2PhotonFile():
         if bEditable:
             textBox=controls[row]
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Header", "Title": bTitle, "NrBytes": bNr, "Type": bType})
-    # Common data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,54):
+    # Preview data fields
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 54):
         if bEditable:
             textBox=controls[row]
-            updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Common", "Title": bTitle, "NrBytes": bNr, "Type": bType})
+            updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
 def saveLayer2PhotonFile():
     #print ("saveLayer2PhotonFile")
@@ -272,7 +286,7 @@ def saveLayer2PhotonFile():
     #        print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
-def refreshHeaderAndCommonControls():
+def refreshHeaderAndPreviewControls():
     global photonfile
     if photonfile==None:return
     # Header data fields
@@ -281,9 +295,9 @@ def refreshHeaderAndCommonControls():
         if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
-    # Common data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Common,54):
-        nr=PhotonFile.convBytes(photonfile.Common[bTitle],bType)
+    # Preview data fields
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 54):
+        nr=PhotonFile.convBytes(photonfile.Previews[bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
@@ -302,12 +316,13 @@ def refreshLayerControls():
 
 
 def openPhotonFile(filename):
-    global photonfile, layerimg
+    global photonfile, layerimg,previmg
     # read file
     photonfile = PhotonFile(filename)
     photonfile.readFile()
     layerimg=photonfile.getBitmap(0)
-    refreshHeaderAndCommonControls()
+    #previmg=photonfile.getPreviewBitmap(0)
+    refreshHeaderAndPreviewControls()
     refreshLayerControls()
 
 
@@ -322,10 +337,11 @@ init_pygame_surface()
 running = True
 
 def redrawMainWindow():
-    screen.fill((0,0,0))
+    screen.fill(defFormBackground)
     if not photonfile==None:
         if not photonfile.isDrawing:
             screen.blit(layerimg, (0, 0))
+            if not previmg==None: screen.blit(previmg,(0,100))
     else:#also if we have no photonfile we need to draw to cover up menu/filedialog etc
         screen.blit(layerimg, (0, 0))
 

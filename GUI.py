@@ -6,45 +6,73 @@ from GUIhelpers import *
 
 #todo: use new classes GPos en GLine and GRect.shrink to simplify code in Gui elements
 
+defFontName="Verdana"#"None"
+defFontSize=16#24
+defFormBackground=(232,232,232)
+defFormForeground=(0,0,0)
+defMenuBackground=defFormBackground
+defMenuForeground=(0,0,0)
+defHighMenuForeground=(255,255,255)
+defHighMenuBackground=(68,123,213)
+defEditorBackground=(255,255,255)
+defEditorForeground=(0,0,0)
+defHighEditorBackground=(68,123,213)
+defHighEditorForeground=(255,255,255)
+defTitlebarBackground=(215,215,215)
+#defButtonBackground=(68,123,213)
+defButtonBackground=(205,205,205)
+defBorder=(173,173,173)
+defBorderHover=defHighMenuBackground
+
+
 class ImgBox():
-    rect=None
+    rect=GRect()
     img=None
     hoverimg=None
     hoverActive=False
     action=None
     visible=True
+    drawBorder=False
 
-    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),borderhovercolor=(0,0,255),func_on_click=None):
+    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,func_on_click=None):
         self.pyscreen = pyscreen
         self.img=pygame.image.load(filename)
         if not filename_hover==None:
             self.hoverimg = pygame.image.load(filename_hover)
-        self.rect=self.img.get_rect()
-        self.rect[0]=pos[0]
-        self.rect[1] = pos[1]
+        imgrect=self.img.get_rect()
+        self.rect=GRect(imgrect[0],imgrect[1],imgrect[2],imgrect[3])
+        self.rect.x=pos[0]
+        self.rect.y=pos[1]
+        self.bordercolor = bordercolor
         self.borderhovercolor=borderhovercolor
+        self.drawBorder=drawBorder
         self.func_on_click=func_on_click
         if func_on_click==None: print ("None")
 
     def redraw(self):
         if not self.visible: return
-        self.pyscreen.blit(self.img,self.rect)
+        self.pyscreen.blit(self.img,self.rect.tuple())
         if self.hoverActive and not self.hoverimg==None:
-            self.pyscreen.blit(self.hoverimg, self.rect)
+            self.pyscreen.blit(self.hoverimg, self.rect.tuple())
         else:
-            self.pyscreen.blit(self.img, self.rect)
+            self.pyscreen.blit(self.img, self.rect.tuple())
+        if self.drawBorder:
+            if self.hoverActive:
+                pygame.draw.rect(self.pyscreen,self.borderhovercolor, self.rect.tuple(), 1)
+            else:
+                pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), 1)
 
     def handleMouseMove(self, pos):
-        if pos[0] > self.rect[0] and pos[0] < (self.rect[0] + self.rect[2]) and \
-            pos[1] > self.rect[1] and pos[1] < (self.rect[1] + self.rect[3]):
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
             self.hoverActive=True
         else:
             self.hoverActive=False
 
     def handleMouseUp(self, pos,button):
         if not button==1: return
-        if pos[0] > self.rect[0] and pos[0] < (self.rect[0] + self.rect[2]) and \
-                pos[1] > self.rect[1] and pos[1] < (self.rect[1] + self.rect[3]):
+        gpos = GPoint(pos[0], pos[1])
+        if gpos.inGRect(self.rect):
             if not self.func_on_click==None:
                 self.func_on_click()
 
@@ -66,10 +94,10 @@ class Button():
     hoverimg=None
     downimg = None
     action=None
-    borderwidth=2
+    borderwidth=1
     visible=True
 
-    def __init__(self, pyscreen, rect=GRect(0,0,60,40),text="Button",  textcolor=(0,0,0),fontname=None, fontsize=24, backcolor=(128,128,128),filename=None,filename_hover=None,filename_down=None, borderhovercolor=(0,0,255),func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(0,0,60,40),text="Button",  textcolor=(0,0,0),fontname=defFontName, fontsize=defFontSize, backcolor=defButtonBackground,filename=None,filename_hover=None,filename_down=None, bordercolor=defBorder, borderhovercolor=defBorderHover,func_on_click=None):
         self.pyscreen = pyscreen
         self.text=text
         self.textcolor=textcolor
@@ -91,6 +119,7 @@ class Button():
             self.downimg = pygame.image.load(filename_down)
 
 
+        self.bordercolor = bordercolor
         self.borderhovercolor=borderhovercolor
         self.backcolor=backcolor
         self.func_on_click=func_on_click
@@ -111,23 +140,29 @@ class Button():
             pygame.draw.rect(self.pyscreen, self.backcolor,self.rect.tuple(), 0)
 
         if self.borderwidth>0:
-            if self.state==self.down:
-                topleftcolor=(64,64,64)
-                bottomrightcolor=(192,192,192)
-            else:
-                topleftcolor = (192, 192, 192)
-                bottomrightcolor = (64, 64, 64)
-            for inset in range (0,self.borderwidth):
-                #top and left border
-                pygame.draw.rect(self.pyscreen, topleftcolor, (self.rect.x,self.rect.y+inset,self.rect.width-inset,1), 1)
-                pygame.draw.rect(self.pyscreen, topleftcolor, (self.rect.x+inset, self.rect.y, 1, self.rect.height-inset), 1)
-                #bottom en right border
-                pygame.draw.rect(self.pyscreen, bottomrightcolor, (self.rect.x+inset,self.rect.y+self.rect.height-inset,self.rect.width-inset,1), 1)
-                pygame.draw.rect(self.pyscreen, bottomrightcolor, (self.rect.x+self.rect.width-inset, self.rect.y+inset, 1, self.rect.height-inset), 1)
+            if self.borderwidth == 1:
+                if self.state==self.down or self.state==self.hover:
+                    pygame.draw.rect(self.pyscreen, self.borderhovercolor, self.rect.tuple(), 1)
+                else:
+                    pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), 1)
+            else:#make 3d border
+                if self.state==self.down:
+                    topleftcolor=(64,64,64)
+                    bottomrightcolor=(192,192,192)
+                else:
+                    topleftcolor = (192, 192, 192)
+                    bottomrightcolor = (64, 64, 64)
+                for inset in range (0,self.borderwidth):
+                    #top and left border
+                    pygame.draw.rect(self.pyscreen, topleftcolor, (self.rect.x,self.rect.y+inset,self.rect.width-inset,1), 1)
+                    pygame.draw.rect(self.pyscreen, topleftcolor, (self.rect.x+inset, self.rect.y, 1, self.rect.height-inset), 1)
+                    #bottom en right border
+                    pygame.draw.rect(self.pyscreen, bottomrightcolor, (self.rect.x+inset,self.rect.y+self.rect.height-inset,self.rect.width-inset,1), 1)
+                    pygame.draw.rect(self.pyscreen, bottomrightcolor, (self.rect.x+self.rect.width-inset, self.rect.y+inset, 1, self.rect.height-inset), 1)
 
 
         if not self.text=="":
-            textsurface = self.font.render(self.text, False, self.textcolor)
+            textsurface = self.font.render(self.text, True,self.textcolor)
             dx=int(self.rect.width-self.twidth)/2
             dy=int(self.rect.height-self.theight)/2
             if self.state == self.down:  # shift text if down
@@ -136,24 +171,25 @@ class Button():
             self.pyscreen.blit(textsurface, (self.rect.x + dx, self.rect.y+dy))
 
     def handleMouseMove(self, pos):
-        if pos[0] > self.rect.x and pos[0] < (self.rect.x + self.rect.width) and \
-            pos[1] > self.rect.y and pos[1] < (self.rect.y + self.rect.height):
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
             self.state=self.hover
         else:
             self.state=self.normal
+        #print (self.state)
 
     def handleMouseUp(self, pos,button):
         if not button == 1: return
-        if pos[0] > self.rect.x and pos[0] < (self.rect.x + self.rect.width) and \
-            pos[1] > self.rect.y and pos[1] < (self.rect.y + self.rect.height):
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
             self.state=self.normal
             if not self.func_on_click==None:
                 self.func_on_click()
 
     def handleMouseDown(self,pos,button):
         if not button == 1: return
-        if pos[0] > self.rect.x and pos[0] < (self.rect.x + self.rect.width) and \
-            pos[1] > self.rect.y and pos[1] < (self.rect.y + self.rect.height):
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
             self.state=self.down
 
     def handleKeyDown(self,key,unicode):
@@ -168,17 +204,18 @@ class MenuList():
     spacing=4
     activeItem=-1
     isVisible=False
-    textcolor=(255,255,255)
-    backcolor=(128,128,128)
-    highbackcolor = (0, 0, 255)
-    bordercolor = (0,0,0)
+    textcolor = defMenuForeground
+    backcolor = defMenuBackground
+    highbackcolor = defHighMenuBackground
+    highforecolor = defHighMenuForeground
+    bordercolor = defBorder
     activeItem=-1
 
     #Fontname None will take default system font
-    def __init__(self, pyscreen, location, margins=GRect(4, 4, 4, 4), fontname=None, fontsize=24, title="unknown"):
+    def __init__(self, pyscreen, location, margins=GRect(4, 4, 4, 4), fontname=defFontName, fontsize=defFontSize, title="unknown"):
         self.pyscreen = pyscreen
         l_x = location[0]
-        l_y = location[1]
+        l_y = location[1]-1
         self.margins=margins
         self.font = pygame.font.SysFont(fontname, fontsize)
         width, height = self.font.size("MinimalText")
@@ -214,7 +251,10 @@ class MenuList():
             rowtop=self.pos.y+self.margins.y+row*(self.rowheight+self.spacing)
             if row==self.activeItem:
                 pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.pos.x+self.margins.x, rowtop-int(self.spacing/2), self.pos.width-self.margins.x-self.margins.width, self.rowheight), 0)
-            textsurface = self.font.render(text, False, self.textcolor)
+                localtextcolor = defHighMenuForeground
+            else:
+                localtextcolor = defMenuForeground
+            textsurface = self.font.render(text,True, localtextcolor)
             self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
 
     def handleMouseMove(self, pos):
@@ -247,13 +287,14 @@ class MenuBar():
     spacing = 4
     minwidth=50
     isVisible=True
-    textcolor=(255,255,255)
-    backcolor=(128,128,128)
-    highbackcolor=(0,0,255)
-    bordercolor = (0,0,0)
+    textcolor=defMenuForeground
+    backcolor=defMenuBackground
+    highbackcolor=defHighMenuBackground
+    highforecolor=defHighMenuForeground
+    bordercolor = defBorder
     activeMenu=None
 
-    def __init__(self, pyscreen,fontname=None,fontsize=24):
+    def __init__(self, pyscreen,fontname=defFontName, fontsize=defFontSize):
         self.pyscreen = pyscreen
         self.font = pygame.font.SysFont(fontname, fontsize)
         self.fontsize=fontsize #store to init menuitems
@@ -284,7 +325,7 @@ class MenuBar():
         for idx,ch in enumerate(menutitle):
             if ch==shortcutChar:
                 scNr=idx
-        print (scNr)
+        #print (scNr)
 
         #make menulist
         loc=(x,self.height+self.margins.x+self.margins.height+1)
@@ -347,6 +388,9 @@ class MenuBar():
             menuwidth = menudata["width"]
             if menudata==self.activeMenu:
                 pygame.draw.rect(self.pyscreen, self.highbackcolor, (menuleft-self.spacing, 0,menuwidth+self.spacing, h), 0)
+                localtextcolor=defHighMenuForeground
+            else:
+                localtextcolor=defMenuForeground
 
             scNr=menudata["scChar"]
             preStr=menudata["title"][:scNr]
@@ -358,15 +402,15 @@ class MenuBar():
             wPost, dummy = self.font.size(postStr)
 
             self.font.set_underline(False)
-            textsurface = self.font.render(preStr, False, self.textcolor)
+            textsurface = self.font.render(preStr, True, localtextcolor)
             self.pyscreen.blit(textsurface, (menuleft , self.margins.y))
 
             self.font.set_underline(True)
-            textsurface = self.font.render(scStr, False, self.textcolor)
+            textsurface = self.font.render(scStr,True, localtextcolor)
             self.pyscreen.blit(textsurface, (menuleft +wPre, self.margins.y))
 
             self.font.set_underline(False)
-            textsurface = self.font.render(postStr, False, self.textcolor)
+            textsurface = self.font.render(postStr, True, localtextcolor)
             self.pyscreen.blit(textsurface, (menuleft +wPre+wSc, self.margins.y))
 
             menudata["menulist"].redraw()
@@ -377,10 +421,10 @@ class ListBox():
     rect = GRect(0, 0, 80, 32)
     margins = GRect(4, 4, 4, 4)
     bordercolor = (128, 128, 128)
-    backcolor = (255, 255, 255)
-    textcolor = (0, 0, 0)
-    highbackcolor = (0,0,255)
-    hightextcolor = (255, 255, 255)
+    backcolor = defEditorBackground
+    textcolor = defEditorForeground
+    highbackcolor = defHighEditorBackground
+    hightextcolor = defHighEditorForeground
     font=None
     fontname = "Consolas"
     fontsize = 16
@@ -390,7 +434,7 @@ class ListBox():
     offset=0
     visible=True
 
-    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,fontname=None, fontsize=24,func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         self.pyscreen = pyscreen
         self.rect=rect
         self.items=items
@@ -404,6 +448,9 @@ class ListBox():
         if not func_on_click==None:
             self.func_on_click=func_on_click
 
+    def setItems(self, items):
+        self.items=items
+
     def items(self):
         return self.items
 
@@ -413,7 +460,9 @@ class ListBox():
         pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(),1)
 
         self.nritems = int(self.rect.height / (self.rowheight + self.spacing))
+        #print (self.activeItem)
 
+        if self.items==None: return
         for row in range(0,self.nritems):
             idx=row+self.offset
             if idx<len(self.items):
@@ -421,9 +470,9 @@ class ListBox():
                 rowtop = self.rect.y + self.margins.y + row * (self.rowheight + self.spacing)
                 if row==self.activeItem:
                     pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.rect.x+self.margins.x, rowtop-int(self.spacing/2), self.rect.width-self.margins.x-self.margins.width, self.rowheight), 0)
-                    textsurface = self.font.render(item, False, self.hightextcolor)
+                    textsurface = self.font.render(item, True, self.hightextcolor)
                 else:
-                    textsurface = self.font.render(item, False, self.textcolor)
+                    textsurface = self.font.render(item, True, self.textcolor)
                 self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)))
 
     def handleMouseMove(self,pos):
@@ -442,6 +491,7 @@ class ListBox():
             if button == 1:
                 rely=pos[1]-self.rect.y
                 self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
+                #print ("down on: ", self.activeItem,self.activeText())
             if button==4: # mousewheel up
                 self.offset=self.offset-1
                 if self.offset<0: self.offset=0
@@ -454,7 +504,8 @@ class ListBox():
                 pos[1] < (self.rect.y + self.rect.height):
             if button == 1:
                 if not self.func_on_click==None:
-                    self.func_on_click()
+                    #print ("send:", self.activeItem,self.activeText())
+                    self.func_on_click(self.activeText())
 
     def handleKeyDown(self,key,unicode):
         return
@@ -464,22 +515,22 @@ class Label():
     margin = GRect(4, 4, 4, 4)
     innerRect=GRect()
     bordercolor = (128, 128, 128)
-    backcolor = (255, 255, 255)
-    textcolor = (0, 0, 0)
+    backcolor = defFormBackground
+    textcolor = defFormForeground
     borderwidth = 1
     autoheight=True
     text = ["text"]
     font=None
     fontname = "Consolas"
     fontsize = 16
-    drawBorder=True
+    drawBorder=False
     visible=True
     center=False
 
     def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
-                 bordercolor=(128,128,128), backcolor=(255,255,255), textcolor=(0,0,0),
-                 borderwidth=1, drawBorder=True,center=False,
-                 text="text", fontname=None, fontsize=24, autoheight=True):
+                 bordercolor=defBorder, backcolor=defFormBackground, textcolor=defFormForeground,
+                 borderwidth=1, drawBorder=False,center=False,
+                 text="text", fontname=defFontName, fontsize=defFontSize, autoheight=True):
         self.pyscreen = pyscreen
         self.rect = rect
         self.margin=margin
@@ -546,7 +597,7 @@ class Label():
             dY=int((self.innerRect.height-len(self.text)*lineHeight)/2)
         else: dY=0
         for row,line in enumerate(self.text):
-            textsurface = self.font.render(line, False, self.textcolor)
+            textsurface = self.font.render(line, True, self.textcolor)
             lineWidth, dummy= self.font.size(line)
             if self.center:
                 dX = int((self.innerRect.width - lineWidth)/ 2)
@@ -565,15 +616,15 @@ class Label():
 class TextBox():
     rect=GRect(0, 0, 80, 32)
     margin = GRect(4, 4, 4, 4)
-    bordercolor = (128, 128, 128)
-    backcolor = (0, 0, 0)
-    textcolor = (255, 255, 255)
+    bordercolor = defBorder
+    backcolor = defEditorBackground
+    textcolor = defEditorForeground
     borderwidth = 1
     text = "text"
     maxlength=10
     font=None
-    fontname = "Consolas"
-    fontsize = 16
+    fontname = defFontName
+    fontsize = defFontSize
     editable=True
     cursorActive=False
     cursorChar=0
@@ -587,9 +638,9 @@ class TextBox():
     inputType=TEXT
 
     def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
-                 bordercolor=(128,128,128), backcolor=(0,0,0), textcolor=(255,255,255),
+                 bordercolor=defBorder, backcolor=defEditorBackground, textcolor=defEditorForeground,
                  borderwidth=1, drawBorder=True,
-                 text="text", maxlength=-1, fontname=None, fontsize=24, editable=True,
+                 text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
                  inputType=TEXT, onEnter=None, linkedData=None):
         self.pyscreen = pyscreen
         self.rect = rect
@@ -624,7 +675,7 @@ class TextBox():
 
     def redraw(self):
         if not self.visible: return
-        textsurface = self.font.render(self.text, False, self.textcolor)
+        textsurface = self.font.render(self.text, True, self.textcolor)
         pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
         if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
         self.pyscreen.blit(textsurface, (self.rect.x + self.margin.x, self.rect.y + self.margin.y),(0,0,self.rect.width-2*self.margin.x,self.rect.height-2*self.margin.y))

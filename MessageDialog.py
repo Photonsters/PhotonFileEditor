@@ -12,11 +12,11 @@ class MessageDialog():
     dragDiff = None
 
     bordercolor=(0,0,0)
-    titlebackcolor=(192,192,192)
+    titlebackcolor=defTitlebarBackground
     titletextcolor=(0,0,0)
-    formcolor=(128,128,128)
-    fontname = "Consolas"
-    fontsize = 24
+    formcolor=defFormBackground
+    fontname = defFontName
+    fontsize = defFontSize
     listbox=None
     btnOK=None
     titleheight=24
@@ -37,7 +37,7 @@ class MessageDialog():
         self.label.setText(self.message)
         self.btnOK.rect=GRect(self.winrect.x+self.winrect.width-self.margins.width-self.buttonWidth,self.footerTop+self.margins.x,self.buttonWidth,self.buttonHeight)
 
-    def __init__(self, pyscreen, pos, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=None,dfontsize=24,parentRedraw=None):
+    def __init__(self, pyscreen, pos, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=defFontName, dfontsize=defFontSize,parentRedraw=None):
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         self.winrect=GRect(pos[0], pos[1], 300, 160)
@@ -68,7 +68,7 @@ class MessageDialog():
         #draw title bar
         pygame.draw.rect(self.pyscreen, self.titlebackcolor,self.titlerect.tuple(), 0)
         self.font.set_bold(True)
-        textsurface = self.font.render(self.title, False, self.titletextcolor)
+        textsurface = self.font.render(self.title, True, self.titletextcolor)
         self.pyscreen.blit(textsurface, (self.winrect.x + self.margins.x, self.winrect.y + self.margins.y))
         self.font.set_bold(False)
         #draw border
@@ -102,6 +102,9 @@ class MessageDialog():
                     if not self.dragDiff==None:
                         self.winrect.p1=gpos-self.dragDiff
                         self.reposControls()
+                    else:
+                        for ctrl in self.controls:
+                            ctrl.handleMouseMove(pos)
 
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
