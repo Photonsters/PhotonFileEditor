@@ -30,7 +30,7 @@ Since this is very much an alpha version (or rather an alpha *of* an alpha versi
 
 ## Implemented functionality
 Currently the following functionality is implemented:
-1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info and  meta-info
+1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info, meta-info and preview images/thumbnails.
 2. Saving data to a .Photon file, however editing the data is not yet possible (couple of days)
 3. Editing all numeric data of the Photon File. Databytes which are internally used (location of bitmaps etc) are shown but readonly.
 4. Not yet tested - Importing bitmaps (from Povray as png-files) in an exisiting Photon File (which is used as a template)
