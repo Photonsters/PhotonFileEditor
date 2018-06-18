@@ -473,7 +473,7 @@ def redrawMainWindow():
 
     menubar.redraw()
 
-    if layerCursorActive and not photonfile==None:
+    if layerCursorActive and not photonfile==None and dispimg==layerimg:
         pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
         pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
 
