@@ -41,6 +41,8 @@ The following functionality will be implemented soon:
 2. 3D view of bitmap data
 
 ## Current screenshot
-![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/blob/master/screenshot.jpg "June 16, 2018")
+![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/blob/master/Screenshot1.png "June 18, 2018")
+
+![Screenshot of PhotonViewer](https://github.com/NardJ/PhotonFileUtils/blob/master/Screenshot2.png "June 18, 2018")
 
 
