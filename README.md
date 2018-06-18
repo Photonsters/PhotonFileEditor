@@ -12,7 +12,7 @@ If you want to test it follow these instructions:
    * from your file explorer run PhotonEditor.py 
    * go to the commandline and go to the directory where you extracted the zip file and type "phyton PhotonEditor.py"
 
-In the near future (approaching version 1.0), I will make windows executables and a linux package available.
+In the near future (approaching version 1.0), I will make windows executables and a linux package available..
 
 ## How to help with the development
 Since I myself do not (yet) have my own Anycubic Photon, there are a few things you could do to help me out with developing this program further:
