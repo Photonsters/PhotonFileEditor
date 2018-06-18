@@ -5,11 +5,12 @@ from PhotonFile import *
 from FileDialog import *
 from MessageDialog import *
 
-#todo: Common/Preview block - does this really contain image infO? width and height values don't seem right
+
+#todo: listbox should also have navbuttons
 #todo:   check if import bitmap succeeds... make set of images of 2560x1440
-#todo: if we cancel on filedialog the next time we open filedialog and click on listbox an error occurs
 #todo: use pygame.font.Font.get_ascent to correctly vertical align text on menubar
 #todo: Exe/distribution made with
+#todo: after click on menuitem, the menulist should close
 
 #           cmd.com - prompt, type...
 #           pyinstaller --onefile --windowed PhotonViewer.py
@@ -20,19 +21,30 @@ from MessageDialog import *
 screen=None
 layerimg=None
 previmg=None
-settingswidth = 200 * 2  # 2 columns
+settingscolwidth=250
+settingslabelwidth=160
+settingslabelmargin=10
+settingstextboxmargin=10
+settingstextboxwidth=settingscolwidth-settingslabelmargin-settingslabelwidth-settingstextboxmargin
+settingswidth = settingscolwidth* 2  # 2 columns
 settingsleft = int(1440 / 4)
 windowwidth=int(1440 / 4) + settingswidth
 windowheight=int(2560 / 4)
 controls=[]
 layerNr = 0
+prevNr=0
 photonfile=None
 menubar=None
+firstHeaderTextbox=-1
+firstPreviewTextbox=-1
+firstLayerTextbox=-1
 
 def init_pygame_surface():
     global screen
+    global dispimg
     global layerimg
-    global previmg
+    global previmg0
+    global previmg1
     global windowwidth
     global windowheight
     global settingsleft
@@ -40,6 +52,9 @@ def init_pygame_surface():
     global controls
     global layerNr
     global menubar
+    global firstHeaderTextbox
+    global firstPreviewTextbox
+    global firstLayerTextbox
 
     pygame.init()
     pygame.display.set_caption("Photon File Editor")
@@ -51,8 +66,11 @@ def init_pygame_surface():
     # create a surface on screen width room for settings
     screen = pygame.display.set_mode((windowwidth, windowheight))
     scale = (0.25, 0.25)
-    layerimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
-    layerimg.fill((0,0,255))
+    dispimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+    dispimg.fill((0,0,0))
+    previmg0=dispimg
+    previmg1 = dispimg
+    layerimg = dispimg
 
     # create menu
     def infoMessageBox(title,message):
@@ -73,15 +91,16 @@ def init_pygame_surface():
     def saveFile():
         if photonfile==None:
             print ("No photon file loaded!!")
-            infoMessageBox("No photon file loaded!","There is no photonfile loaded to save.")
+            infoMessageBox("No photon file loaded!","There is no .photon file loaded to save.")
             return
-        saveHeaderAndPreview2PhotonFile()
+        saveHeader2PhotonFile()
+        savePreview2PhotonFile()
         saveLayer2PhotonFile()
         dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawMainWindow)
         filename=dialog.newFile()
         if not filename==None:
             photonfile.writeFile(filename)
-            '''            
+            '''
             print ("Returned: ",filename)
             try:
                 photonfile.writeFile(filename)
@@ -112,7 +131,7 @@ def init_pygame_surface():
         global photonfile
         if photonfile==None:
             print ("No template loaded!!")
-            infoMessageBox("No photon file loaded!","A photonfile is needed as template to load the bitmaps in.")
+            infoMessageBox("No photon file loaded!","A .photon file is needed as template to load the bitmaps in.")
             return
         dialog = FileDialog(screen, (40, 40), ext=".png", title="Select directory with png files", parentRedraw=redrawMainWindow)
         directory = dialog.getDirectory()
@@ -132,15 +151,26 @@ def init_pygame_surface():
                                message="Version Alpha \n Author: Nard Janssens \n License: Free for non-commerical use.",
                                parentRedraw=redrawMainWindow)
         dialog.show()
-
+    def showSlices():
+        global dispimg
+        dispimg=layerimg
+    def showPrev0():
+        global dispimg
+        dispimg = previmg0
+    def showPrev1():
+        global dispimg
+        dispimg = previmg1
     menubar=MenuBar(screen)
     menubar.addMenu("File","F")
     menubar.addItem("File","Load",loadFile)
-    menubar.addItem("File","Save",saveFile)
+    menubar.addItem("File","Save As",saveFile)
     menubar.addMenu("Edit", "E")
     menubar.addItem("Edit","Replace Bitmaps",replaceBitmaps)
     menubar.addMenu("View", "V")
-    menubar.addItem("View", "3D",doNothing)
+    menubar.addItem("View", "Slices", showSlices)
+    menubar.addItem("View", "Preview 0", showPrev0)
+    menubar.addItem("View", "Preview 1",showPrev1)
+    menubar.addItem("View", "3D", doNothing)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
     viewport_yoffset=menubar.height+8
@@ -148,25 +178,27 @@ def init_pygame_surface():
     # Add Up/Down Layer Buttons
     layerNr = 0
     def layerDown():
-        global layerNr, layerimg, photonfile
+        global layerNr, dispimg,layerimg, photonfile
         if photonfile == None: return
         saveLayer2PhotonFile()
 
         layerNr = layerNr - 1
         if layerNr < 0: layerNr = 0
         layerimg= photonfile.getBitmap(layerNr)
+        dispimg=layerimg
         refreshLayerControls()
         return
 
     def layerUp():
-        global layerNr, layerimg, photonfile
+        global layerNr, dispimg,layerimg, photonfile
         if photonfile == None: return
         saveLayer2PhotonFile()
 
-        maxLayer = PhotonFile.convBytes(photonfile.Header["nLayers"], photonfile.tpInt)
+        maxLayer = photonfile.nrLayers()
         layerNr = layerNr + 1
         if layerNr == maxLayer: layerNr = maxLayer - 1
         layerimg = photonfile.getBitmap(layerNr)
+        dispimg = layerimg
         refreshLayerControls()
         return
 
@@ -176,14 +208,17 @@ def init_pygame_surface():
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
     # Add Header data fields
     row=0
-    controls.append(Label(screen,text="HEADER", rect=GRect(settingsleft + 10, 10 + row * 24 + viewport_yoffset, 180, 16),drawBorder=False))
+    titlebox=Label(screen,text="Header", rect=GRect(settingsleft + settingslabelmargin, 10 + row * 24 + viewport_yoffset, settingscolwidth, 16),drawBorder=False)
+    titlebox.font.set_bold(True)
+    controls.append(titlebox)
     for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingslabelwidth,16)))
+    firstHeaderTextbox=len(controls)
     for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+130, 10 + row * 24+viewport_yoffset, 60, 16),\
+                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0,0,0),\
@@ -194,15 +229,20 @@ def init_pygame_surface():
 
     # Add Preview data fields
     row=0
-    settingsleft = settingsleft+200
-    controls.append(Label(screen, text="PREVIEWS", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,180,16)))
+    settingsleft = settingsleft+settingscolwidth
+    titlebox = Label(screen, text="Preview", rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingscolwidth,16))
+    titlebox.font.set_bold(True)
+    controls.append(titlebox)
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingslabelwidth,16)))
+    firstPreviewTextbox = len(controls)
+    row=0
+    controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24 + viewport_yoffset, settingslabelwidth, 16)))
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+130, 10 + row * 24+viewport_yoffset, 60, 16),\
+                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
@@ -212,17 +252,20 @@ def init_pygame_surface():
                                 ))
 
     # Add Current Layer meta fields
-    row=14
-    controls.append(Label(screen, text="LAYER", rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,15):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+10,10+row*24+viewport_yoffset,120,16)))
-    row=14
-    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16)))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 15):
+    row=8
+    titlebox = Label(screen, text="Layer", rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,settingscolwidth,16))
+    titlebox.font.set_bold(True)
+    controls.append(titlebox)
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,9):
+        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*24+viewport_yoffset,120,16)))
+    row=8
+    firstLayerTextbox = len(controls)
+    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingslabelwidth, 16)))
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft + 130, 10 + row * 24+viewport_yoffset, 60, 16),\
+                                rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * 24+viewport_yoffset, settingstextboxwidth, 16),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
@@ -230,9 +273,14 @@ def init_pygame_surface():
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
+    #controls[firstHeaderTextbox].backcolor=(255,0,0)
+    #controls[firstPreviewTextbox].backcolor = (255, 0, 0)
+    #controls[firstLayerTextbox].backcolor = (255, 0, 0)
+
 
 def updateTextBox2PhotonFile(textbox, val,linkedData):
     global photonfile
+    if photonfile==None: return
     #print ("updateTextBox2PhotonFile")
     #print ("data: ",val, linkedData)
     for control in controls:
@@ -250,54 +298,78 @@ def updateTextBox2PhotonFile(textbox, val,linkedData):
             if pType == PhotonFile.tpInt: bytes = PhotonFile.int_to_bytes(int(val))
             if pType == PhotonFile.tpFloat: bytes = PhotonFile.float_to_bytes(float(val))
             if not len(bytes)==pBNr:
-                print ("Error: Data size not expected in PhotonViewer.updateTextBox2PhotonFile!")
+                print ("Error: Data size ("+str(len(bytes))+") not expected ("+str(pBNr)+")in PhotonViewer.updateTextBox2PhotonFile!")
+                print ("  Metadata: ", linkedData)
+                print ("  Value: ", val)
+                print ("  Bytes: ", bytes)
                 return
             if pVarGroup=="Header":photonfile.Header[pTitle]=bytes
-            if pVarGroup=="Preview":photonfile.Previews[pTitle]=bytes
+            if pVarGroup=="Preview":photonfile.Previews[prevNr][pTitle]=bytes
             if pVarGroup=="LayerDef": photonfile.LayerDefs[layerNr][pTitle] = bytes
             #print ("Found. New Val: ",val,linkedData)
 
     return
 
-def saveHeaderAndPreview2PhotonFile():
-    #print ("saveHeaderAndPreview2PhotonFile")
+def saveHeader2PhotonFile():
+    #print ("saveHeader2PhotonFile")
     global photonfile
+    global firstHeaderTextbox
+
     if photonfile==None:return
     # Header data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,22):#enum start at 22
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
         if bEditable:
             textBox=controls[row]
+            #print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Header", "Title": bTitle, "NrBytes": bNr, "Type": bType})
+
+def savePreview2PhotonFile():
+    #print("savePreview2PhotonFile")
+    global photonfile
+    global prevNr
+    global firstPreviewTextbox
+
+    if photonfile==None:return
     # Preview data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 54):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         if bEditable:
             textBox=controls[row]
+            print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
 def saveLayer2PhotonFile():
     #print ("saveLayer2PhotonFile")
     global photonfile
     global layerNr
+    global firstLayerTextbox
     if photonfile == None: return
     # Current Layer meta fields
-    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 74):
+    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
         if bEditable:
             textBox=controls[row]
-    #        print (row,bTitle,textBox.text)
+            #print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
-def refreshHeaderAndPreviewControls():
+def refreshHeaderControls():
     global photonfile
+    global firstHeaderTextbox
     if photonfile==None:return
     # Header data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,22):#enum start at 22
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
         nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
         if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
+def refreshPreviewControls():
+    global photonfile
+    global prevNr
+    global firstPreviewTextbox
+    if photonfile == None: return
     # Preview data fields
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 54):
-        nr=PhotonFile.convBytes(photonfile.Previews[bTitle],bType)
+    row = firstLayerTextbox
+    controls[row].setText(str(prevNr)+" / 2")
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+        nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
@@ -306,23 +378,26 @@ def refreshLayerControls():
     global layerNr
     if photonfile==None:return
     # Current Layer meta fields
-    row=73
-    controls[row].setText(str(layerNr))
+    row=firstLayerTextbox
+    controls[row].setText(str(layerNr)+ " / "+str(photonfile.nrLayers()))
     #print (layerNr)
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,74):
+    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
 
 def openPhotonFile(filename):
-    global photonfile, layerimg,previmg
+    global photonfile, dispimg, layerimg,previmg0,previmg1
     # read file
     photonfile = PhotonFile(filename)
     photonfile.readFile()
-    layerimg=photonfile.getBitmap(0)
-    #previmg=photonfile.getPreviewBitmap(0)
-    refreshHeaderAndPreviewControls()
+    layerimg=photonfile.getBitmap(0,(255,255,255),(0,0,0))
+    previmg0=photonfile.getPreviewBitmap(0)
+    previmg1 = photonfile.getPreviewBitmap(1)
+    dispimg=layerimg
+    refreshHeaderControls()
+    refreshPreviewControls()
     refreshLayerControls()
 
 
@@ -337,13 +412,16 @@ init_pygame_surface()
 running = True
 
 def redrawMainWindow():
+    w,h=dispimg.get_size()
+    dw=(1440/4-w)/2
+    dh=(2560/4-h)/2
     screen.fill(defFormBackground)
     if not photonfile==None:
         if not photonfile.isDrawing:
-            screen.blit(layerimg, (0, 0))
+            screen.blit(dispimg, (dw, dh))
             if not previmg==None: screen.blit(previmg,(0,100))
     else:#also if we have no photonfile we need to draw to cover up menu/filedialog etc
-        screen.blit(layerimg, (0, 0))
+        screen.blit(dispimg, (dw, dh))
 
     for ctrl in controls:
         ctrl.redraw()

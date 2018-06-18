@@ -302,6 +302,7 @@ class MenuBar():
         dummy, height = self.font.size("gFile")
         #todo: the bar height does not take height of q/g/j wel enough in account
         height=int(height*0.5) # we take in account that g/q/j can be drawn lower
+
         if (height + self.margins.y + self.margins.height) > self.height: self.height = height + self.margins.y + self.margins.height
 
     def addMenu(self, menutitle,shortcutChar):
@@ -526,11 +527,12 @@ class Label():
     drawBorder=False
     visible=True
     center=False
+    autowrap=False
 
     def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
                  bordercolor=defBorder, backcolor=defFormBackground, textcolor=defFormForeground,
                  borderwidth=1, drawBorder=False,center=False,
-                 text="text", fontname=defFontName, fontsize=defFontSize, autoheight=True):
+                 text="text", fontname=defFontName, fontsize=defFontSize, autoheight=True, autowrap=False):
         self.pyscreen = pyscreen
         self.rect = rect
         self.margin=margin
@@ -542,6 +544,7 @@ class Label():
         self.textcolor=textcolor
         self.borderwidth=borderwidth
         self.autoheight=autoheight
+        self.autowrap = autowrap
         self.font = pygame.font.SysFont(fontname, fontsize)
         self.setText(text)
         self.drawBorder=drawBorder
@@ -553,36 +556,41 @@ class Label():
 
     def setText(self,text):
         # We want to make sure the text fully fits in the TextBox
-        self.text = text
         self.innerRect = self.rect.copy()
         self.innerRect.shrink(self.margin)
 
-        lines=text.split("\n")
-        newlines=[]
-        for line in lines:
-            newline=""
-            words=line.split(" ")
-        #    print ("["+line+"]")
-            lastIdx=len(words)-1
-        #    print("------")
-            for idx,word in enumerate(words):
-                oldline=newline
-                newline=newline+word+" "
-                text_width, text_height = self.font.size(newline)
-                if text_width>self.innerRect.width:
-                    #todo: check for words which are longer than width, in which case oldline is empty
-                    text_width > self.innerRect.width
-                    newlines.append(oldline.strip())
-                    newline = word + " "
-        #            print("|"+ oldline.strip()+ "|")
-            newlines.append(newline.strip())
-        #    print("|" + newline.strip() + "|")
-        #print("------")
-        #print ("Total result:")
-        #print (newlines)
-        self.text=newlines
+        if self.autowrap:
+            lines=text.split("\n")
+            newlines=[]
+            for line in lines:
+                newline=""
+                words=line.split(" ")
+            #    print ("["+line+"]")
+                lastIdx=len(words)-1
+            #    print("------")
+                for idx,word in enumerate(words):
+                    oldline=newline
+                    newline=newline+word+" "
+                    text_width, text_height = self.font.size(newline)
+                    if text_width>self.innerRect.width:
+                        #todo: check for words which are longer than width, in which case oldline is empty
+                        text_width > self.innerRect.width
+                        newlines.append(oldline.strip())
+                        newline = word + " "
+            #            print("|"+ oldline.strip()+ "|")
+                newlines.append(newline.strip())
+            #    print("|" + newline.strip() + "|")
+            #print("------")
+            #print ("Total result:")
+            #print (newlines)
+            self.text=newlines
+        else:
+            newlines = [text]
+            self.text = newlines
+            text_width, text_height = self.font.size(text)
+
         if self.autoheight:
-            self.rect.height=len(newlines)*text_height+self.margin.y+self.margin.height
+            self.rect.height=len(self.text)*text_height+self.margin.y+self.margin.height
 
     def show(self):
         self.waiting=True
@@ -597,6 +605,7 @@ class Label():
             dY=int((self.innerRect.height-len(self.text)*lineHeight)/2)
         else: dY=0
         for row,line in enumerate(self.text):
+            if len(line)>255: line=line[0:255] # really a debug statement
             textsurface = self.font.render(line, True, self.textcolor)
             lineWidth, dummy= self.font.size(line)
             if self.center:
@@ -735,6 +744,7 @@ class TextBox():
             # exit/validate
             if key == K_KP_ENTER or key == K_RETURN:
                 if not self.onEnter == None: self.onEnter(self, self.text,self.linkedData)
+                return# we don't want to add return char (chr 13) to text string
 
             #check for valid input
             if not self.inputType==self.TEXT and (pygame.key.get_mods() & pygame.KMOD_SHIFT): return #shift (uppercase and specials chars only allowed in text

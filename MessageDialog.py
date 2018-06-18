@@ -48,7 +48,7 @@ class MessageDialog():
         self.titleheight=height+self.margins.y+self.margins.height
 
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
-        self.label=Label(pyscreen,text=message,fontname=dfontname,fontsize=dfontsize,rect=GRect(),autoheight=False,center=True,backcolor=self.formcolor)
+        self.label=Label(pyscreen,text=message,fontname=dfontname,fontsize=dfontsize,rect=GRect(),autoheight=False,center=True,backcolor=self.formcolor,autowrap=True)
         self.btnOK=Button(pyscreen,text="OK",func_on_click=self.handleOK, rect=GRect())
         self.reposControls()
         #todo: need two times to reorder lines correctly
