@@ -16,7 +16,7 @@ __or__ install Anaconda 3.6 https://www.anaconda.com/download/
    * from your file explorer find and run PhotonEditor.py 
    * from a dos prompt/linux terminal, navigate to the directory where you extracted the zip file and type 'phyton PhotonEditor.py'
 
-**Attention: PhotonFileEditor will __not__ work with Python 2 !**
+**Attention: PhotonFileEditor will not work with Python 2 !**
 
 In the near future (approaching version 1.0), I will make a windows executables and a linux package available..
 
