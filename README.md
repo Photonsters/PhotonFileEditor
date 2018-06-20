@@ -10,6 +10,7 @@ __or__ install Anaconda 3.6 https://www.anaconda.com/download/
 2) install the pygame library (https://www.pygame.org/wiki/GettingStarted) by 
    * opening a dos prompt/linux terminal  
    __or__ if using Anaconda use the windows start menu, type/find 'anaconda' and run the anaconda prompt
+   * Check the python version is above 3 by typing in the command line 'python --version'
    * type 'python -m pip install -U pygame --user'  to install the required library
 3) download this repository as a zip file and extract
 4) you have two options to run PhotonFileEditor:
