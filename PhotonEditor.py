@@ -4,13 +4,16 @@ from GUI import *
 from PhotonFile import *
 from FileDialog import *
 from MessageDialog import *
+from PopupDialog import *
 
+#todo: importing is very slow....
 #todo: beautify layer bar at right edge of slice image
-#todo: On Vista error occur on loading photon files
-#todo: Navigating layers should be done faster...scrollbar?
-#todo: Check if import bitmap succeeds... make set of images of 2560x1440
 #todo: Exe/distribution made with
 #todo: after click on menuitem, the menulist should close
+#todo: mousescroll in listbox does not move scrollbar
+#todo: drag GUI-scrollbar is not implementend
+#todo: drag in layer Scroll Area is not implemented
+
 
 #           cmd.com - prompt, type...
 #           pyinstaller --onefile --windowed PhotonViewer.py
@@ -40,6 +43,8 @@ menubar=None
 firstHeaderTextbox=-1
 firstPreviewTextbox=-1
 firstLayerTextbox=-1
+layerForecolor=(50,205,25)
+layerBackcolor=(0,0,0)
 
 #Scroll button at top left
 layerLabel=None
@@ -50,6 +55,55 @@ scrollLayerVMargin=30
 scrollLayerRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin,scrollLayerWidth,2560/4-scrollLayerVMargin*2)
 layerCursorActive=True
 layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWidth,4)
+
+
+# Prev Nav Buttons call back methods
+def prevUp():
+    global prevNr
+    global dispimg
+    if prevNr == 0: prevNr = 1
+    dispimg = previmg[prevNr]
+    refreshPreviewControls()
+
+
+def prevDown():
+    global prevNr
+    global dispimg
+    if prevNr == 1: prevNr = 0
+    dispimg = previmg[prevNr]
+    refreshPreviewControls()
+
+
+# Add Up/Down Layer Buttons
+def layerDown():
+    global layerNr, dispimg, layerimg, photonfile
+    if photonfile == None: return
+    saveLayer2PhotonFile()
+
+    layerNr = layerNr - 1
+    if layerNr < 0: layerNr = 0
+    layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+    dispimg = layerimg
+    refreshLayerControls()
+    return
+
+
+def layerUp():
+    global layerNr, dispimg, layerimg, photonfile
+    if photonfile == None: return
+    # print ("saveLayer2PhotonFile()")
+    saveLayer2PhotonFile()
+
+    maxLayer = photonfile.nrLayers()
+    layerNr = layerNr + 1
+    if layerNr == maxLayer: layerNr = maxLayer - 1
+    # print("photonfile.getBitmap()")
+    layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+    dispimg = layerimg
+    # print("refreshLayerControls()")
+    refreshLayerControls()
+    return
+
 
 def init_pygame_surface():
     global screen
@@ -67,6 +121,7 @@ def init_pygame_surface():
     global firstPreviewTextbox
     global firstLayerTextbox
     global layerLabel
+    global filename
 
     pygame.init()
     pygame.display.set_caption("Photon File Editor")
@@ -101,6 +156,7 @@ def init_pygame_surface():
     def doNothing():
         return
     def saveFile():
+        global filename
         if photonfile==None:
             print ("No photon file loaded!!")
             infoMessageBox("No photon file loaded!","There is no .photon file loaded to save.")
@@ -109,9 +165,12 @@ def init_pygame_surface():
         savePreview2PhotonFile()
         saveLayer2PhotonFile()
         dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawMainWindow)
-        filename=dialog.newFile()
-        if not filename==None:
+        retfilename=dialog.newFile()
+        if not retfilename==None:
+            filename=retfilename
             photonfile.writeFile(filename)
+            barefilename = (os.path.basename(filename))
+            pygame.display.set_caption("Photon File Editor - " + barefilename)
             '''
             print ("Returned: ",filename)
             try:
@@ -124,11 +183,15 @@ def init_pygame_surface():
         return
 
     def loadFile():
+        global filename
         dialog = FileDialog(screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawMainWindow)
-        filename=dialog.getFile()
-        if not filename==None:
+        retfilename=dialog.getFile()
+        if not retfilename==None:
+            filename = retfilename
             print ("Returned: ",filename)
             openPhotonFile(filename)
+            barefilename = (os.path.basename(filename))
+            pygame.display.set_caption("Photon File Editor - "+barefilename)
             '''
             try:
                 openPhotonFile(filename)
@@ -139,8 +202,43 @@ def init_pygame_surface():
             print ("User Canceled")
         return
 
-    def replaceBitmaps():
+    def newFile():
+        openPhotonFile("resources/newfile.photon")
+        barefilename = ("New file")
+        pygame.display.set_caption("Photon File Editor - " + barefilename)
+
+    def replaceBitmap():
+        global filename
+        global dispimg
+        global layerimg
+        dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawMainWindow)
+        retfilename=dialog.getFile()
+        if not retfilename==None:
+            filename = retfilename
+            print ("Returned: ",filename)
+            popup = PopupDialog(screen, pos=(140, 140),
+                                title="Please wait...",
+                                message="Photon File Editor is importing your images.")
+            popup.show()
+            photonfile.replaceBitmap(layerNr,filename)
+            refreshLayerControls()
+            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+            dispimg = layerimg
+            '''
+            try:
+                openPhotonFile(filename)
+            except Exception as err:
+                errMessageBox(str(err))
+            '''
+        else:
+            print ("User Canceled")
+        return
+
+    def importBitmaps():
         global photonfile
+        global layerNr
+        global dispimg
+        global layerimg
         if photonfile==None:
             print ("No template loaded!!")
             infoMessageBox("No photon file loaded!","A .photon file is needed as template to load the bitmaps in.")
@@ -149,13 +247,42 @@ def init_pygame_surface():
         directory = dialog.getDirectory()
         if not directory == None:
             print("Returned: ", directory)
-            try:
-                photonfile.replaceBitmaps(directory)
-            except Exception as err:
-                errMessageBox(str(err))
+            #try:
+            popup = PopupDialog(screen, pos=(140, 140),
+                                title="Please wait...",
+                                message="Photon File Editor is importing your images.")
+            popup.show()
+            photonfile.replaceBitmaps(directory)
+
+            layerNr=0
+            refreshLayerControls()
+            layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
+            dispimg = layerimg
+            #except Exception as err:
+            #    errMessageBox(str(err))
         else:
             print("User Canceled")
         return
+
+    def exportBitmaps():
+        global filename
+        global photonfile
+
+        barefilename = (os.path.basename(filename))
+        barenotextfilename=os.path.splitext(barefilename)[0]
+        dirname=(os.path.dirname(filename))
+        newdirname=os.path.join(dirname,barenotextfilename+".bitmaps" )
+        if not os.path.isdir(newdirname):
+            os.mkdir(newdirname)
+
+        popup=PopupDialog(screen, pos=(140, 140),
+                               title="Please wait...",
+                               message="Photon File Editor is exporting your images.")
+        popup.show()
+        photonfile.exportBitmaps(newdirname,"slice_")
+        del popup
+
+        #print (barefilename,filename,newdirname)
 
     def about():
         dialog = MessageDialog(screen, pos=(140, 140),
@@ -175,10 +302,13 @@ def init_pygame_surface():
 
     menubar=MenuBar(screen)
     menubar.addMenu("File","F")
+    menubar.addItem("File", "New", newFile)
     menubar.addItem("File","Load",loadFile)
     menubar.addItem("File","Save As",saveFile)
     menubar.addMenu("Edit", "E")
-    menubar.addItem("Edit","Replace Bitmaps",replaceBitmaps)
+    menubar.addItem("Edit", "Import Bitmaps",importBitmaps)
+    menubar.addItem("Edit", "Replace Bitmap", replaceBitmap)
+    menubar.addItem("Edit", "Export Bitmaps", exportBitmaps)
     menubar.addMenu("View", "V")
     menubar.addItem("View", "Slices", showSlices)
     menubar.addItem("View", "Preview 0", showPrev0)
@@ -188,46 +318,6 @@ def init_pygame_surface():
     menubar.addItem("Help", "About",about)
     viewport_yoffset=menubar.height+8
 
-    # Prev Nav Buttons call back methods
-    def prevUp():
-        global prevNr
-        global dispimg
-        if prevNr==0:prevNr=1
-        dispimg=previmg[prevNr]
-        refreshPreviewControls()
-    def prevDown():
-        global prevNr
-        global dispimg
-        if prevNr==1:prevNr=0
-        dispimg = previmg[prevNr]
-        refreshPreviewControls()
-
-    # Add Up/Down Layer Buttons
-    layerNr = 0
-    def layerDown():
-        global layerNr, dispimg,layerimg, photonfile
-        if photonfile == None: return
-        saveLayer2PhotonFile()
-
-        layerNr = layerNr - 1
-        if layerNr < 0: layerNr = 0
-        layerimg= photonfile.getBitmap(layerNr)
-        dispimg=layerimg
-        refreshLayerControls()
-        return
-
-    def layerUp():
-        global layerNr, dispimg,layerimg, photonfile
-        if photonfile == None: return
-        saveLayer2PhotonFile()
-
-        maxLayer = photonfile.nrLayers()
-        layerNr = layerNr + 1
-        if layerNr == maxLayer: layerNr = maxLayer - 1
-        layerimg = photonfile.getBitmap(layerNr)
-        dispimg = layerimg
-        refreshLayerControls()
-        return
 
 
     #layer nav buttons
@@ -240,7 +330,7 @@ def init_pygame_surface():
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
     # Add Header data fields
     row=0
-    titlebox=Label(screen,text="Header", rect=GRect(settingsleft + settingslabelmargin, 10 + row * 24 + viewport_yoffset, settingscolwidth, 16),drawBorder=False)
+    titlebox=Label(screen,text="General", rect=GRect(settingsleft + settingslabelmargin, 10 + row * 24 + viewport_yoffset, settingscolwidth, 16),drawBorder=False)
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
@@ -415,12 +505,14 @@ def refreshLayerControls():
     global layerNr
     global layerLabel
     if photonfile==None:return
+    if photonfile.nrLayers() == 0: return  # could occur if loading new file
     # Current Layer meta fields
     row=firstLayerTextbox
     controls[row].setText(str(layerNr)+ " / "+str(photonfile.nrLayers()))
     #print (layerNr)
     for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
+        #print("reading: ", bTitle,"=",nr)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
@@ -437,11 +529,12 @@ def openPhotonFile(filename):
     # read file
     photonfile = PhotonFile(filename)
     photonfile.readFile()
-    layerimg=photonfile.getBitmap(0,(255,255,255),(0,0,0))
+
+    layerNr = 0  # reset this to 0 so we prevent crash if previous photonfile was navigated to layer above the last layer of new photonfile
+    layerimg=photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
     previmg[0]=photonfile.getPreviewBitmap(0)
     previmg[1] = photonfile.getPreviewBitmap(1)
     dispimg=layerimg
-    layerNr=0 # reset this to 0 so we prevent crash if previous photonfile was navigated to layer above the last layer of new photonfile
     refreshHeaderControls()
     refreshPreviewControls()
     refreshLayerControls()
@@ -485,7 +578,7 @@ while running:
 
     redrawMainWindow()
     pygame.display.flip()
-    pygame.time.Clock().tick(60)
+    #pygame.time.Clock().tick(60)
 
     # event handling, gets all event from the eventqueue
     for event in pygame.event.get():
@@ -515,7 +608,7 @@ while running:
                     layerCursorRect.height=4
                     print("layercursor:", layerCursorRect, layerNr,"/",photonfile.nrLayers())
                     #layerCursorActive=True
-                    layerimg = photonfile.getBitmap(layerNr)
+                    layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
                     dispimg = layerimg
                     refreshLayerControls()
                 else:
@@ -530,7 +623,8 @@ while running:
                 ctrl.handleMouseMove(pos)
 
         if event.type == pygame.KEYDOWN :
-
+            if event.key == pygame.K_UP: layerUp()
+            if event.key == pygame.K_DOWN: layerDown()
             if event.key == pygame.K_ESCAPE :
               print ("Escape key pressed down.")
               running = False

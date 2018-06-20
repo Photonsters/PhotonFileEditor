@@ -92,7 +92,7 @@ class FileDialog():
 
     def getDirectory(self):
         self.tbFilename.visible=False
-        self.showFilenames=True#False
+        self.showFilenames=False
         self.readDirectory()
         self.waiting=True
         self.waitforuser()

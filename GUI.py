@@ -604,7 +604,6 @@ class ListBox():
         self.scrollbarV.maxScroll = len(self.items)-self.nritems
         self.scrollbarV.largeScroll = self.nritems
         self.scrollbarV.visible = True if (len(self.items) > self.nritems) else False
-        print (self.scrollbarV.minScroll,self.scrollbarV.maxScroll, self.scrollbarV.curScroll)
 
         for row in range(0,self.nritems):
             idx=row+self.offset
