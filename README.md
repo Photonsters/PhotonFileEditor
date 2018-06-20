@@ -17,7 +17,7 @@ __or__ install Anaconda 3.6 https://www.anaconda.com/download/
    * from your file explorer find and run PhotonEditor.py 
    * from a dos prompt/linux terminal, navigate to the directory where you extracted the zip file and type 'phyton PhotonEditor.py'
 
-**Attention: PhotonFileEditor will not work with Python 2! [#3](https://github.com/NardJ/PhotonFileUtils/issues/3)** 
+**Attention: PhotonFileEditor will not work with Python 2! [Read Issue #3](https://github.com/NardJ/PhotonFileUtils/issues/3)** 
 
 In the near future (approaching version 1.0), I will make a windows executables and a linux package available..
 
@@ -28,13 +28,13 @@ Since I myself do not (yet) have my own Anycubic Photon, there are a few things 
 1) Follow the install guide above and let me know if you encounter any problems.
 2) Test PhotonFileEditor with your own (large) Photon files.
 3) Check if edited/saved Photon files print as expected on your Photon printer.
-4) Let me know of any bugs you find by filing a issue [here](https://github.com/NardJ/PhotonFileUtils/issues/new)
+4) Let me know of any bugs you find by filing a issue [here](https://github.com/NardJ/PhotonFileUtils/issues/)
 
 #### GUI
 Until now I have not put much time in the User Interface or its esthetics. Any suggestions are more than welcome.
 
 #### Functionality
-If you are missing functionality which is not mentioned below, please let me know [here](https://github.com/NardJ/PhotonFileUtils/issues/new).
+If you are missing functionality which is not mentioned below, please let me know [here](https://github.com/NardJ/PhotonFileUtils/issues/).
 
 Since this is very much an alpha version (or rather an alpha *of* an alpha version), all suggestions of any kind are more than welcome!
 
