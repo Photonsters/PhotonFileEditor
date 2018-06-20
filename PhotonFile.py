@@ -38,9 +38,9 @@ class PhotonFile:
         ("Bed Z (mm)", 4, tpFloat, True),
         ("padding0", 3 * 4, tpByte, False), # 3 ints
         ("Layer height(mm)", 4, tpFloat, True),
-        ("Exp. time (ms)", 4, tpFloat, True),
-        ("Exp. bottom (ms)", 4, tpFloat, True),
-        ("Off time (ms)", 4, tpFloat, True),
+        ("Exp. time (s)", 4, tpFloat, True),
+        ("Exp. bottom (s)", 4, tpFloat, True),
+        ("Off time (s)", 4, tpFloat, True),
         ("# Bottom Layers", 4, tpInt, True),
         ("Resolution X", 4, tpInt, True),
         ("Resolution Y", 4, tpInt, True),
@@ -69,8 +69,8 @@ class PhotonFile:
 
     pfStruct_LayerDef = [
         ("layer height", 4, tpFloat, True),
-        ("Exp. bottom (ms)", 4, tpFloat, True),
-        ("Off time (ms)", 4, tpFloat, True),
+        ("Exp. bottom (s)", 4, tpFloat, True),
+        ("Off time (s)", 4, tpFloat, True),
         ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
         ("Data Length", 4, tpInt, False), #rawDataSize -> Data Length
         ("padding", 4 * 4, tpByte, False) # 4 ints
