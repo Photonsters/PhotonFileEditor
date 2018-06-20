@@ -4,6 +4,13 @@ import math
 from math import *
 import os
 
+try:
+    import numpy
+    numpyAvailable = True
+except ImportError:
+    numpyAvailable = False
+
+test=True
 
 ########################################################################################################################
 ## PhotonFile class
@@ -69,7 +76,7 @@ class PhotonFile:
 
     pfStruct_LayerDef = [
         ("Layer height (mm)", 4, tpFloat, True),
-        ("Exp. bottom (s)", 4, tpFloat, True),
+        ("Exp. time (s)", 4, tpFloat, True),
         ("Off time (s)", 4, tpFloat, True),
         ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
         ("Data Length", 4, tpInt, False), #rawDataSize -> Data Length
@@ -225,7 +232,36 @@ class PhotonFile:
 
             # print (' '.join(format(x, '02X') for x in header))
 
-    def encodedBitmap_Bytes(filename):
+    def encodedBitmap_Bytes_withnumpy(filename):
+        #https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
+        imgsurf = pygame.image.load(filename)
+        imgarr = pygame.surfarray.array2d(imgsurf)
+        imgarr = numpy.rot90(imgarr,axes=(1,0))
+        x = numpy.asarray(imgarr).flatten(0)
+
+        np = numpy
+        where = np.flatnonzero
+        x = np.asarray(x)
+        n = len(x)
+        if n == 0:
+            return np.array([], dtype=numpy.int)
+        starts = np.r_[0, where(~np.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
+        lengths = np.diff(np.r_[starts, n])
+        values = x[starts]
+        #ret=np.dstack((lengths, values))[0]
+
+        rleData = bytearray()
+        for (nr, col) in zip(lengths,values):
+            color = (col>0)
+            while nr > 0x7D:
+                encValue = (color << 7) | 0x7D
+                rleData.append(encValue)
+                nr = nr - 0x7D
+            encValue = (color << 7) | nr
+            rleData.append(encValue)
+        return rleData
+
+    def encodedBitmap_Bytes_nonumpy(filename):
         imgsurf = pygame.image.load(filename)
         #bitDepth = imgsurf.get_bitsize()
         #bytePerPixel = imgsurf.get_bytesize()
@@ -258,6 +294,13 @@ class PhotonFile:
                     prevColor = color
                     nrOfColor = 1
         return rleData
+
+    def encodedBitmap_Bytes(filename):
+        if numpyAvailable:
+            return PhotonFile.encodedBitmap_Bytes_withnumpy(filename)
+        else:
+            return PhotonFile.encodedBitmap_Bytes_nonumpy(filename)
+
 
     def replaceBitmap(self, layerNr,filePath):
         print("  ", layerNr, "/", filePath)
@@ -308,6 +351,17 @@ class PhotonFile:
         self.LayerDefs = [dict() for x in range(nLayers)]
         self.LayerData = [dict() for x in range(nLayers)]
 
+        #set nr of bottom layers and total layers in Header
+        #   If only one image is supplied the file should be set as 0 base layers and 1 normal layer
+        if nLayers == 1:
+            self.Header["# Bottom Layers"] = self.int_to_bytes(0)
+        #   We can't have more bottom layers than total nr of layers
+        nrBottomLayers=self.bytes_to_int(self.Header["# Bottom Layers"])
+        if nrBottomLayers>nLayers: nrBottomLayers=nLayers-1
+        self.Header["# Bottom Layers"] = self.int_to_bytes(nrBottomLayers)
+        #   set total number of layers
+        self.Header["# Layers"] = self.int_to_bytes(nLayers)
+
         # calc start position of rawData
         rawDataStartPos = 0
         for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
@@ -319,6 +373,7 @@ class PhotonFile:
                 if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
         for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
             rawDataStartPos = rawDataStartPos + bNr * nLayers
+
 
         # add all files
         curLayerHeight=0.0
@@ -334,7 +389,10 @@ class PhotonFile:
             # update LayerDef
             #todo: following should be better coded
             self.LayerDefs[layerNr]["Layer height (mm)"] = self.float_to_bytes(curLayerHeight)
-            self.LayerDefs[layerNr]["Exp. bottom (s)"] = self.Header["Exp. bottom (s)"]
+            if layerNr<nrBottomLayers:
+                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. bottom (s)"]
+            else:
+                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. time (s)"]
             self.LayerDefs[layerNr]["Off time (s)"] = self.Header["Off time (s)"]
             self.LayerDefs[layerNr]["Image Address"] = self.int_to_bytes(rawDataStartPos)
             self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
@@ -596,3 +654,45 @@ def testImageReplacement():
     quit()
 
 # testImageReplacement()
+
+
+def Rle(filename):
+    imgsurf = pygame.image.load(filename)
+    imgarr = pygame.surfarray.array2d(imgsurf)
+    #imgarr=((0,0,1),(1,1,1),(0,0,1),(1,1,1))
+    imgarr=numpy.rot90(imgarr)
+    #print (numpy.shape(imgarr,0))
+    #quit()
+    x = numpy.asarray(imgarr).flatten(0)
+
+    np=numpy
+    where = np.flatnonzero
+    x = np.asarray(x)
+    n = len(x)
+    if n == 0:
+        return np.array([], dtype=numpy.int)
+    starts = np.r_[0, where(~np.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
+    lengths = np.diff(np.r_[starts, n])
+    values = x[starts]
+    r=np.dstack((lengths, values))[0]
+    for (nr,col) in r:
+       print (nr,col)
+    return np.dstack((lengths, values))[0]
+
+def testRle():
+
+    rle=Rle("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.bitmaps/slice__001.png")
+    rleData=bytearray()
+    for (nr,col) in rle:
+        color=0
+        if col>1:color=1
+        while nr>0x7D:
+            encValue = (color << 7) | 0x7D
+            rleData.append(encValue)
+            nr=nr-0x7D
+        encValue = (color << 7) | color
+        rleData.append(encValue)
+    print (len(rleData))
+
+#testRle()
+#quit()

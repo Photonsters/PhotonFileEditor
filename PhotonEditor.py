@@ -6,7 +6,9 @@ from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
 
-#todo: importing is very slow....
+#todo: importing is faster with numpy, make decode also fast with numpy
+#       https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
+#todo: make 2nd preview better (interlaced, wrong scaling res?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
 #todo: after click on menuitem, the menulist should close
@@ -255,6 +257,8 @@ def init_pygame_surface():
             photonfile.replaceBitmaps(directory)
 
             layerNr=0
+            refreshHeaderControls()
+            #refreshPreviewControls() No preview data is changed
             refreshLayerControls()
             layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
             dispimg = layerimg
