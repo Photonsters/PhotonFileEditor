@@ -82,12 +82,12 @@ def prevDown():
 
 
 # Add Up/Down Layer Buttons
-def layerDown():
+def layerDown(delta=1):
     global layerNr, dispimg, layerimg, photonfile
     if photonfile == None: return
     saveLayer2PhotonFile()
 
-    layerNr = layerNr - 1
+    layerNr = layerNr - delta
     if layerNr < 0: layerNr = 0
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
@@ -95,15 +95,15 @@ def layerDown():
     return
 
 
-def layerUp():
+def layerUp(delta=1):
     global layerNr, dispimg, layerimg, photonfile
     if photonfile == None: return
     # print ("saveLayer2PhotonFile()")
     saveLayer2PhotonFile()
 
     maxLayer = photonfile.nrLayers()
-    layerNr = layerNr + 1
-    if layerNr == maxLayer: layerNr = maxLayer - 1
+    layerNr = layerNr + delta
+    if layerNr >= maxLayer: layerNr = maxLayer - 1
     # print("photonfile.getBitmap()")
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
@@ -181,8 +181,8 @@ def init_pygame_surface():
                 barefilename = (os.path.basename(filename))
                 pygame.display.set_caption("Photon File Editor - " + barefilename)
             except Exception as err:
-                errMessageBox(str(err))
                 print (err)
+                errMessageBox(str(err))
         else:
             print("User Canceled")
         return
@@ -199,8 +199,8 @@ def init_pygame_surface():
                 barefilename = (os.path.basename(filename))
                 pygame.display.set_caption("Photon File Editor - " + barefilename)
             except Exception as err:
-                errMessageBox(str(err))
                 print (err)
+                errMessageBox(str(err))
         else:
             print ("User Canceled")
         return
@@ -229,8 +229,8 @@ def init_pygame_surface():
                 layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
                 dispimg = layerimg
             except Exception as err:
-                errMessageBox(str(err))
                 print (err)
+                errMessageBox(str(err))
         else:
             print ("User Canceled")
         return
@@ -252,18 +252,18 @@ def init_pygame_surface():
                                 title="Please wait...",
                                 message="Photon File Editor is importing your images.")
             popup.show()
-            #try:
-            photonfile.replaceBitmaps(directory)
+            try:
+                photonfile.replaceBitmaps(directory)
 
-            layerNr=0
-            refreshHeaderControls()
-            #refreshPreviewControls() No preview data is changed
-            refreshLayerControls()
-            layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
-            dispimg = layerimg
-        #except Exception as err:
-            #    errMessageBox(str(err))
-            #    print (err)
+                layerNr=0
+                refreshHeaderControls()
+                #refreshPreviewControls() No preview data is changed
+                refreshLayerControls()
+                layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
+                dispimg = layerimg
+            except Exception as err:
+                print (err)
+                errMessageBox(str(err))
         else:
             print("User Canceled")
         return
@@ -286,8 +286,8 @@ def init_pygame_surface():
         try:
             photonfile.exportBitmaps(newdirname,"slice_")
         except Exception as err:
-            errMessageBox(str(err))
             print(err)
+            errMessageBox(str(err))
         del popup
 
         #print (barefilename,filename,newdirname)
@@ -605,7 +605,7 @@ def handleLayerSlider(checkRect=True):
             layerCursorRect = scrollLayerRect.copy()
             layerCursorRect.y = mousePoint.y - 2
             layerCursorRect.height = 4
-            print("layercursor:", layerCursorRect, layerNr, "/", photonfile.nrLayers())
+            #print("layercursor:", layerCursorRect, layerNr, "/", photonfile.nrLayers())
             # layerCursorActive=True
             layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
             dispimg = layerimg
@@ -654,6 +654,14 @@ while running:
                 ctrl.handleMouseMove(pos)
 
         if event.type == pygame.KEYDOWN :
+            isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
+            if not isNumlockOn:
+                maxLayer = photonfile.nrLayers()
+                page=int(maxLayer/10)
+                if event.key == pygame.K_KP8: layerUp()
+                if event.key == pygame.K_KP9: layerUp(page)
+                if event.key == pygame.K_KP2: layerDown()
+                if event.key == pygame.K_KP3: layerDown(page)
             if event.key == pygame.K_UP: layerUp()
             if event.key == pygame.K_DOWN: layerDown()
             if event.key == pygame.K_ESCAPE :

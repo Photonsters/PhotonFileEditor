@@ -332,7 +332,9 @@ class PhotonFile:
         files = []
         for entry in direntries:
             fullpath = os.path.join(dirPath, entry)
-            if entry.endswith("png"): files.append(fullpath)
+            if entry.endswith("png"):
+                if not entry.startswith("_"): # on a export of images from a photon file, the preview image starts with _
+                    files.append(fullpath)
         files.sort()
 
         print("Following files will be inserted:")
@@ -507,12 +509,19 @@ class PhotonFile:
 
     def exportBitmaps(self,dirPath,filepre):
         for layerNr in range(0,self.nrLayers()):
-            nrStr="%03d" % layerNr
+            nrStr="%04d" % layerNr
             filename=filepre+"_"+ nrStr+".png"
             #print ("filename: ",filename)
             fullfilename=os.path.join(dirPath,filename)
             imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
             pygame.image.save(imgSurf,fullfilename)
+
+        prevSurf=self.getPreviewBitmap(0)
+        filename = "_"+filepre + "_preview.png"
+        # print ("filename: ",filename)
+        fullfilename = os.path.join(dirPath, filename)
+        pygame.image.save(prevSurf, fullfilename)
+
         return
 
     def writeFile(self, newfilename=None):

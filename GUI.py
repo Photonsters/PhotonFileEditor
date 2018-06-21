@@ -907,6 +907,14 @@ class TextBox():
                 if not self.onEnter == None: self.onEnter(self, self.text,self.linkedData)
                 return# we don't want to add return char (chr 13) to text string
 
+            #remap keys of numpad
+            isNumlockOn=(pygame.key.get_mods() & pygame.KMOD_NUM) ==4096
+            #print ("isNumlockOn: ",isNumlockOn)
+            if isNumlockOn:
+                if key in range(K_KP0,K_KP9+1):
+                    key=K_0+(key-K_KP0)
+                if key == K_KP_PERIOD: key = K_PERIOD
+
             #check for valid input
             if not self.inputType==self.TEXT and (pygame.key.get_mods() & pygame.KMOD_SHIFT): return #shift (uppercase and specials chars only allowed in text
             if self.inputType==self.INT and key==K_PERIOD: return                                    #float/period not allowed if int
