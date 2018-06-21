@@ -438,32 +438,29 @@ class PhotonFile:
                 binary_file.write(self.LayerData[lNr]["EndOfLayer"])
 
 
-    def getPreviewBitmap(self, prevNr):
+def getPreviewBitmap(self, prevNr):
         #https://github.com/Reonarudo/pcb2photon/issues/2
 
         self.isDrawing = True
         w = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution X"])
         h = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution Y"])
         s = PhotonFile.bytes_to_int(self.Previews[prevNr]["Data Length"])
-        scale = ((1440/4)/w , (1440/4)/w)
-        memory = pygame.Surface((int(w * scale[0]), int(h * scale[1])))
+        scale = ((1440/4)/w, (1440/4)/w)
+        memory = pygame.Surface((int(w), int(h)))
         if w==0 or h==0: return memory
         bA = self.Previews[prevNr]["Image Data"]
 
         # Seek position and read N bytes
-        x = 0
-        y = 0
         idx=0
-        nr=1
+        pixelIdx = 0
         while idx<len(bA):
-            #The color of a pixel is 2 bytes (little endian) with each bit like this: RRRRR GGG GG X BBBBB
-            b1=bA[idx+1]
-            b2=bA[idx+0]
-            b12=b1<<8 | b2
-            idx=idx+2
+            # The color of a pixel is 2 bytes (little endian) with each bit like this: RRRRR GGG GG X BBBBB
+            b12 = bA[idx+1]<<8 | bA[idx+0]
+            idx += 2
             red  =math.floor(((b12>>11) & 0x1F) / 31*255)
             green=math.floor(((b12>> 6) & 0x1F) / 31*255)
             blue= math.floor(((b12>> 0) & 0x1F) / 31*255)
+            col = (red, green, blue)
 
             #red   =  b1>>3
             #green = (b1 & 0b00000111) <<2 | (b2 & 0b11000000)>>6
@@ -472,40 +469,29 @@ class PhotonFile:
             #isRep = (b2 & 0b00100000) >> 5
 
 
-            #If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
+            # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
             nr=1
             if b12 & 0x20:
-                nr1 = bA[idx + 1]
-                nr2 = bA[idx + 0]
-                idx = idx + 2
-                nr12 = nr1 << 8 | nr2
-                nr=nr+nr12 & 0x0FFF
+                nr12 = bA[idx + 1] << 8 | bA[idx + 0]
+                idx += 2
+                nr += nr12 & 0x0FFF
 
-            #draw line
-            x1 = int(x *scale[0])
-            y1 = int(y *scale[1])
-            x2 = int((x + nr) *scale[0])
-            y2 = y1
-            col = (red, green, blue)
-            if x2 > int(w *scale[0]): x2 = int(w *scale[0])
-            pygame.draw.line(memory, col, (x1, y1), (x2, y2))
-            # debug nr2=nr-(x+nr-1440) if (x+nr)>=1440 else nr
-            # debug print("draw line: ", x, y, " - ", nr2)
-            x = x + nr
-            if x >= w:
-                nr = x - w
-                x = 0
-                y = y + 1
-                x1 = int(x * scale[0])
-                y1 = int(y * scale[1])
-                x2 = int((x + nr) * scale[0])
-                y2 = y1
-                pygame.draw.line(memory, col, (x1, y1), (x2, y2))
-                # debug print ("draw line: ",x,y," - ",nr)
-                x = x + nr
+            # Draw (nr) many pixels of the color
+            for i in range(0, nr, 1):
+                x = int((pixelIdx % w))
+                y = int((pixelIdx / w))
+                memory.set_at((x, y), col)
+                pixelIdx += 1
+
+            
+    
         #print("Screen Drawn")
         # debug print ("layer: ", layerNr)
         # debug print ("lastByte:", self.LayerData[layerNr]["EndOfLayer"])
+
+        # Scale the surface to the wanted resolution
+        memory = pygame.transform.scale(memory, (int(w*scale[0]), int(h*scale[1])))
+
         self.isDrawing = False
         return memory
 
