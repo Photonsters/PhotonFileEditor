@@ -43,7 +43,7 @@ menubar=None
 firstHeaderTextbox=-1
 firstPreviewTextbox=-1
 firstLayerTextbox=-1
-layerForecolor=(50,205,25)
+layerForecolor=(89,56,199) #I changed this to aproximate UV color what the machine shows X3msnake
 layerBackcolor=(0,0,0)
 
 #Scroll button at top left
