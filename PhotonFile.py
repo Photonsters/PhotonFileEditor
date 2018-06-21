@@ -191,7 +191,6 @@ class PhotonFile:
         return  PhotonFile.bytes_to_int(self.Header[self.nrLayersString])
 
     def readFile(self):
-
         with open(self.filename, "rb") as binary_file:
             # Start at beginning
             binary_file.seek(0)
@@ -226,11 +225,12 @@ class PhotonFile:
             for lNr in range(0, nLayers):
                 rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Data Length"])
                 # print("  layer: ", lNr, " size: ",rawDataSize)
-                self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1)
+                self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1) # b'}}}}}}}}}}
                 # -1 because we don count byte for endOfLayer
                 self.LayerData[lNr]["EndOfLayer"] = binary_file.read(1)
 
             # print (' '.join(format(x, '02X') for x in header))
+
 
     def encodedBitmap_Bytes_withnumpy(filename):
         #https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
@@ -239,14 +239,13 @@ class PhotonFile:
         imgarr = numpy.rot90(imgarr,axes=(1,0))
         x = numpy.asarray(imgarr).flatten(0)
 
-        np = numpy
-        where = np.flatnonzero
-        x = np.asarray(x)
+        where = numpy.flatnonzero
+        x = numpy.asarray(x)
         n = len(x)
         if n == 0:
-            return np.array([], dtype=numpy.int)
-        starts = np.r_[0, where(~np.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
-        lengths = np.diff(np.r_[starts, n])
+            return numpy.array([], dtype=numpy.int)
+        starts = numpy.r_[0, where(~numpy.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
+        lengths = numpy.diff(numpy.r_[starts, n])
         values = x[starts]
         #ret=np.dstack((lengths, values))[0]
 
@@ -259,7 +258,7 @@ class PhotonFile:
                 nr = nr - 0x7D
             encValue = (color << 7) | nr
             rleData.append(encValue)
-        return rleData
+        return bytes(rleData)
 
     def encodedBitmap_Bytes_nonumpy(filename):
         imgsurf = pygame.image.load(filename)
@@ -293,7 +292,7 @@ class PhotonFile:
                     rleData.append(encValue)
                     prevColor = color
                     nrOfColor = 1
-        return rleData
+        return bytes(rleData)
 
     def encodedBitmap_Bytes(filename):
         if numpyAvailable:
@@ -406,7 +405,52 @@ class PhotonFile:
             curLayerHeight= curLayerHeight+deltaLayerHeight
             print("                New DataPos", rawDataStartPos)
 
-    def getBitmap(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
+    def getBitmap_withnumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
+        #https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
+        memory = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+        if self.nrLayers()==0: return memory #could occur if loading new file
+        self.isDrawing = True
+
+        bA = self.LayerData[layerNr]["Raw"]
+        # add endOfLayer Byte
+        bA = bA + self.LayerData[layerNr]["EndOfLayer"]
+        #bN = numpy.asarray(bA,dtype=numpy.uint8)
+        bN =numpy.fromstring(bA,dtype=numpy.uint8)
+
+
+        #extract color value (highest bit) and nr of repetitions (lowest 7 bits)
+        valbin = bN >> 7  # only read 1st bit
+        nr = bN & ~(1 << 7)  # turn highest bit of
+        #replace 0's en 1's with correct colors
+        forecolor_int = (forecolor[0] << 16) + (forecolor[1] << 8) + forecolor[2]
+        backcolor_int = backcolor[0] << 16 + backcolor[1] << 8 + backcolor[2]
+        val = numpy.array([{0: backcolor_int, 1: forecolor_int}[x] for x in valbin])
+
+        #make a 2d array like [ [3,0] [2,1]...]
+        runs = numpy.column_stack((nr, val))
+
+        # make array like [(0,4), (1,5), (0,3), (1,126]
+        runs_t = numpy.transpose(runs)
+        lengths = runs_t[0].astype(int)
+        values = runs_t[1].astype(int)
+        starts = numpy.concatenate(([0], numpy.cumsum(lengths)[:-1]))
+        starts, lengths, values = map(numpy.asarray, (starts, lengths, values))
+        ends = starts + lengths
+        n = ends[-1]
+        x = numpy.full(n, 0)
+        for lo, hi, val in zip(starts, ends, values):
+            x[lo:hi] = val
+
+        rgb2d=x.reshape((2560,1440))
+        rgb2d= numpy.rot90(rgb2d)
+        picture=pygame.surfarray.make_surface(rgb2d)
+        memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1])))
+
+        self.isDrawing = False
+        return memory
+
+
+    def getBitmap_nonumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
         # debug layerNr=PhotonFile.bytes_to_int(self.Header[self.nrLayersString])-1
         memory = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
         if self.nrLayers()==0: return memory #could occur if loading new file
@@ -453,6 +497,12 @@ class PhotonFile:
         # debug print ("lastByte:", self.LayerData[layerNr]["EndOfLayer"])
         self.isDrawing = False
         return memory
+
+    def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(0.25, 0.25)):
+        if numpyAvailable:
+            return self.getBitmap_withnumpy(layerNr,forecolor,backcolor,scale)
+        else:
+            return self.getBitmap_nonumpy(layerNr,forecolor,backcolor,scale)
 
 
     def exportBitmaps(self,dirPath,filepre):
@@ -694,5 +744,43 @@ def testRle():
         rleData.append(encValue)
     print (len(rleData))
 
+def rld(runs_bytearray):
+    runs=numpy.asarray(runs_bytearray)
+    runs_t = numpy.transpose(runs)
+    lengths = runs_t[0].astype(int)
+    values = runs_t[1].astype(int)
+    starts = numpy.concatenate(([0],numpy.cumsum(lengths)[:-1]))
+    starts, lengths, values = map(numpy.asarray, (starts, lengths, values))
+    ends = starts + lengths
+    n = ends[-1]
+    x = numpy.full(n, 0)
+    for lo, hi, val in zip(starts, ends, values):
+        x[lo:hi] = val
+    return x
+
+
+def testRld():
+    nr=numpy.array((3,5,2,6,1),numpy.uint8)
+    val=numpy.array((0,1,0,1,0),numpy.uint8)
+    print(nr.size, nr)
+    print (val.size,val)
+    #rleseq = numpy.ravel(numpy.column_stack((nr, val)))
+    rleseq=numpy.column_stack((nr,val))
+    #rleseq = numpy.empty((nr.size , val.size,), dtype=numpy.uint8)
+    print (rleseq)
+
+    #rleseq2 = [(3, 0), (5, 1), (2, 0), (6, 1), (1, 0)]
+    #rleseq2=numpy.array(rleseq2,dtype=numpy.uint8)
+    #print("rleseq2: ",rleseq2)
+    runs=numpy.asarray (rleseq)
+    print (runs)
+    ret=rld(runs)
+    print (ret)
+
+
+#ph=PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
+#ph.readFile()
+#ph.getBitmap(layerNr=0)
 #testRle()
+#testRld()
 #quit()
