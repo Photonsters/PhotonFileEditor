@@ -52,4 +52,5 @@ The following functionality will be implemented soon:
 
 ## Current screenshot
 ![image](https://user-images.githubusercontent.com/11083514/41735866-babb511a-7582-11e8-8e4e-37a96751b097.png)
+![image](https://user-images.githubusercontent.com/11083514/41695957-74c0e4f0-7509-11e8-9be5-382ac51c9fe2.png)
 
