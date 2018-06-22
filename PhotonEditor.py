@@ -295,7 +295,7 @@ def init_pygame_surface():
     def about():
         dialog = MessageDialog(screen, pos=(140, 140),
                                title="About PhotonEditor",
-                               message="Version Alpha \n Author: Nard Janssens \n License: Free for non-commerical use.",
+                               message="Version Alpha \n Github: https://github.com/NardJ/PhotonFileUtils \n Made by: Nard Janssens (NardJ) \n X3msnake \n Robert Gowans (Rob2048) \n Ivan Antalec (Antharon) \n Leonardo Marques (Reonarudo) \n License: Free for non-commerical use.",
                                parentRedraw=redrawMainWindow)
         dialog.show()
     def showSlices():
