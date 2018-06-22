@@ -443,6 +443,10 @@ class PhotonFile:
         for lo, hi, val in zip(starts, ends, values):
             x[lo:hi] = val
 
+        #make sure we have a bitmap of the correct size
+        while not len(x)==3686400:
+            x=numpy.append(x,(1,))
+
         rgb2d=x.reshape((2560,1440))
         rgb2d= numpy.rot90(rgb2d)
         picture=pygame.surfarray.make_surface(rgb2d)
