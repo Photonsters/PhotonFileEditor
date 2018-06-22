@@ -235,6 +235,10 @@ class PhotonFile:
     def encodedBitmap_Bytes_withnumpy(filename):
         #https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
         imgsurf = pygame.image.load(filename)
+        (width, height) = imgsurf.get_size()
+        if not (width, height) == (1440, 2560):
+            raise Exception("Your image dimensions are off and should be 1440x2560")
+
         imgarr = pygame.surfarray.array2d(imgsurf)
         imgarr = numpy.rot90(imgarr,axes=(1,0))
         x = numpy.asarray(imgarr).flatten(0)
@@ -416,6 +420,7 @@ class PhotonFile:
         bA = self.LayerData[layerNr]["Raw"]
         # add endOfLayer Byte
         bA = bA + self.LayerData[layerNr]["EndOfLayer"]
+
         #bN = numpy.asarray(bA,dtype=numpy.uint8)
         bN =numpy.fromstring(bA,dtype=numpy.uint8)
 
@@ -442,6 +447,10 @@ class PhotonFile:
         x = numpy.full(n, 0)
         for lo, hi, val in zip(starts, ends, values):
             x[lo:hi] = val
+
+        #make sure we have a bitmap of the correct size
+        while not len(x)==3686400:
+            x=numpy.append(x,(1,))
 
         rgb2d=x.reshape((2560,1440))
         rgb2d= numpy.rot90(rgb2d)
@@ -689,92 +698,4 @@ def testDataConversions():
 
 # testDataConversions()
 
-def testImageReplacement():
-    PhotonFile.encodedBitmap_Bytes(
-        "C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/testencoding_0.png")
-    photonfile = PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
-    photonfile.readFile()
-    photonfile.replaceBitmaps("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/")
-    quit()
 
-# testImageReplacement()
-
-
-def Rle(filename):
-    imgsurf = pygame.image.load(filename)
-    imgarr = pygame.surfarray.array2d(imgsurf)
-    #imgarr=((0,0,1),(1,1,1),(0,0,1),(1,1,1))
-    imgarr=numpy.rot90(imgarr)
-    #print (numpy.shape(imgarr,0))
-    #quit()
-    x = numpy.asarray(imgarr).flatten(0)
-
-    np=numpy
-    where = np.flatnonzero
-    x = np.asarray(x)
-    n = len(x)
-    if n == 0:
-        return np.array([], dtype=numpy.int)
-    starts = np.r_[0, where(~np.isclose(x[1:], x[:-1], equal_nan=True)) + 1]
-    lengths = np.diff(np.r_[starts, n])
-    values = x[starts]
-    r=np.dstack((lengths, values))[0]
-    for (nr,col) in r:
-       print (nr,col)
-    return np.dstack((lengths, values))[0]
-
-def testRle():
-
-    rle=Rle("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.bitmaps/slice__001.png")
-    rleData=bytearray()
-    for (nr,col) in rle:
-        color=0
-        if col>1:color=1
-        while nr>0x7D:
-            encValue = (color << 7) | 0x7D
-            rleData.append(encValue)
-            nr=nr-0x7D
-        encValue = (color << 7) | color
-        rleData.append(encValue)
-    print (len(rleData))
-
-def rld(runs_bytearray):
-    runs=numpy.asarray(runs_bytearray)
-    runs_t = numpy.transpose(runs)
-    lengths = runs_t[0].astype(int)
-    values = runs_t[1].astype(int)
-    starts = numpy.concatenate(([0],numpy.cumsum(lengths)[:-1]))
-    starts, lengths, values = map(numpy.asarray, (starts, lengths, values))
-    ends = starts + lengths
-    n = ends[-1]
-    x = numpy.full(n, 0)
-    for lo, hi, val in zip(starts, ends, values):
-        x[lo:hi] = val
-    return x
-
-
-def testRld():
-    nr=numpy.array((3,5,2,6,1),numpy.uint8)
-    val=numpy.array((0,1,0,1,0),numpy.uint8)
-    print(nr.size, nr)
-    print (val.size,val)
-    #rleseq = numpy.ravel(numpy.column_stack((nr, val)))
-    rleseq=numpy.column_stack((nr,val))
-    #rleseq = numpy.empty((nr.size , val.size,), dtype=numpy.uint8)
-    print (rleseq)
-
-    #rleseq2 = [(3, 0), (5, 1), (2, 0), (6, 1), (1, 0)]
-    #rleseq2=numpy.array(rleseq2,dtype=numpy.uint8)
-    #print("rleseq2: ",rleseq2)
-    runs=numpy.asarray (rleseq)
-    print (runs)
-    ret=rld(runs)
-    print (ret)
-
-
-#ph=PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
-#ph.readFile()
-#ph.getBitmap(layerNr=0)
-#testRle()
-#testRld()
-#quit()
