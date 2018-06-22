@@ -709,10 +709,6 @@ class Label():
         self.setText(text)
         self.drawBorder=drawBorder
 
-        # We want to make sure the text fully fits in the TextBox
-        text_width, text_height = self.font.size("M[].j")
-        #And that the textbox has enough height to show each letter
-        if self.rect.height<(text_height+2*self.margin.y): self.rect.height=text_height+2*self.margin.y
 
     def setText(self,text):
         # We want to make sure the text fully fits in the TextBox
@@ -758,6 +754,8 @@ class Label():
 
     def redraw(self):
         if not self.visible: return
+        self.innerRect=self.rect.copy()
+        self.innerRect.shrink(self.margin)
         if not self.istransparent:
             pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
             if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)

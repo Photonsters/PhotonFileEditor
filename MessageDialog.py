@@ -26,21 +26,18 @@ class MessageDialog():
     controls=[]
 
 
-    def reposControls(self): #called after winrect is moved
+    def reposControls(self): #called initially and after winrect is moved
+        self.winrect.height=self.titleheight+self.margins.y+self.label.rect.height+self.footerHeight+self.margins.height
         self.titlerect = GRect(self.winrect.x, self.winrect.y, self.winrect.width, self.titleheight)
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
-        x=self.winrect.x+self.margins.x
-        y=self.winrect.y + self.titleheight + self.margins.y
-        w=self.winrect.width - self.margins.x - self.margins.width
-        h=self.winrect.height - self.titleheight - self.margins.y - self.footerHeight- self.margins.height
-        self.label.rect=GRect(x,y, w, h)
-        self.label.setText(self.message)
+        self.label.rect.x=self.winrect.x+self.margins.x
+        self.label.rect.y=self.winrect.y+self.titleheight+self.margins.y
         self.btnOK.rect=GRect(self.winrect.x+self.winrect.width-self.margins.width-self.buttonWidth,self.footerTop+self.margins.x,self.buttonWidth,self.buttonHeight)
 
-    def __init__(self, pyscreen, pos, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=defFontName, dfontsize=defFontSize,parentRedraw=None):
+    def __init__(self, pyscreen, pos, width=300,center=True, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=defFontName, dfontsize=defFontSize,parentRedraw=None):
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
-        self.winrect=GRect(pos[0], pos[1], 300, 160)
+        self.winrect=GRect(pos[0], pos[1], width, 160)
         self.title=title
         self.message=message
         self.font = pygame.font.SysFont(dfontname, dfontsize)
@@ -48,11 +45,11 @@ class MessageDialog():
         self.titleheight=height+self.margins.y+self.margins.height
 
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
-        self.label=Label(pyscreen,text=message,fontname=dfontname,fontsize=dfontsize,rect=GRect(),autoheight=False,center=True,backcolor=self.formcolor,autowrap=True)
+        rectLabel=GRect(0,0,self.winrect.width-self.margins.x-self.margins.width,0)
+        self.label=Label(pyscreen,text=message,fontname=dfontname,fontsize=dfontsize,rect=rectLabel,autoheight=True,center=center,backcolor=self.formcolor,autowrap=True)
         self.btnOK=Button(pyscreen,text="OK",func_on_click=self.handleOK, rect=GRect())
         self.reposControls()
         #todo: need two times to reorder lines correctly
-        #self.reposControls()
 
         self.controls.append(self.label)
         self.controls.append(self.btnOK)
