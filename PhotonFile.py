@@ -7,6 +7,7 @@ __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonar
 
 import os
 import math
+import struct
 from math import *
 
 import pygame
@@ -44,6 +45,10 @@ class PhotonFile:
     tpChar = 1
     tpInt = 2
     tpFloat = 3
+
+    # Clipboard Vars to copy/cut and paste layer settinngs/imagedata
+    clipboardDef  = None
+    clipboardData = None
 
     # This is the data structure of photon file. For each variable we need to know
     #   Title string to display user, nr bytes to read/write, type of data stored, editable
@@ -88,7 +93,7 @@ class PhotonFile:
         ("Exp. time (s)", 4, tpFloat, True),
         ("Off time (s)", 4, tpFloat, True),
         ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
-        ("Data Length", 4, tpInt, False), #rawDataSize -> Data Length
+        ("Data Length", 4, tpInt, False),  #size of rawData+lastByte(1)
         ("padding", 4 * 4, tpByte, False) # 4 ints
     ]
 
@@ -147,6 +152,8 @@ class PhotonFile:
         """ Converts POSITIVE floats to bytes.
             Based heavily upon http: //www.simplymodbus.ca/ieeefloats.xls
         """
+        # Error when floatVal=0.5
+        return struct.pack('f',floatVal)
 
         if floatVal == 0: return (0).to_bytes(4, byteorder='big')
 
@@ -382,122 +389,6 @@ class PhotonFile:
             return PhotonFile.encodedBitmap_Bytes_nonumpy(filename)
 
 
-    def replaceBitmap(self, layerNr,filePath):
-        """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
-
-        print("  ", layerNr, "/", filePath)
-
-        # Get/encode raw data
-        rawData = PhotonFile.encodedBitmap_Bytes(filePath)
-
-        # Last byte is stored seperately
-        rawDataTrunc = rawData[:-1]
-        rawDataLastByte = rawData[-1:]
-
-        # Get change in image rawData size so we can correct starting addresses of higher layer images
-        oldLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"])
-        newLength=len(rawData)
-        deltaLength=newLength-oldLength
-        #print ("old, new, delta:",oldLength,newLength,deltaLength)
-
-        # Update image settings and raw data of layer to be replaced
-        self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
-        self.LayerData[layerNr]["Raw"] = rawDataTrunc
-        self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
-
-        # Update start addresses of RawData of all following images
-        nLayers=self.nrLayers()
-        for rLayerNr in range(layerNr+1,nLayers):
-            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
-            newAddr=curAddr+deltaLength
-            #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr)
-            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
-
-    def replaceBitmaps(self, dirPath):
-        """ Delete all images in PhotonFile object and add images in directory."""
-
-        # Get all files, filter png-files and sort them alphabetically
-        direntries = os.listdir(dirPath)
-        files = []
-        for entry in direntries:
-            fullpath = os.path.join(dirPath, entry)
-            if entry.endswith("png"):
-                if not entry.startswith("_"): # on a export of images from a photon file, the preview image starts with _
-                    files.append(fullpath)
-        files.sort()
-
-        print("Following files will be inserted:")
-        for fullpath in files:
-            print("  ", fullpath)
-
-        # Check if there are files available and if so check first file for correct dimensions
-        if len(files) == 0: raise Exception("No files of type png are found!")
-        rawData = PhotonFile.encodedBitmap_Bytes(files[0])
-
-        # Remove old data in PhotonFile object
-        nLayers = len(files)
-        self.Header[self.nrLayersString] = self.int_to_bytes(nLayers)
-        #oldLayerDef = self.LayerDefs[0]
-        self.LayerDefs = [dict() for x in range(nLayers)]
-        self.LayerData = [dict() for x in range(nLayers)]
-
-        # Depending on nr of new images, set nr of bottom layers and total layers in Header
-        #   If only one image is supplied the file should be set as 0 base layers and 1 normal layer
-        if nLayers == 1:
-            self.Header["# Bottom Layers"] = self.int_to_bytes(0)
-        #   We can't have more bottom layers than total nr of layers
-        nrBottomLayers=self.bytes_to_int(self.Header["# Bottom Layers"])
-        if nrBottomLayers>nLayers: nrBottomLayers=nLayers-1
-        self.Header["# Bottom Layers"] = self.int_to_bytes(nrBottomLayers)
-        #   Set total number of layers
-        self.Header["# Layers"] = self.int_to_bytes(nLayers)
-
-        # Calculate the start position of raw imagedata of the FIRST layer
-        rawDataStartPos = 0
-        for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
-            rawDataStartPos = rawDataStartPos + bNr
-        for previewNr in (0,1):
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
-                if bTitle == "Image Data": bNr = dataSize
-                rawDataStartPos = rawDataStartPos + bNr
-                if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
-        for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
-            rawDataStartPos = rawDataStartPos + bNr * nLayers
-
-        # For each image file, get encoded raw image data and store in Photon File object, copying layer settings from Header/General settings.
-        curLayerHeight=0.0
-        deltaLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
-        print("Processing:")
-        for layerNr, file in enumerate(files):
-            print("  ", layerNr,"/",nLayers, file)
-            # Get encoded raw data
-            rawData = PhotonFile.encodedBitmap_Bytes(file)
-            rawDataTrunc = rawData[:-1]
-            rawDataLastByte = rawData[-1:]
-
-            # Update layer settings (LayerDef)
-            # todo: following should be better coded
-            self.LayerDefs[layerNr]["Layer height (mm)"] = self.float_to_bytes(curLayerHeight)
-            if layerNr<nrBottomLayers:
-                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. bottom (s)"]
-            else:
-                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. time (s)"]
-            self.LayerDefs[layerNr]["Off time (s)"] = self.Header["Off time (s)"]
-            self.LayerDefs[layerNr]["Image Address"] = self.int_to_bytes(rawDataStartPos)
-            self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
-            self.LayerDefs[layerNr]["padding"] = self.hex_to_bytes("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00") # 4 *4bytes
-
-            # Store raw image data (LayerData)
-            self.LayerData[layerNr]["Raw"] = rawDataTrunc
-            self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
-
-            # Keep track of address of raw imagedata and current height of 3d model to use in next layer
-            print ("Layer, DataPos, DataLength ",layerNr,rawDataStartPos,len(rawData))
-            rawDataStartPos = rawDataStartPos + len(rawData)
-            curLayerHeight= curLayerHeight+deltaLayerHeight
-            print("                New DataPos", rawDataStartPos)
-
-
     ########################################################################################################################
     ## Decoding
     ########################################################################################################################
@@ -691,6 +582,225 @@ class PhotonFile:
         return memory
 
 
+    ########################################################################################################################
+    ## Layer (Image) Operations
+    ########################################################################################################################
+
+    def deleteLayer(self, layerNr):
+        """ Deletes layer and its image data in the PhotonFile object, but store in clipboard for paste. """
+
+        # Store the size of layer image we remove to correct starting addresses of higher layer images
+        deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
+        deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+
+        # Update start addresses of RawData of all following images
+        nLayers=self.nrLayers()
+        for rLayerNr in range(layerNr+1,nLayers):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr-deltaLength
+            #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr)
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+            # Adjust layer starting height for removal of layer
+            curHeight=self.bytes_to_float(self.LayerDefs[rLayerNr]["Layer height (mm)"])
+            newHeight=curHeight-deltaHeight
+            self.LayerDefs[rLayerNr]["Layer height (mm)"] =self.float_to_bytes(newHeight)
+
+        # Store deleted layer in clipboard
+        self.clipboardDef=self.LayerDefs[layerNr].copy()
+        self.clipboardData=self.LayerData[layerNr].copy()
+
+        # Delete layer settings and data and reduce number of layers in header
+        self.LayerDefs.remove(self.LayerDefs[layerNr])
+        self.LayerData.remove(self.LayerData[layerNr])
+        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()-1)
+
+
+    def insertLayerBefore(self, layerNr, fromClipboard=False):
+        """ Inserts layer copying data of the previous layer or the clipboard. """
+
+        if self.clipboardDef==None: raise Exception("Clipboard is empty!")
+
+        # Calculate how much room we need in between.
+        if fromClipboard==False:
+            # Store the size of layer image we duplicate to correct starting addresses of higher layer images
+            deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
+        else:
+            deltaLength = self.bytes_to_int(self.clipboardDef["Data Length"])
+
+        # We retrieve layer height from previous layer
+        if layerNr>0:
+            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+            prevLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr-1]["Layer height (mm)"])
+        else:
+            if self.nrLayers()>1:
+                curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr+1]["Layer height (mm)"])
+                prevLayerHeight=0
+            else:
+                curLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
+                prevLayerHeight = 0
+        deltaHeight=curLayerHeight-prevLayerHeight
+        print ("Delta:", deltaHeight)
+
+        # Make duplicate of layerDef and layerData if not pasting form clipboard
+        if fromClipboard == False:
+            self.clipboardDef=self.LayerDefs[layerNr].copy()
+            self.clipboardData=self.LayerData[layerNr].copy()
+
+        # Set layerheight correctly
+        if layerNr==0: # if first layer than the height should start at 0
+            self.clipboardDef["Layer height (mm)"] = self.float_to_bytes(0)
+        else:          # start at layer height of layer at which we insert
+            self.clipboardDef["Layer height (mm)"]=self.float_to_bytes(curLayerHeight)
+
+        # Update start addresses of RawData of all following images
+        nLayers=self.nrLayers()
+        for rLayerNr in range(layerNr,nLayers):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr+deltaLength
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+            # Adjust layer starting height for removal of layer
+            curHeight=self.bytes_to_float(self.LayerDefs[rLayerNr]["Layer height (mm)"])
+            newHeight=curHeight+deltaHeight
+            self.LayerDefs[rLayerNr]["Layer height (mm)"] =self.float_to_bytes(newHeight)
+            #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr, "|", curHeight,newHeight ,">",self.bytes_to_float(self.LayerDefs[rLayerNr]["Layer height (mm)"]))
+
+        # Insert layer settings and data and reduce number of layers in header
+        self.LayerDefs.insert(layerNr,self.clipboardDef)
+        self.LayerData.insert(layerNr,self.clipboardData)
+        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)
+
+        # Make new copy so second paste will not reference this inserted objects
+        self.clipboardDef = self.LayerDefs[layerNr].copy()
+        self.clipboardData = self.LayerData[layerNr].copy()
+
+
+    def copyLayer(self,layerNr):
+        # Make duplicate of layerDef and layerData
+        self.clipboardDef=self.LayerDefs[layerNr].copy()
+        self.clipboardData=self.LayerData[layerNr].copy()
+
+
+    def replaceBitmap(self, layerNr,filePath):
+        """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
+
+        print("  ", layerNr, "/", filePath)
+
+        # Get/encode raw data
+        rawData = PhotonFile.encodedBitmap_Bytes(filePath)
+
+        # Last byte is stored seperately
+        rawDataTrunc = rawData[:-1]
+        rawDataLastByte = rawData[-1:]
+
+        # Get change in image rawData size so we can correct starting addresses of higher layer images
+        oldLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) #"Data Length" = len(rawData)+len(EndOfLayer)
+        newLength=len(rawData)
+        deltaLength=newLength-oldLength
+        #print ("old, new, delta:",oldLength,newLength,deltaLength)
+
+        # Update image settings and raw data of layer to be replaced
+        self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
+        self.LayerData[layerNr]["Raw"] = rawDataTrunc
+        self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+
+        # Update start addresses of RawData of all following images
+        nLayers=self.nrLayers()
+        for rLayerNr in range(layerNr+1,nLayers):
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr+deltaLength
+            #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr)
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+
+    def replaceBitmaps(self, dirPath):
+        """ Delete all images in PhotonFile object and add images in directory."""
+
+        # Get all files, filter png-files and sort them alphabetically
+        direntries = os.listdir(dirPath)
+        files = []
+        for entry in direntries:
+            fullpath = os.path.join(dirPath, entry)
+            if entry.endswith("png"):
+                if not entry.startswith("_"): # on a export of images from a photon file, the preview image starts with _
+                    files.append(fullpath)
+        files.sort()
+
+        print("Following files will be inserted:")
+        for fullpath in files:
+            print("  ", fullpath)
+
+        # Check if there are files available and if so check first file for correct dimensions
+        if len(files) == 0: raise Exception("No files of type png are found!")
+        rawData = PhotonFile.encodedBitmap_Bytes(files[0])
+
+        # Remove old data in PhotonFile object
+        nLayers = len(files)
+        self.Header[self.nrLayersString] = self.int_to_bytes(nLayers)
+        #oldLayerDef = self.LayerDefs[0]
+        self.LayerDefs = [dict() for x in range(nLayers)]
+        self.LayerData = [dict() for x in range(nLayers)]
+
+        # Depending on nr of new images, set nr of bottom layers and total layers in Header
+        #   If only one image is supplied the file should be set as 0 base layers and 1 normal layer
+        if nLayers == 1:
+            self.Header["# Bottom Layers"] = self.int_to_bytes(0)
+        #   We can't have more bottom layers than total nr of layers
+        nrBottomLayers=self.bytes_to_int(self.Header["# Bottom Layers"])
+        if nrBottomLayers>nLayers: nrBottomLayers=nLayers-1
+        self.Header["# Bottom Layers"] = self.int_to_bytes(nrBottomLayers)
+        #   Set total number of layers
+        self.Header["# Layers"] = self.int_to_bytes(nLayers)
+
+        # Calculate the start position of raw imagedata of the FIRST layer
+        rawDataStartPos = 0
+        for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            rawDataStartPos = rawDataStartPos + bNr
+        for previewNr in (0,1):
+            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                if bTitle == "Image Data": bNr = dataSize
+                rawDataStartPos = rawDataStartPos + bNr
+                if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
+        for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+            rawDataStartPos = rawDataStartPos + bNr * nLayers
+
+        # For each image file, get encoded raw image data and store in Photon File object, copying layer settings from Header/General settings.
+        curLayerHeight=0.0
+        deltaLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
+        print("Processing:")
+        for layerNr, file in enumerate(files):
+            print("  ", layerNr,"/",nLayers, file)
+            # Get encoded raw data
+            rawData = PhotonFile.encodedBitmap_Bytes(file)
+            rawDataTrunc = rawData[:-1]
+            rawDataLastByte = rawData[-1:]
+
+            # Update layer settings (LayerDef)
+            # todo: following should be better coded
+            self.LayerDefs[layerNr]["Layer height (mm)"] = self.float_to_bytes(curLayerHeight)
+            if layerNr<nrBottomLayers:
+                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. bottom (s)"]
+            else:
+                self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. time (s)"]
+            self.LayerDefs[layerNr]["Off time (s)"] = self.Header["Off time (s)"]
+            self.LayerDefs[layerNr]["Image Address"] = self.int_to_bytes(rawDataStartPos)
+            self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
+            self.LayerDefs[layerNr]["padding"] = self.hex_to_bytes("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00") # 4 *4bytes
+
+            # Store raw image data (LayerData)
+            self.LayerData[layerNr]["Raw"] = rawDataTrunc
+            self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+
+            # Keep track of address of raw imagedata and current height of 3d model to use in next layer
+            print ("Layer, DataPos, DataLength ",layerNr,rawDataStartPos,len(rawData))
+            rawDataStartPos = rawDataStartPos + len(rawData)
+            curLayerHeight= curLayerHeight+deltaLayerHeight
+            print("                New DataPos", rawDataStartPos)
+
+
     def exportBitmaps(self,dirPath,filepre):
         """ Save all images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
 
@@ -718,6 +828,10 @@ class PhotonFile:
 
 
 
+
+########################################################################################################################
+## Testing
+########################################################################################################################
 
 '''
    def float_to_bytes_old(self,floatVal):
@@ -795,5 +909,14 @@ def testDataConversions():
 
 
 # testDataConversions()
-
-
+#c=0.0000001
+'''
+c=0.44999998807907104 #0.4999999888241291 > 0.25
+for i in range (0,20):
+    bA=PhotonFile.float_to_bytes(c)
+    bHA=PhotonFile.bytes_to_hex(bA)
+    bB=PhotonFile.bytes_to_float(bA)
+    print (i,bA,bHA, bB)
+    c = c + 0.05
+#quit()
+'''

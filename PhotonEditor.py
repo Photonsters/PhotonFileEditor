@@ -6,6 +6,7 @@ __version__ = "alpha"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
+import datetime
 import time
 
 import pygame
@@ -18,6 +19,17 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: too long filenames overflow listbox (see load file dialog)
+#todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
+#todo: dragging dialogbox gives error in log: error - compare types | comp to gpoints
+#todo: use new classes GPos en GLine and GRect.shrink to simplify code in Gui elements
+#todo: on click proces (e.g. by menubar) prevent further processing (e.g. by nav buttons)
+#todo: filedialog will give error if pressing on ".." in root
+#todo: sort directories in FileDialog
+#todo: open files does not always show all files!... testcase is placing photon file in resources
+#todo: if in filedialog we scrolled down, and select new dir with less files, it stays empty until we scroll up
+#todo: process ALT-F/E/V/H for menu
+#todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
 #todo: after click on menuitem, the menulist should close
@@ -29,10 +41,10 @@ from PopupDialog import *
 ##  Variables
 ########################################################################################################################
 
-#class which holds all data from photon file
+# Class which holds all data from photon file
 photonfile=None
 
-#regarding image data to display
+# Regarding image data to display
 screen=None
 layerimg=None
 previmg=[None,None]
@@ -42,7 +54,7 @@ layerLabel=None #Scroll chevrons at top left
 layerNr = 0
 prevNr=0
 
-#dimensional constants for settings
+# Dimensional constants for settings
 settingscolwidth=250
 settingslabelwidth=160
 settingslabelmargin=10
@@ -55,14 +67,14 @@ settingsleft = int(1440 / 4)
 windowwidth=int(1440 / 4) + settingswidth
 windowheight=int(2560 / 4)
 
-#GUI controls
+# GUI controls
 menubar=None
 controls=[]
 firstHeaderTextbox=-1
 firstPreviewTextbox=-1
 firstLayerTextbox=-1
 
-#Scroll bar to the right
+# Scroll bar to the right
 mouseDrag=False
 scrollLayerWidth=30
 scrollLayerVMargin=30
@@ -165,13 +177,14 @@ def createMenu():
         return
 
     def exitFile():
+        """ Exits program. """
         global running
         running=False
         print("Menu Exit was selected. Exit!")
         return
 
     def saveFile():
-        """ Placeholder for menu items without functionality """
+        """ Asks for a filename and tells the PhotonFile object to save it . """
 
         global filename
 
@@ -205,7 +218,7 @@ def createMenu():
 
 
     def loadFile():
-        """ Placeholder for menu items without functionality """
+        """ Asks for a filename and tells the PhotonFile object to load it . """
 
         global filename
 
@@ -232,12 +245,117 @@ def createMenu():
 
     def newFile():
         """ start new file by loading empty photon file with default settings """
+        global filename
 
-        # open file and update window title to reflect new filename
+        # open file and update window title to reflect a new unique (with date and time) filename
         openPhotonFile("resources/newfile.photon")
-        barefilename = ("New file")
+        barefilename = ("New file "+str(datetime.datetime.now().date())+" "+str(datetime.datetime.now().time())[:8])
+        barefilename = barefilename.replace(":","-")
+        filename = os.path.join(os.getcwd(),barefilename )
+        print (filename)
         pygame.display.set_caption("Photon File Editor - " + barefilename)
 
+
+    def deleteLayer():
+        """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
+
+        global dispimg
+        global layerimg
+        global photonfile
+        global layerNr
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to delete layers."): return
+
+        # Check of nrLayers at least 2, there must remain 1
+        if photonfile.nrLayers()==1:
+            dialog = MessageDialog(screen, pos=(140, 140),width=400,
+                                   title="No layers to delete!",
+                                   message="A .photon file must have at least 1 layer. \n\n You can however replace this layer with another bitmap or edit its settings.",
+                                   center = True,
+                                   parentRedraw = redrawWindow)
+            dialog.show()
+            return
+
+        # Check if user is sure
+        dialog = MessageDialog(screen, pos=(140, 140),width=400,
+                               title="Please confirm",
+                               message="Deleting only one layer can be undone. Are you sure?",
+                               center=True,
+                               buttonChoice=MessageDialog.OKCANCEL,
+                               parentRedraw=redrawWindow)
+        ret=dialog.show()
+
+        # Delete if user confirmed
+        if ret=="OK":
+            photonfile.deleteLayer(layerNr)
+            print("Layer "+str(layerNr)+ " deleted.")
+            # Check if we deleted last layer and if so reduce layerNr
+            if layerNr >= photonfile.nrLayers(): layerNr = layerNr - 1
+            # Update layer settings with new layer
+            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+            dispimg = layerimg
+            refreshLayerSettings()
+        else:
+            print ("User canceled deleting a layer.")
+
+
+    def copyLayer():
+        """ Copies layer to memory/clipboard, ready for pasting """
+        global photonfile
+        global layerNr
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+
+        # Copy to memory
+        photonfile.copyLayer(layerNr)
+
+
+    def duplicateLayer():
+        """ Inserts layer before current layer (duplicate current Layer) """
+
+        global dispimg
+        global layerimg
+        global photonfile
+        global layerNr
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+
+        # Insert layer
+        photonfile.insertLayerBefore(layerNr)
+        print("Layer "+str(layerNr)+ " inserted.")
+        # Update layer settings with new layer
+        refreshLayerSettings()
+        # Update current layer image with new bitmap retrieved from photonfile
+        layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+        dispimg = layerimg
+
+
+    def pasteLayer():
+        """ Inserts layer before current layer (duplicate current Layer) """
+
+        global dispimg
+        global layerimg
+        global photonfile
+        global layerNr
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+
+        # Insert layer
+        try:
+            photonfile.insertLayerBefore(layerNr,fromClipboard=True)
+            print("Layer "+str(layerNr)+ " inserted.")
+            # Refresh data from layer in sidebar (data length is possible changed)
+            refreshLayerSettings()
+            # Update current layer image with new bitmap retrieved from photonfile
+            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+            dispimg = layerimg
+        except Exception as err: # if clipboard is empty
+            print(err)
+            errMessageBox(str(err))
 
     def replaceBitmap():
         """ Replace bitmap of current layer with new bitmap from disk selected by the user """
@@ -355,7 +473,7 @@ def createMenu():
     def about():
         """ Displays about box """
         dialog = MessageDialog(screen, pos=(140, 140),width=400,
-                               title="About PhotonEditor",
+                               title="About Photon File Editor",
                                message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
                                center=False,
                                parentRedraw=redrawWindow)
@@ -384,10 +502,13 @@ def createMenu():
     menubar.addItem("File","Save As",saveFile)
     menubar.addItem("File","Exit",exitFile)
     menubar.addMenu("Edit", "E")
-    menubar.addItem("Edit", "..Delete Bitmap", doNothing)
-    menubar.addItem("Edit", "..Insert Bitmap", doNothing)
+    menubar.addItem("Edit", "Cut Layer", deleteLayer)
+    menubar.addItem("Edit", "Copy Layer", copyLayer)
+    menubar.addItem("Edit", "Paste Layer", pasteLayer)
+    menubar.addItem("Edit", "Duplicate Layer", duplicateLayer)
+    menubar.addItem("Edit", "______________", None)
     menubar.addItem("Edit", "Replace Bitmap", replaceBitmap)
-    menubar.addItem("Edit", "_________________", None)
+    menubar.addItem("Edit", "______________", None)
     menubar.addItem("Edit", "Import Bitmaps", importBitmaps)
     menubar.addItem("Edit", "Export Bitmaps", exportBitmaps)
     menubar.addMenu("View", "V")
@@ -827,6 +948,7 @@ def main():
     global menubar
     global mouseDrag
     global running
+    global photonfile
 
     # Initialize the pygame module and create the window
     createWindow()
@@ -870,16 +992,17 @@ def main():
 
             if event.type == pygame.KEYDOWN :
                 #If numlock on then we use it to navigate layers
-                isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
-                if not isNumlockOn:
-                    maxLayer = photonfile.nrLayers()
-                    page=int(maxLayer/10)
-                    if event.key == pygame.K_KP8: layerUp()
-                    if event.key == pygame.K_KP9: layerUp(page)
-                    if event.key == pygame.K_KP2: layerDown()
-                    if event.key == pygame.K_KP3: layerDown(page)
-                if event.key == pygame.K_UP: layerUp()
-                if event.key == pygame.K_DOWN: layerDown()
+                if not photonfile==None:
+                    isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
+                    if not isNumlockOn:
+                        maxLayer = photonfile.nrLayers()
+                        page=int(maxLayer/10)
+                        if event.key == pygame.K_KP8: layerUp()
+                        if event.key == pygame.K_KP9: layerUp(page)
+                        if event.key == pygame.K_KP2: layerDown()
+                        if event.key == pygame.K_KP3: layerDown(page)
+                    if event.key == pygame.K_UP: layerUp()
+                    if event.key == pygame.K_DOWN: layerDown()
 
                 if event.key == pygame.K_ESCAPE :
                   print ("Escape key pressed down. Exit!")
