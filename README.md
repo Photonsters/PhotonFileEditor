@@ -5,17 +5,17 @@ Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a uti
 ## Installation
 PhotonFileEditor is programmed in Python 3.6 and only one external library, pygame, is required but numpy is also recommended. 
 If you want to test it follow these instructions:
-1) install Python **3** from https://www.python.org/downloads/  
+1) Install Python **3** from https://www.python.org/downloads/  
 __or__ install Anaconda 3.6 https://www.anaconda.com/download/ 
 2) Check the python version is above 3 by typing in the command line 'python --version'
-3) install the pygame library (https://www.pygame.org/wiki/GettingStarted) by 
+3) Install the pygame library (https://www.pygame.org/wiki/GettingStarted) by 
    * opening a dos prompt/linux terminal  
    __or__ if using Anaconda use the windows start menu, type/find 'anaconda' and run the anaconda prompt
    * type 'python -m pip install -U pygame --user'  to install the required library
-4) recommended: with numpy installed a number of actions will be a lot faster, like importing and exporting of images and also updating the layer image when navigating.(Anaconda installations already comes with Numpy 1.14.3 installed, however better to be safe than sorry, so...)
+4) Recommended: with numpy installed a number of actions will be a lot faster, like importing and exporting of images and also updating the layer image when navigating.(Anaconda installations already comes with Numpy 1.14.3 installed, however better to be safe than sorry, so...)
    * type 'python -m pip install -U numpy --user'
-5) download this repository as a zip file and extract
-6) you have two options to run PhotonFileEditor:
+5) Download this repository as a zip file and extract
+6) You have two options to run PhotonFileEditor:
    * from your file explorer find and run PhotonEditor.py 
    * from a dos prompt/linux terminal, navigate to the directory where you extracted the zip file and type 'phyton PhotonEditor.py'
 
