@@ -18,6 +18,12 @@ from GUI import *
 ########################################################################################################################
 
 class MessageDialog():
+    #Button constants
+    OK=0
+    YESNO=1
+    OKCANCEL=2
+    buttonChoice=OK
+
     winrect=None
     titlerect=None
     margins=GRect(8,4,4,4)
@@ -31,7 +37,7 @@ class MessageDialog():
     fontname = defFontName
     fontsize = defFontSize
     listbox=None
-    btnOK=None
+    btnRight=None
     titleheight=24
     footerHeight=40
     buttonHeight=28
@@ -45,10 +51,22 @@ class MessageDialog():
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
         self.label.rect.x=self.winrect.x+self.margins.x
         self.label.rect.y=self.winrect.y+self.titleheight+self.margins.y
-        self.btnOK.rect=GRect(self.winrect.x+self.winrect.width-self.margins.width-self.buttonWidth,self.footerTop+self.margins.x,self.buttonWidth,self.buttonHeight)
+        self.btnRight.rect=GRect(self.winrect.x + self.winrect.width - self.margins.width - self.buttonWidth, self.footerTop + self.margins.x, self.buttonWidth, self.buttonHeight)
+        if not self.buttonChoice==self.OK: # two buttons
+            self.btnLeft.rect=GRect.copy(self.btnRight.rect)
+            self.btnLeft.rect.left=self.btnLeft.rect.left-self.margins.width - self.buttonWidth
 
-
-    def __init__(self, pyscreen, pos, width=300,center=True, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=defFontName, dfontsize=defFontSize,parentRedraw=None):
+    def __init__(self, pyscreen,
+                 pos, width=300,
+                 center=True,
+                 title="Message Dialog",message="Read this carefully... \n ...before entering Ok!",
+                 dfontname=defFontName, dfontsize=defFontSize,
+                 buttonChoice=OK,
+                 handleOK=None,
+                 handleCANCEL = None,
+                 handleYES = None,
+                 handleNO = None,
+                 parentRedraw=None):
         """ Saves all values to internal variables and calculates some extra internal vars. """
         # Save variables
         self.pyscreen = pyscreen
@@ -57,28 +75,43 @@ class MessageDialog():
         self.title=title
         self.message=message
         self.font = pygame.font.SysFont(dfontname, dfontsize)
+        self.buttonChoice=buttonChoice
+        self.handleOK=handleOK
+        self.handleCANCEL=handleCANCEL
+        self.handleNO = handleNO
+        self.handleYES = handleYES
 
         # Calculate extra variables
         dummy, textheight = self.font.size("MinimalText")
         self.titleheight=textheight+self.margins.y+self.margins.height
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
 
-        # Add GUI.Label and GUI.Button
+        # Add GUI.Label and GUI.Button(s)
         rectLabel=GRect(0,0,self.winrect.width-self.margins.x-self.margins.width,0)
         self.label=Label(pyscreen,text=message,fontname=dfontname,fontsize=dfontsize,rect=rectLabel,autoheight=True,center=center,backcolor=self.formcolor,autowrap=True)
-        self.btnOK=Button(pyscreen,text="OK",func_on_click=self.handleOK, rect=GRect())
         self.controls.append(self.label)
-        self.controls.append(self.btnOK)
+        self.btnRight=Button(pyscreen, text="OK", func_on_click=self.handleRight, rect=GRect())
+        self.controls.append(self.btnRight)
+        if buttonChoice==self.YESNO:
+            self.btnLeft = Button(pyscreen, text="YES", func_on_click=self.handleLeft, rect=GRect())
+            self.btnRight = Button(pyscreen, text="NO", func_on_click=self.handleRight, rect=GRect())
+            self.controls.append(self.btnLeft)
+            self.controls.append(self.btnRight)
+        if buttonChoice == self.OKCANCEL:
+            self.btnLeft = Button(pyscreen, text="OK", func_on_click=self.handleLeft, rect=GRect())
+            self.btnRight=Button(pyscreen, text="CANCEL", func_on_click=self.handleRight, rect=GRect())
+            self.controls.append(self.btnLeft)
+            self.controls.append(self.btnRight)
 
         # (Re)calculate remaining variables
         self.reposControls()
 
 
     def show(self):
-        """ Call to self.waitforuser. """
+        """ Returns selected button and closes dialog. """
         self.waiting=True
         self.waitforuser()
-
+        return self.lastaction
 
     def redraw(self):
         """ Redraws dialogbox. """
@@ -101,7 +134,8 @@ class MessageDialog():
 
         # Call upon label and button to redraw themselves.
         self.label.redraw()
-        self.btnOK.redraw()
+        self.btnRight.redraw()
+        if not self.buttonChoice==self.OK: self.btnLeft.redraw()
 
 
     def waitforuser(self):
@@ -143,7 +177,16 @@ class MessageDialog():
                         self.waiting = False
 
 
-    def handleOK(self):
-        """ If OK we tell main loop we are readyy waiting. """
+    def handleRight(self):
+        """ If OK we tell main loop we are ready waiting. """
+        if self.buttonChoice==self.OK: self.lastaction="OK"
+        if self.buttonChoice==self.OKCANCEL: self.lastaction="CANCEL"
+        if self.buttonChoice == self.YESNO: self.lastaction = "NO"
+        self.waiting=False
+
+    def handleLeft(self):
+        """ If OK we tell main loop we are ready waiting. """
+        if self.buttonChoice==self.OKCANCEL: self.lastaction="OK"
+        if self.buttonChoice == self.YESNO: self.lastaction = "YES"
         self.waiting=False
 
