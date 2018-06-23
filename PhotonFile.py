@@ -93,11 +93,13 @@ class PhotonFile:
     LayerData = []
 
     @staticmethod
-    def bytes_to_int(bytes):
-        result = 0
-        for b in reversed(bytes):
-            result = result * 256 + int(b)
-        return result
+    def bytes_to_int(inBytes):
+        #result = 0
+        #for b in reversed(bytes):
+        #    result = result * 256 + int(b)
+        r = int.from_bytes(inBytes, byteorder='little')
+        #return result
+        return r
 
     @staticmethod
     def bytes_to_float(inbytes):
@@ -231,7 +233,7 @@ class PhotonFile:
 
             # print (' '.join(format(x, '02X') for x in header))
 
-
+    @staticmethod
     def encodedBitmap_Bytes_withnumpy(filename):
         #https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
         imgsurf = pygame.image.load(filename)
@@ -260,6 +262,7 @@ class PhotonFile:
             rleData.append(encValue)
         return bytes(rleData)
 
+    @staticmethod
     def encodedBitmap_Bytes_nonumpy(filename):
         imgsurf = pygame.image.load(filename)
         #bitDepth = imgsurf.get_bitsize()
@@ -293,7 +296,8 @@ class PhotonFile:
                     prevColor = color
                     nrOfColor = 1
         return bytes(rleData)
-
+    
+    @staticmethod
     def encodedBitmap_Bytes(filename):
         if numpyAvailable:
             return PhotonFile.encodedBitmap_Bytes_withnumpy(filename)
@@ -653,51 +657,6 @@ class PhotonFile:
 '''
 
 
-def testDataConversions():
-    print("Testing Data Type Conversions")
-    print("-----------")
-    floatVal = 9999.9999563227
-    print("float:", floatVal)
-    bytes = (PhotonFile.float_to_bytes(floatVal))
-    print("raw bytes: ", bytes, len(bytes))
-    hexs = ' '.join(format(h, '02X') for h in bytes)
-    print("bytes in hex:", hexs)
-    f = PhotonFile.bytes_to_float(bytes)
-    print("want :", floatVal)
-    print("float:", f)
-    if not floatVal == 0: print("diff :", 100 * (floatVal - f) / floatVal, "%")
-    quit()
-    print("-----------")
-    intVal = 313
-    print("int:", intVal)
-    bytes = (PhotonFile.int_to_bytes(intVal))
-    print("raw bytes: ", bytes)
-    hexs = ' '.join(format(h, '02X') for h in bytes)
-    print("bytes in hex:", hexs)
-    i = PhotonFile.bytes_to_int(bytes)
-    print("int:", i)
-    print("-----------")
-    hexStr = '00 A1 7D DF'
-    print("hex:", hexStr)
-    bytes = (PhotonFile.hex_to_bytes(hexStr))
-    print("raw bytes: ", bytes)
-    h = PhotonFile.bytes_to_hex(bytes)
-    print("hex:", h)
-    print("-----------")
-    quit()
-
-
-# testDataConversions()
-
-def testImageReplacement():
-    PhotonFile.encodedBitmap_Bytes(
-        "C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/testencoding_0.png")
-    photonfile = PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
-    photonfile.readFile()
-    photonfile.replaceBitmaps("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/")
-    quit()
-
-# testImageReplacement()
 
 
 def Rle(filename):
@@ -723,20 +682,7 @@ def Rle(filename):
        print (nr,col)
     return np.dstack((lengths, values))[0]
 
-def testRle():
 
-    rle=Rle("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.bitmaps/slice__001.png")
-    rleData=bytearray()
-    for (nr,col) in rle:
-        color=0
-        if col>1:color=1
-        while nr>0x7D:
-            encValue = (color << 7) | 0x7D
-            rleData.append(encValue)
-            nr=nr-0x7D
-        encValue = (color << 7) | color
-        rleData.append(encValue)
-    print (len(rleData))
 
 def rld(runs_bytearray):
     runs=numpy.asarray(runs_bytearray)
@@ -753,23 +699,7 @@ def rld(runs_bytearray):
     return x
 
 
-def testRld():
-    nr=numpy.array((3,5,2,6,1),numpy.uint8)
-    val=numpy.array((0,1,0,1,0),numpy.uint8)
-    print(nr.size, nr)
-    print (val.size,val)
-    #rleseq = numpy.ravel(numpy.column_stack((nr, val)))
-    rleseq=numpy.column_stack((nr,val))
-    #rleseq = numpy.empty((nr.size , val.size,), dtype=numpy.uint8)
-    print (rleseq)
 
-    #rleseq2 = [(3, 0), (5, 1), (2, 0), (6, 1), (1, 0)]
-    #rleseq2=numpy.array(rleseq2,dtype=numpy.uint8)
-    #print("rleseq2: ",rleseq2)
-    runs=numpy.asarray (rleseq)
-    print (runs)
-    ret=rld(runs)
-    print (ret)
 
 
 #ph=PhotonFile("C:/Users/RosaNarden/Documents/Python3/PhotonFileUtils/SamplePhotonFiles/Smilie.photon")
