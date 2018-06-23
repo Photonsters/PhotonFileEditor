@@ -1,8 +1,22 @@
+"""
+Helper classes for GUI module
+"""
+
+__version__ = "alpha"
+__author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
+
+import math
+
+########################################################################################################################
+## Class GPoint
+########################################################################################################################
+
 class GPoint():
     __x=0
     __y=0
 
     def __init__(self,x=0,y=0):
+        """ Saves all values to internal variables. """
         self.__x = x
         self.__y = y
 
@@ -26,9 +40,11 @@ class GPoint():
     def __str__(self):return (str(self.x) + " , " + str(self.y) )
 
     def inGRect(self,GRect):
+        """ Check if this GPoint is in given GRect. """
         return self.x>=GRect.left and self.x<=GRect.right and self.y >= GRect.top and self.y <= GRect.bottom
 
     def copy(self):
+        """ Make a copy we can edit without affecting this instance. """
         newG=GPoint(self.x,self.y)
         return newG
 
@@ -46,6 +62,11 @@ class GPoint():
             return type(self)==type(other)
     def __len__(self, other): return (math.sqrt(self.x^2 + self.y^2))
 
+
+########################################################################################################################
+## Class GLine
+########################################################################################################################
+
 class GLine():
     x1 = 0
     y1 = 0
@@ -53,6 +74,7 @@ class GLine():
     y2 = 0
 
     def __init__(self, x1=0, y1=0, x2=0, y2=0):
+        """ Saves all values to internal variables. """
         self.x1 = x1
         self.y1 = y1
         self.x2 = x2
@@ -65,8 +87,14 @@ class GLine():
     def length(self): return (math.sqrt(self.width + self.height))
 
     def copy(self):
+        """ Make a copy we can edit without affecting this instance. """
         newG=GLine(self.x1,self.y1)
         return newG
+
+
+########################################################################################################################
+## Class GRect
+########################################################################################################################
 
 class GRect():
     __x = 0
@@ -75,6 +103,7 @@ class GRect():
     __height = 0
 
     def __init__(self, x=0, y=0, width=0, height=0):
+        """ Saves all values to internal variables. """
         self.__x = x
         self.__y = y
         self.__width = width
@@ -137,18 +166,22 @@ class GRect():
     def rightline(self):return GLine(self.x2,self.y1,self.x2,self.y2)
 
     def copy(self):
+        """ Make a copy we can edit without affecting this instance. """
         newG=GRect(self.x,self.y,self.width,self.height)
         return newG
 
     def move(self,gpos):
+        """ Move this rect by distance in GPoint. """
         self.x=self.x+gpos.x
         self.y=self.y+gpos.y
 
     def moveto(self,gpos):
+        """ Move this rect upperleft corner to GPoint. """
         self.x=gpos.x
         self.y=gpos.y
 
     def shrink(self,grect):
+        """ Add self.x to GRect.x, Add self.y to GRect.y, Substract GRect.width from self.width, Substract GRect.height from self.height."""
         self.x=self.x+grect.x
         self.y=self.y+grect.y
         self.width=self.width-grect.x-grect.width
