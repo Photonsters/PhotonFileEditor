@@ -12,7 +12,7 @@ __or__ install Anaconda 3.6 https://www.anaconda.com/download/
    * opening a dos prompt/linux terminal  
    __or__ if using Anaconda use the windows start menu, type/find 'anaconda' and run the anaconda prompt
    * type 'python -m pip install -U pygame --user'  to install the required library
-4) recommended: with numpy installed a number of actions will be a lot faster, like importing and exporting of images and also updating the layer image when navigating.
+4) recommended: with numpy installed a number of actions will be a lot faster, like importing and exporting of images and also updating the layer image when navigating.(Anaconda installations already comes with Numpy 1.14.3 installed, however better to be safe than sorry, so...)
    * type 'python -m pip install -U numpy --user'
 5) download this repository as a zip file and extract
 6) you have two options to run PhotonFileEditor:
