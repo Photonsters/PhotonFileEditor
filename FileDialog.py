@@ -1,7 +1,20 @@
+"""
+Shows message dialog to user
+"""
+
+__version__ = "alpha"
+__author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
+
 import os
+
 import pygame
 from pygame.locals import *
+
 from GUI import *
+
+########################################################################################################################
+## Class FileDialog
+########################################################################################################################
 
 class FileDialog():
     winrect=None
@@ -37,6 +50,7 @@ class FileDialog():
 
 
     def reposControls(self): #called after winrect is moved
+        """ Recalculates all positions after moving dialog box. """
         self.titlerect = GRect(self.winrect.x, self.winrect.y, self.winrect.width, self.titleheight)
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
         x=self.winrect.x+self.margins.x
@@ -48,40 +62,52 @@ class FileDialog():
         self.btnCancel.rect= GRect(self.winrect.x + self.winrect.width - 2*self.margins.width - 2*self.buttonWidth,self.footerTop + self.margins.x, self.buttonWidth, self.buttonHeight)
         self.tbFilename.rect =GRect(self.winrect.x+self.margins.x,self.footerTop+self.margins.x,self.winrect.width-4*self.margins.x-2*self.buttonWidth,self.buttonHeight)
 
-    def __init__(self, pyscreen, pos, startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
+
+    def __init__(self, pyscreen, pos, height=300,startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
+        """ Saves all values to internal variables and calculates some extra internal vars. """
+        # Save variables
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         if startdir==None: self.startdir=os.getcwd()
         self.ext=ext
-        self.winrect=GRect(pos[0], pos[1], 300, 200)
+        self.winrect=GRect(pos[0], pos[1], 350, height)
         self.title=title
         self.defFilename=defFilename
         self.font = pygame.font.SysFont(dfontname, dfontsize)
-        width, height = self.font.size("MinimalText")
-        self.titleheight=height+self.margins.y+self.margins.height
 
+        # Calculate extra variables
+        dummy, textheight = self.font.size("MinimalText")
+        self.titleheight=textheight +self.margins.y+self.margins.height
         self.footerTop = self.winrect.y + self.winrect.height - self.margins.height - self.footerHeight
+
+        # Add GUI.Listbox, GUI.Textbox and GUI.Buttons
         self.listbox=ListBox(pyscreen,fontname=dfontname,fontsize=dfontsize,func_on_click=self.handleListboxSelect, rect=GRect())
         self.btnOK=Button(pyscreen,text="OK",func_on_click=self.handleOK, rect=GRect())
         self.btnCancel = Button(pyscreen, text="Cancel",func_on_click=self.handleCancel, rect=GRect())
         self.tbFilename= TextBox(pyscreen,backcolor=(255,255,255),textcolor=(0,0,0),bordercolor=(0,0,0),rect=GRect(),text=defFilename)
-        self.reposControls()
-
-        self.readDirectory()
-        self.listbox.setItems(self.dirsandfiles)
-
         self.controls.append(self.listbox)
         self.controls.append(self.tbFilename)
         self.controls.append(self.btnOK)
         self.controls.append(self.btnCancel)
 
+        # (Re)calculate remaining variables
+        self.reposControls()
+
+        # Fill listbox with directory items
+        self.readDirectory()
+        self.listbox.setItems(self.dirsandfiles)
+
         #print ("starting with: ", self.startdir)
 
 
     def getFile(self):
+        """ Get Existing Filename from user. """
+        # Hide texbox to input filename and show files in listbox
         self.tbFilename.visible=False
         self.showFilenames=True
+        # Read content of directory and update self.dirsandfiles variable to show in listbox
         self.readDirectory()
+        # Wait for user to select file and press OK
         self.waiting=True
         self.waitforuser()
         if self.lastaction=="OK":
@@ -90,10 +116,15 @@ class FileDialog():
         else:
             return None
 
+
     def getDirectory(self):
+        """ Get Directory from user. """
+        # Hide texbox to input filename and hide files in listbox
         self.tbFilename.visible=False
         self.showFilenames=False
+        # Read content of directory and update self.dirsandfiles variable to show in listbox
         self.readDirectory()
+        # Wait for user to select file and press OK
         self.waiting=True
         self.waitforuser()
         if self.lastaction=="OK":
@@ -101,10 +132,15 @@ class FileDialog():
         else:
             return None
 
+
     def newFile(self):
+        """ Get New Filename from user. """
+        # Show texbox to input filename and show files in listbox
         self.tbFilename.visible=True
         self.showFilenames=True
+        # Read content of directory and update self.dirsandfiles variable to show in listbox
         self.readDirectory()
+        # Wait for user to select file and press OK
         self.waiting=True
         self.waitforuser()
         if self.lastaction=="OK":
@@ -113,20 +149,21 @@ class FileDialog():
         else:
             return None
 
-    def readDirectory(self):
-        #read dirs and files
-        #print(self.startdir)
-        direntries = os.listdir(self.startdir)
-        # extract dirs
 
-        #find dirs
+    def readDirectory(self):
+        """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
+
+        # Read dirs and files
+        direntries = os.listdir(self.startdir)
+
+        # Extract dirs
         dirs = [".."]
         for entry in direntries:
             fullname = os.path.join(self.startdir, entry)
             if os.path.isdir(fullname): dirs.append(entry + "/")
         dirs.sort()
 
-        # apply filter
+        # Extract files and apply filter
         files = []
         if self.showFilenames:
             if not self.ext == "*":
@@ -134,26 +171,32 @@ class FileDialog():
                     if entry.endswith(self.ext): files.append(entry)
             files.sort()
 
-        # make one list
+        # Make one list of dirs and files
+        self.dirsandfiles = dirs + files
         # print("dirs : ",dirs)
         # print("files: ", files)
-        self.dirsandfiles = dirs + files
 
-        #print("both : ", self.dirsandfiles)
 
     def redraw(self):
-        #draw form
+        """ Redraws filedialog. """
+
+        # First call parent / window to redraw itself
+        self.parentRedraw()
+
+        # Draw form background
         pygame.draw.rect(self.pyscreen, self.formcolor, self.winrect.tuple(), 0)
-        #draw title bar
+
+        # Draw title bar including title text
         pygame.draw.rect(self.pyscreen, self.titlebackcolor,self.titlerect.tuple(), 0)
         self.font.set_bold(True)
         textsurface = self.font.render(self.title, True, self.titletextcolor)
         self.pyscreen.blit(textsurface, (self.winrect.x + self.margins.x, self.winrect.y + self.margins.y))
         self.font.set_bold(False)
-        #draw border
+
+        # Draw form border
         pygame.draw.rect(self.pyscreen, self.bordercolor, self.winrect.tuple(), 1)
 
-        # draw listbox with files
+        # Call upon label and button to redraw themselves.
         self.listbox.redraw()
         self.btnCancel.redraw()
         self.btnOK.redraw()
@@ -161,7 +204,12 @@ class FileDialog():
 
 
     def waitforuser(self):
+        """ Blocks all events to Main window and wait for user to click OK. """
+
         while self.waiting:
+            self.redraw()
+            pygame.display.flip()
+
             for event in pygame.event.get():
                 pos = pygame.mouse.get_pos()
                 gpos=GPoint().fromTuple(pos)
@@ -195,21 +243,23 @@ class FileDialog():
                     else:
                         self.tbFilename.handleKeyDown(event.key, event.unicode)
 
-            self.parentRedraw()
-            self.redraw()
-            pygame.display.flip()
 
     def handleListboxSelect(self,text):
+        """ If Listbox item selected and directory, we read new directory of if not put filename in textbox. """
+
         #print ("[handleListboxSelect]")
         #text=self.listbox.activeText()
         #print ("  parse: ", text)
         #print ("  direct:", itext)
+
+        # Check if user wants to go up.
         if text=="..":
             self.startdir=os.path.dirname(self.startdir)
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.listbox.activeItem=-1
+        # Check if user selects a directory
         elif text.endswith("/"):
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
@@ -217,15 +267,19 @@ class FileDialog():
             self.listbox.setItems(self.dirsandfiles)
             self.listbox.activeItem = -1
             print ("Nav to dir: ",self.selDirectory)
+        # Else user selected a file
         else:
             self.tbFilename.text=self.listbox.activeText()
             self.selFilename=self.listbox.activeText()
             #print ("Selected: ",self.selFilename," -> ", self.selDirectory,self.selFilename)
 
     def handleCancel(self):
+        """ If Cancel we tell main loop we are ready waiting. """
         self.lastaction="Cancel"
         self.waiting=False
 
+
     def handleOK(self):
+        """ If OK we tell main loop we are ready waiting. """
         self.lastaction = "OK"
         self.waiting=False
