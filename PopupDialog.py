@@ -50,7 +50,9 @@ class PopupDialog():
         self.label.rect=GRect(x,y, w, h)
         self.label.setText(self.message)
 
+
     def __init__(self, pyscreen, pos, title="Message Dialog",message="Read this carefully... \n ...before entering Ok!", dfontname=defFontName, dfontsize=defFontSize):
+        """ Saves all values to internal variables and calculates some extra internal vars. """
         self.pyscreen = pyscreen
         #self.parentRedraw=parentRedraw
         self.winrect=GRect(pos[0], pos[1], 300, 160)
@@ -75,9 +77,11 @@ class PopupDialog():
         """ Just draw me. """
         self.redraw()
 
+
     def hide(self):
         """ Do nothing. """
         return
+
 
     def redraw(self):
         """ Redraws dialogbox. """
