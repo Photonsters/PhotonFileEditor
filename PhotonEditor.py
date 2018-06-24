@@ -19,6 +19,8 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: layer op icons in icon bar
+#todo: load resin settings from pulldown list?
 #todo: undo not yet working correct
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
@@ -160,378 +162,379 @@ def layerUp(delta=1):
 ##  Create Menu and menu handlers
 ########################################################################################################################
 
-def createMenu():
-    global menubar
-    global screen
+def newFile():
+    """ start new file by loading empty photon file with default settings """
+    global filename
 
-    def doNothing():
-        """ Placeholder for menu items without functionality """
-        infoMessageBox("Not yet implemented", "This feature is under development. If you want to help please visit our github page NardJ/PhotonFileUtils.")
-        return
+    # open file and update window title to reflect a new unique (with date and time) filename
+    openPhotonFile("resources/newfile.photon")
+    barefilename = ("New file "+str(datetime.datetime.now().date())+" "+str(datetime.datetime.now().time())[:8])
+    barefilename = barefilename.replace(":","-")
+    filename = os.path.join(os.getcwd(),barefilename )
+    print (filename)
+    pygame.display.set_caption("Photon File Editor - " + barefilename)
 
-    def exitFile():
-        """ Exits program. """
-        global running
-        running=False
-        print("Menu Exit was selected. Exit!")
-        return
+def doNothing():
+    """ Placeholder for menu items without functionality """
+    infoMessageBox("Not yet implemented", "This feature is under development. If you want to help please visit our github page NardJ/PhotonFileUtils.")
+    return
 
-    def saveFile():
-        """ Asks for a filename and tells the PhotonFile object to save it . """
+def exitFile():
+    """ Exits program. """
+    global running
+    running=False
+    print("Menu Exit was selected. Exit!")
+    return
 
-        global filename
+def saveFile():
+    """ Asks for a filename and tells the PhotonFile object to save it . """
 
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","There is no .photon file loaded to save."): return
+    global filename
 
-        # Write all values on the screen to the photonfile object
-        saveGeneralSettings2PhotonFile()
-        savePreviewSettings2PhotonFile()
-        saveLayerSettings2PhotonFile()
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","There is no .photon file loaded to save."): return
 
-        # Ask user for filename and if exists to confirm overwrite resulting in okUser=True
-        okUser=False
-        retfilename=""
-        while not okUser:
-            # Get filename
-            dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
-            retfilename=dialog.newFile()
-            # If user canceled saveFile on FileDialog, retfilename=None and we should continue and thus set okUser to true
-            if retfilename == None:
-                okUser = True
-            # If user selected filename, we check if filename exists (if exists okUser set to False, if not okUser is True)
-            else:
-                okUser = not os.path.isfile(retfilename)
-            # If fileexists or user canceled saveFile on FileDialog
-            if not okUser:
-                dialog = MessageDialog(screen, pos=(140, 140), width=400,
-                                       title="Please confirm",
-                                       message="This file already exists. Do you want to continue?",
-                                       center=True,
-                                       buttonChoice=MessageDialog.OKCANCEL,
-                                       parentRedraw=redrawWindow)
-                ret = dialog.show()
-                #if user selected ok, the users want to overwrite file so set okUser to True
-                if ret=="OK": okUser=True
+    # Write all values on the screen to the photonfile object
+    saveGeneralSettings2PhotonFile()
+    savePreviewSettings2PhotonFile()
+    saveLayerSettings2PhotonFile()
 
-        # Check if user pressed Cancel
-        if not retfilename==None:
-            filename=retfilename
-            print ("Returned: ",filename)
-            try:
-                # Write file and update window title to reflect new filename
-                photonfile.writeFile(filename)
-                barefilename = (os.path.basename(filename))
-                pygame.display.set_caption("Photon File Editor - " + barefilename)
-            except Exception as err:
-                print (err)
-                errMessageBox(str(err))
+    # Ask user for filename and if exists to confirm overwrite resulting in okUser=True
+    okUser=False
+    retfilename=""
+    while not okUser:
+        # Get filename
+        dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
+        retfilename=dialog.newFile()
+        # If user canceled saveFile on FileDialog, retfilename=None and we should continue and thus set okUser to true
+        if retfilename == None:
+            okUser = True
+        # If user selected filename, we check if filename exists (if exists okUser set to False, if not okUser is True)
         else:
-            print("User Canceled")
-        return
+            okUser = not os.path.isfile(retfilename)
+        # If fileexists or user canceled saveFile on FileDialog
+        if not okUser:
+            dialog = MessageDialog(screen, pos=(140, 140), width=400,
+                                   title="Please confirm",
+                                   message="This file already exists. Do you want to continue?",
+                                   center=True,
+                                   buttonChoice=MessageDialog.OKCANCEL,
+                                   parentRedraw=redrawWindow)
+            ret = dialog.show()
+            #if user selected ok, the users want to overwrite file so set okUser to True
+            if ret=="OK": okUser=True
 
-
-    def loadFile():
-        """ Asks for a filename and tells the PhotonFile object to load it . """
-
-        global filename
-
-        # Ask user for filename
-        dialog = FileDialog(screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawWindow)
-        retfilename=dialog.getFile()
-
-        # Check if user pressed Cancel
-        if not retfilename==None:
-            filename = retfilename
-            print ("Returned: ",filename)
-            try:
-                # Open file and update window title to reflect new filename
-                openPhotonFile(filename)
-                barefilename = (os.path.basename(filename))
-                pygame.display.set_caption("Photon File Editor - " + barefilename)
-            except Exception as err:
-                print (err)
-                errMessageBox(str(err))
-        else:
-            print ("User Canceled")
-        return
-
-
-    def newFile():
-        """ start new file by loading empty photon file with default settings """
-        global filename
-
-        # open file and update window title to reflect a new unique (with date and time) filename
-        openPhotonFile("resources/newfile.photon")
-        barefilename = ("New file "+str(datetime.datetime.now().date())+" "+str(datetime.datetime.now().time())[:8])
-        barefilename = barefilename.replace(":","-")
-        filename = os.path.join(os.getcwd(),barefilename )
-        print (filename)
-        pygame.display.set_caption("Photon File Editor - " + barefilename)
-
-
-    def undo():
-        """ Undo by replacing all data with data from history. """
-
-        global dispimg
-        global layerimg
-        global photonfile
-        global layerNr
-
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","There is nothing to undo."): return
-
-        # Insert layer
+    # Check if user pressed Cancel
+    if not retfilename==None:
+        filename=retfilename
+        print ("Returned: ",filename)
         try:
-            photonfile.undo()
-            print("Undo")
-            # Refresh data from layer in sidebar (data length is possible changed)
-            refreshLayerSettings()
-            # Update current layer image with new bitmap retrieved from photonfile
-            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
-            dispimg = layerimg
-        except Exception as err: # if clipboard is empty
-            print(err)
+            # Write file and update window title to reflect new filename
+            photonfile.writeFile(filename)
+            barefilename = (os.path.basename(filename))
+            pygame.display.set_caption("Photon File Editor - " + barefilename)
+        except Exception as err:
+            print (err)
             errMessageBox(str(err))
-
-    def deleteLayer():
-        """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
-
-        global dispimg
-        global layerimg
-        global photonfile
-        global layerNr
-
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to delete layers."): return
-
-        # Check of nrLayers at least 2, there must remain 1
-        if photonfile.nrLayers()==1:
-            dialog = MessageDialog(screen, pos=(140, 140),width=400,
-                                   title="No layers to delete!",
-                                   message="A .photon file must have at least 1 layer. \n\n You can however replace this layer with another bitmap or edit its settings.",
-                                   center = True,
-                                   parentRedraw = redrawWindow)
-            dialog.show()
-            return
-
-        # Check if user is sure
-        dialog = MessageDialog(screen, pos=(140, 140),width=400,
-                               title="Please confirm",
-                               message="Deleting only one layer can be undone. Are you sure?",
-                               center=True,
-                               buttonChoice=MessageDialog.OKCANCEL,
-                               parentRedraw=redrawWindow)
-        ret=dialog.show()
-
-        # Delete if user confirmed
-        if ret=="OK":
-            photonfile.deleteLayer(layerNr)
-            print("Layer "+str(layerNr)+ " deleted.")
-            # Check if we deleted last layer and if so reduce layerNr
-            if layerNr >= photonfile.nrLayers(): layerNr = layerNr - 1
-            # Update layer settings with new layer
-            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
-            dispimg = layerimg
-            refreshLayerSettings()
-        else:
-            print ("User canceled deleting a layer.")
+    else:
+        print("User Canceled")
+    return
 
 
-    def copyLayer():
-        """ Copies layer to memory/clipboard, ready for pasting """
-        global photonfile
-        global layerNr
+def loadFile():
+    """ Asks for a filename and tells the PhotonFile object to load it . """
 
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+    global filename
 
-        # Copy to memory
-        photonfile.copyLayer(layerNr)
+    # Ask user for filename
+    dialog = FileDialog(screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawWindow)
+    retfilename=dialog.getFile()
+
+    # Check if user pressed Cancel
+    if not retfilename==None:
+        filename = retfilename
+        print ("Returned: ",filename)
+        try:
+            # Open file and update window title to reflect new filename
+            openPhotonFile(filename)
+            barefilename = (os.path.basename(filename))
+            pygame.display.set_caption("Photon File Editor - " + barefilename)
+        except Exception as err:
+            print (err)
+            errMessageBox(str(err))
+    else:
+        print ("User Canceled")
+    return
 
 
-    def duplicateLayer():
-        """ Inserts layer before current layer (duplicate current Layer) """
+def undo():
+    """ Undo by replacing all data with data from history. """
 
-        global dispimg
-        global layerimg
-        global photonfile
-        global layerNr
+    global dispimg
+    global layerimg
+    global photonfile
+    global layerNr
 
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","There is nothing to undo."): return
 
-        # Insert layer
-        photonfile.insertLayerBefore(layerNr)
-        print("Layer "+str(layerNr)+ " inserted.")
-        # Update layer settings with new layer
+    # Insert layer
+    try:
+        photonfile.undo()
+        print("Undo")
+        # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
         # Update current layer image with new bitmap retrieved from photonfile
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
+    except Exception as err: # if clipboard is empty
+        print(err)
+        errMessageBox(str(err))
+
+def deleteLayer():
+    """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
+
+    global dispimg
+    global layerimg
+    global photonfile
+    global layerNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to delete layers."): return
+
+    # Check of nrLayers at least 2, there must remain 1
+    if photonfile.nrLayers()==1:
+        dialog = MessageDialog(screen, pos=(140, 140),width=400,
+                               title="No layers to delete!",
+                               message="A .photon file must have at least 1 layer. \n\n You can however replace this layer with another bitmap or edit its settings.",
+                               center = True,
+                               parentRedraw = redrawWindow)
+        dialog.show()
+        return
+
+    # Check if user is sure
+    dialog = MessageDialog(screen, pos=(140, 140),width=400,
+                           title="Please confirm",
+                           message="Deleting only one layer can be undone. Are you sure?",
+                           center=True,
+                           buttonChoice=MessageDialog.OKCANCEL,
+                           parentRedraw=redrawWindow)
+    ret=dialog.show()
+
+    # Delete if user confirmed
+    if ret=="OK":
+        photonfile.deleteLayer(layerNr)
+        print("Layer "+str(layerNr)+ " deleted.")
+        # Check if we deleted last layer and if so reduce layerNr
+        if layerNr >= photonfile.nrLayers(): layerNr = layerNr - 1
+        # Update layer settings with new layer
+        layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+        dispimg = layerimg
+        refreshLayerSettings()
+    else:
+        print ("User canceled deleting a layer.")
 
 
-    def pasteLayer():
-        """ Inserts layer before current layer (duplicate current Layer) """
+def copyLayer():
+    """ Copies layer to memory/clipboard, ready for pasting """
+    global photonfile
+    global layerNr
 
-        global dispimg
-        global layerimg
-        global photonfile
-        global layerNr
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
 
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+    # Copy to memory
+    photonfile.copyLayer(layerNr)
 
-        # Insert layer
+
+def duplicateLayer():
+    """ Inserts layer before current layer (duplicate current Layer) """
+
+    global dispimg
+    global layerimg
+    global photonfile
+    global layerNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+
+    # Insert layer
+    photonfile.insertLayerBefore(layerNr)
+    print("Layer "+str(layerNr)+ " inserted.")
+    # Update layer settings with new layer
+    refreshLayerSettings()
+    # Update current layer image with new bitmap retrieved from photonfile
+    layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+    dispimg = layerimg
+
+
+def pasteLayer():
+    """ Inserts layer before current layer (duplicate current Layer) """
+
+    global dispimg
+    global layerimg
+    global photonfile
+    global layerNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
+
+    # Insert layer
+    try:
+        photonfile.insertLayerBefore(layerNr,fromClipboard=True)
+        print("Layer "+str(layerNr)+ " inserted.")
+        # Refresh data from layer in sidebar (data length is possible changed)
+        refreshLayerSettings()
+        # Update current layer image with new bitmap retrieved from photonfile
+        layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+        dispimg = layerimg
+    except Exception as err: # if clipboard is empty
+        print(err)
+        errMessageBox(str(err))
+
+def replaceBitmap():
+    """ Replace bitmap of current layer with new bitmap from disk selected by the user """
+
+    global filename
+    global dispimg
+    global layerimg
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
+
+    # Ask user for filename
+    dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
+    retfilename=dialog.getFile()
+
+    # Check if user pressed Cancel
+    if not retfilename==None:
+        filename = retfilename
+        print ("Returned: ",filename)
+        # since import can take a while (although faster with numpy library available) show a be-patient message
+        popup = PopupDialog(screen, pos=(140, 140),
+                            title="Please wait...",
+                            message="Photon File Editor is importing your images.")
+        popup.show()
         try:
-            photonfile.insertLayerBefore(layerNr,fromClipboard=True)
-            print("Layer "+str(layerNr)+ " inserted.")
+            # Ask PhotonFile object to replace bitmap
+            photonfile.replaceBitmap(layerNr,filename)
             # Refresh data from layer in sidebar (data length is possible changed)
             refreshLayerSettings()
             # Update current layer image with new bitmap retrieved from photonfile
             layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
             dispimg = layerimg
-        except Exception as err: # if clipboard is empty
-            print(err)
+        except Exception as err:
+            print (err)
             errMessageBox(str(err))
-
-    def replaceBitmap():
-        """ Replace bitmap of current layer with new bitmap from disk selected by the user """
-
-        global filename
-        global dispimg
-        global layerimg
-
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
-
-        # Ask user for filename
-        dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
-        retfilename=dialog.getFile()
-
-        # Check if user pressed Cancel
-        if not retfilename==None:
-            filename = retfilename
-            print ("Returned: ",filename)
-            # since import can take a while (although faster with numpy library available) show a be-patient message
-            popup = PopupDialog(screen, pos=(140, 140),
-                                title="Please wait...",
-                                message="Photon File Editor is importing your images.")
-            popup.show()
-            try:
-                # Ask PhotonFile object to replace bitmap
-                photonfile.replaceBitmap(layerNr,filename)
-                # Refresh data from layer in sidebar (data length is possible changed)
-                refreshLayerSettings()
-                # Update current layer image with new bitmap retrieved from photonfile
-                layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
-                dispimg = layerimg
-            except Exception as err:
-                print (err)
-                errMessageBox(str(err))
-        else:
-            print ("User Canceled")
-        return
+    else:
+        print ("User Canceled")
+    return
 
 
-    def importBitmaps():
-        """ Replace all bitmaps with all bitmap found in a directory selected by the user """
-        global photonfile
-        global layerNr
-        global dispimg
-        global layerimg
+def importBitmaps():
+    """ Replace all bitmaps with all bitmap found in a directory selected by the user """
+    global photonfile
+    global layerNr
+    global dispimg
+    global layerimg
 
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed as template to load the bitmaps in."):return
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed as template to load the bitmaps in."):return
 
-        # Ask user for filename
-        dialog = FileDialog(screen, (40, 40), ext=".png", title="Select directory with png files", parentRedraw=redrawWindow)
-        directory = dialog.getDirectory()
+    # Ask user for filename
+    dialog = FileDialog(screen, (40, 40), ext=".png", title="Select directory with png files", parentRedraw=redrawWindow)
+    directory = dialog.getDirectory()
 
-        # Check if user pressed Cancel
-        if not directory == None:
-            print("Returned: ", directory)
-            # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-            popup = PopupDialog(screen, pos=(140, 140),
-                                title="Please wait...",
-                                message="Photon File Editor is importing your images.")
-            popup.show()
-            try:
-                # Ask PhotonFile object to replace bitmaps
-                photonfile.replaceBitmaps(directory)
-                # Refresh header settings which contains number of layers
-                refreshHeaderSettings()
-                # No preview data is changed
-                #
-                # Start again at layer 0 and refresh layer settings
-                layerNr=0
-                refreshLayerSettings()
-                # Update current layer image with new bitmap retrieved from photonfile
-                layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
-                dispimg = layerimg
-            except Exception as err:
-                print (err)
-                errMessageBox(str(err))
-        else:
-            print("User Canceled")
-        return
-
-    def exportBitmaps():
-        """ Export all bitmaps from a loaded photon file to a directory selected by the user """
-        global filename
-        global photonfile
-
-        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-        if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to export bitmaps from."):return
-
-        # Ask user for filename
-        barefilename = (os.path.basename(filename))
-        barenotextfilename=os.path.splitext(barefilename)[0]
-        dirname=(os.path.dirname(filename))
-        newdirname=os.path.join(dirname,barenotextfilename+".bitmaps" )
-        if not os.path.isdir(newdirname):
-            os.mkdir(newdirname)
-
+    # Check if user pressed Cancel
+    if not directory == None:
+        print("Returned: ", directory)
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-        popup=PopupDialog(screen, pos=(140, 140),
-                               title="Please wait...",
-                               message="Photon File Editor is exporting your images.")
+        popup = PopupDialog(screen, pos=(140, 140),
+                            title="Please wait...",
+                            message="Photon File Editor is importing your images.")
         popup.show()
         try:
             # Ask PhotonFile object to replace bitmaps
-            photonfile.exportBitmaps(newdirname,"slice_")
+            photonfile.replaceBitmaps(directory)
+            # Refresh header settings which contains number of layers
+            refreshHeaderSettings()
+            # No preview data is changed
+            #
+            # Start again at layer 0 and refresh layer settings
+            layerNr=0
+            refreshLayerSettings()
+            # Update current layer image with new bitmap retrieved from photonfile
+            layerimg = photonfile.getBitmap(layerNr,layerForecolor,layerBackcolor)
+            dispimg = layerimg
         except Exception as err:
-            print(err)
+            print (err)
             errMessageBox(str(err))
-        del popup
+    else:
+        print("User Canceled")
+    return
 
-        #print (barefilename,filename,newdirname)
+def exportBitmaps():
+    """ Export all bitmaps from a loaded photon file to a directory selected by the user """
+    global filename
+    global photonfile
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to export bitmaps from."):return
+
+    # Ask user for filename
+    barefilename = (os.path.basename(filename))
+    barenotextfilename=os.path.splitext(barefilename)[0]
+    dirname=(os.path.dirname(filename))
+    newdirname=os.path.join(dirname,barenotextfilename+".bitmaps" )
+    if not os.path.isdir(newdirname):
+        os.mkdir(newdirname)
+
+    # Since import WILL take a while (although faster with numpy library available) show a be-patient message
+    popup=PopupDialog(screen, pos=(140, 140),
+                           title="Please wait...",
+                           message="Photon File Editor is exporting your images.")
+    popup.show()
+    try:
+        # Ask PhotonFile object to replace bitmaps
+        photonfile.exportBitmaps(newdirname,"slice_")
+    except Exception as err:
+        print(err)
+        errMessageBox(str(err))
+    del popup
+
+    #print (barefilename,filename,newdirname)
 
 
-    def about():
-        """ Displays about box """
-        dialog = MessageDialog(screen, pos=(140, 140),width=400,
-                               title="About Photon File Editor",
-                               #message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
-                               message="Version Alpha \n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
-                               center=False,
-                               parentRedraw=redrawWindow)
-        dialog.show()
+def about():
+    """ Displays about box """
+    dialog = MessageDialog(screen, pos=(140, 140),width=400,
+                           title="About Photon File Editor",
+                           #message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
+                           message="Version Alpha \n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
+                           center=False,
+                           parentRedraw=redrawWindow)
+    dialog.show()
 
-    def showSlices():
-        """ Let user switch (from preview images) to slice view """
-        global dispimg
-        dispimg=layerimg
+def showSlices():
+    """ Let user switch (from preview images) to slice view """
+    global dispimg
+    dispimg=layerimg
 
-    def showPrev0():
-        """ Let user switch (from slice image view) to preview image """
-        global dispimg
-        dispimg = previmg[0]
+def showPrev0():
+    """ Let user switch (from slice image view) to preview image """
+    global dispimg
+    dispimg = previmg[0]
 
-    def showPrev1():
-        """ Let user switch (from slice image view) to preview image """
-        global dispimg
-        dispimg = previmg[1]
+def showPrev1():
+    """ Let user switch (from slice image view) to preview image """
+    global dispimg
+    dispimg = previmg[1]
+
+
+
+def createMenu():
+    global menubar
+    global screen
 
     # Create the menu
     menubar=MenuBar(screen)
@@ -560,6 +563,30 @@ def createMenu():
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
 
+def createLayerOperations():
+    global controls
+    global menubar
+    viewport_yoffset = 8
+    iconsize=40
+    icondist=48
+    controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
+                           pos=(20+0*icondist,2560/4-iconsize-viewport_yoffset),
+                           resizeto=(iconsize,iconsize),
+                           borderhovercolor=(0,0,0),func_on_click=deleteLayer))
+    controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
+                           pos=(20+1*icondist, 2560 / 4 - iconsize - viewport_yoffset),
+                           resizeto=(iconsize, iconsize),
+                           borderhovercolor=(0, 0, 0), func_on_click=copyLayer))
+    controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
+                           pos=(20+2*icondist, 2560 / 4 - iconsize - viewport_yoffset),
+                           resizeto=(iconsize, iconsize),
+                           borderhovercolor=(0, 0, 0), func_on_click=pasteLayer))
+    controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
+                           pos=(20+3*icondist, 2560 / 4 - iconsize - viewport_yoffset),
+                           resizeto=(iconsize, iconsize),
+                           borderhovercolor=(0, 0, 0), func_on_click=duplicateLayer))
+
+
 def createLayernavigation():
     """ Create the layer navigation buttons (Up/Down) """
     global layerLabel
@@ -573,6 +600,7 @@ def createLayernavigation():
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
     layerLabel.font.set_bold(True)
     controls.append(layerLabel)
+
 
 def createSidebar():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
@@ -738,6 +766,9 @@ def createWindow():
     # Create layer controls to navigate (up and down) the layers (and display another layer)
     createLayernavigation()
 
+    # Create toolbar to do layer operations from edit menu
+    createLayerOperations()
+
 
 def updateTextBox2PhotonFile(control, val,linkedData):
     """ Saves value in current textbox to the correct setting in the PhotonFile object. """
@@ -843,6 +874,7 @@ def refreshHeaderSettings():
         if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
 
+
 def refreshPreviewSettings():
     """ Updates all textboxes in the preview settingsgroup with data from photonfile"""
     global photonfile
@@ -859,6 +891,7 @@ def refreshPreviewSettings():
         nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
+
 
 def refreshLayerSettings():
     """ Updates all textboxes in the layer settingsgroup with data from photonfile"""
