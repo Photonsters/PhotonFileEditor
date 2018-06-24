@@ -906,7 +906,9 @@ class PhotonFile:
         # Also save 1st preview image
         prevSurf=self.getPreviewBitmap(0)
         #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
-        filename = "_"+filepre + "_preview.png"
+        barefilename = (os.path.basename(self.filename))
+        barefilename=barefilename.split(sep=".")[0]
+        filename = "_"+barefilename + "_preview.png"
         fullfilename = os.path.join(dirPath, filename)
         #   Save preview image to disk
         pygame.image.save(prevSurf, fullfilename)
