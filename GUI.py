@@ -6,6 +6,7 @@ __version__ = "alpha"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import math
+import time
 
 import pygame
 from pygame.locals import *
@@ -24,8 +25,8 @@ defHighMenuForeground=(255,255,255)
 defHighMenuBackground=(68,123,213)
 defEditorBackground=(255,255,255)
 defEditorForeground=(0,0,0)
-defHighEditorBackground=(68,123,213)
-defHighEditorForeground=(255,255,255)
+defHighEditorBackground=(255,255,12*16)
+defHighEditorForeground=(0,0,0)
 defTitlebarBackground=(215,215,215)
 #defButtonBackground=(68,123,213)
 defButtonBackground=(205,205,205)
@@ -168,8 +169,10 @@ class MenuBar():
 
         # Check if mouse clicked within menubar area
         if pos[1]<=(self.height+self.margins.y+self.margins.height):
-            # If menu visible/active then hide menu, else show
+            # We are handling this so clear queue for others
             pygame.event.clear()
+
+            # If menu visible/active then hide menu, else show
             if self.activeMenu==None:
                 for menu in self.menus:
                     if pos[0]>menu["left"] and pos[0]<(menu["left"]+menu["width"]):
@@ -179,7 +182,6 @@ class MenuBar():
                     else:
                         menulist = menu["menulist"]
                         menulist.isVisible = False
-                pygame.event.clear()
                 return True
             else:
                 self.activeMenu["menulist"].isVisible=False
@@ -198,6 +200,7 @@ class MenuBar():
         for menu in self.menus:
             # If menulist accepts MouseUp we can close menulist and active item in menubar
             if menu["menulist"].handleMouseUp(pos,button):
+                # We are handling this so clear queue for others
                 pygame.event.clear()
                 self.activeMenu["menulist"].isVisible = False
                 self.activeMenu = None
@@ -206,6 +209,7 @@ class MenuBar():
         # If we are below menubar and nothing in menulists (not returned True) then user clicks on workarea of window to hide all menus
         if pos[1]>=(self.height+self.margins.y+self.margins.height):
             if self.activeMenu:
+                # We are handling this so clear queue for others
                 pygame.event.clear()
                 self.activeMenu["menulist"].isVisible=False
                 self.activeMenu=None
@@ -224,6 +228,7 @@ class MenuBar():
                     else:
                         menulist = menu["menulist"]
                         menulist.isVisible = False
+                # We are handling this so clear queue for others
                 pygame.event.clear()
                 return True
 
@@ -248,6 +253,7 @@ class MenuBar():
                 else:
                     menulist = menu["menulist"]
                     menulist.isVisible = False
+                # We are handling this so clear queue for others
                 pygame.event.clear()
 
     def openMenu(self,menutitle):
@@ -342,6 +348,7 @@ class MenuList():
             pos[1] < (self.pos.y + self.pos.height):
             rely=pos[1]-self.pos.y
             self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
+            # We are handling this so clear queue for others
             pygame.event.clear()
             return True
 
@@ -355,6 +362,7 @@ class MenuList():
         if not self.isVisible: return
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.pos):
+            # We are handling this so clear queue for others
             pygame.event.clear()
             for row, (item, func_on_click) in enumerate(self.items):
                 if row == self.activeItem:
@@ -422,6 +430,7 @@ class ImgBox():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.hoverActive=True
+            # We are handling this so clear queue for others
             pygame.event.clear()
         else:
             self.hoverActive=False
@@ -431,6 +440,7 @@ class ImgBox():
         if not button==1: return
         gpos = GPoint(pos[0], pos[1])
         if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
             pygame.event.clear()
             if not self.func_on_click==None:
                 self.func_on_click()
@@ -547,6 +557,7 @@ class Button():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.hover
+            # We are handling this so clear queue for others
             pygame.event.clear()
         else:
             self.state=self.normal
@@ -558,6 +569,7 @@ class Button():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.normal
+            # We are handling this so clear queue for others
             pygame.event.clear()
             if not self.func_on_click==None:
                 self.func_on_click()
@@ -567,6 +579,7 @@ class Button():
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
             pygame.event.clear()
             self.state=self.down
 
@@ -688,6 +701,7 @@ class ScrollBarV():
         """ Updates state of Scroll Area and Up and Down buttons on hover. """
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
             pygame.event.clear()
             self.state=self.hover
         else:
@@ -717,8 +731,10 @@ class ScrollBarV():
         gpos=GPoint(pos[0],pos[1])
         if not gpos.inGRect(self.rect): return
 
-        # Set state if clicked within area
+        # We are handling this so clear queue for others
         pygame.event.clear()
+
+        # Set state if clicked within area
         self.state=self.down
 
         # Determine scroll area between up and down buttons
@@ -876,6 +892,7 @@ class ListBox():
                 self.offset = self.offset + 1
                 if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
                 self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
+            # We are handling this so clear queue for others
             pygame.event.clear()
         # Else ask to check if clicked on scrollbarV
         else:
@@ -893,6 +910,7 @@ class ListBox():
         innerRect=self.rect.copy()
         if self.scrollbarV.visible: innerRect.width=innerRect.width-self.scrollbarV.rect.width
         if gpos.inGRect(innerRect):
+            # We are handling this so clear queue for others
             pygame.event.clear()
             if not self.func_on_click==None: self.func_on_click(self.activeText())
         else:
@@ -1069,6 +1087,7 @@ class TextBox():
     cursorChar=0
     drawBorder=True
     visible=True
+    allSelected=False
 
     # We need constants which dictate what the allowes userinput is
     TEXT = 0
@@ -1127,7 +1146,17 @@ class TextBox():
         if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
 
         # Draw text
-        textsurface = self.font.render(self.text, True, self.textcolor)
+        # If all selected we need to draw with hightlighted background
+        if self.allSelected:
+            textsurface = self.font.render(self.text, True, defHighEditorForeground)
+            hrect=GRect(self.rect.x + self.margin.x-1, self.rect.y + self.margin.y, textsurface.get_rect()[2]+1,textsurface.get_rect()[3])
+            if self.rect.x+self.margin.x+hrect.width>self.rect.right-1:
+                hrect.width=hrect.width-(self.rect.x+self.margin.x+hrect.width-self.rect.right)-1
+            pygame.draw.rect(self.pyscreen, defHighEditorBackground, hrect.tuple(), 0)
+        # Else with normal background
+        else:
+            textsurface = self.font.render(self.text, True, self.textcolor)
+        # And the text
         self.pyscreen.blit(textsurface, (self.rect.x + self.margin.x, self.rect.y + self.margin.y),(0,0,self.rect.width-2*self.margin.x,self.rect.height-2*self.margin.y))
 
         # If editing also draw the cursor
@@ -1140,6 +1169,7 @@ class TextBox():
                                  0)
 
 
+    prevClick=0
     def handleMouseUp(self,pos,button):
         """ Set cursor / edit of TextBox """
 
@@ -1152,7 +1182,18 @@ class TextBox():
         # Check if clicked within textbox
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.rect):
+
+            if (time.time()-self.prevClick)<0.3:
+                print ("Double click")
+                self.allSelected=True
+            else:
+                self.allSelected=False
+                print("Single click")
+                self.prevClick = time.time()
+
+            # We are handling this so clear queue for others
             pygame.event.clear()
+
             # Set cursorActive for redraw and handleKeydown
             self.cursorActive=True
 
@@ -1166,6 +1207,7 @@ class TextBox():
                     self.cursorChar=self.cursorChar+1
         else:
             self.cursorActive = False
+            self.allSelected=False
 
 
     def handleMouseDown(self,pos,button):
@@ -1184,15 +1226,26 @@ class TextBox():
 
         # Check if textbox was clicked and in editmode
         if self.cursorActive:
+            # We are handling this so clear queue for others
             pygame.event.clear()
             # Process navigation (left,right) and modify (del, backspace) keys
             if key == K_BACKSPACE:
-                self.text = self.text[0:self.cursorChar - 1] + self.text[self.cursorChar:]
-                self.cursorChar = self.cursorChar - 1
-                if self.cursorChar < 0: self.cursorChar = 0
+                if self.allSelected:
+                    self.text=""
+                    self.allSelected=False
+                else:
+                    if self.cursorChar == 0: return
+                    self.text = self.text[0:self.cursorChar - 1] + self.text[self.cursorChar:]
+                    self.cursorChar = self.cursorChar - 1
+                    if self.cursorChar < 0: self.cursorChar = 0
                 return
             if key == K_DELETE:
-                self.text = self.text[0:self.cursorChar] + self.text[self.cursorChar + 1:]
+                if self.allSelected:
+                    self.text=""
+                    self.allSelected=False
+                else:
+                    if self.cursorChar==len(self.text): return
+                    self.text = self.text[0:self.cursorChar] + self.text[self.cursorChar + 1:]
                 return
             if key == K_LEFT:
                 self.cursorChar = self.cursorChar - 1
