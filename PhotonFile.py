@@ -6,6 +6,7 @@ __version__ = "alpha"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
+import copy
 import math
 import struct
 from math import *
@@ -106,6 +107,9 @@ class PhotonFile:
     LayerDefs = []
     LayerData = []
 
+    History=[]
+    HistoryMaxDepth = 3
+
 
     ########################################################################################################################
     ## Methods to convert bytes (strings) to python variables and back again
@@ -193,6 +197,73 @@ class PhotonFile:
 
 
     ########################################################################################################################
+    ## History methods
+    ########################################################################################################################
+
+
+    def realDeepCopy(self,dictionary):
+        return #probable not needed
+        """ Makes a real copy of a dictionary consisting of bytes strings
+        """
+        hC = copy.deepcopy(self.Header)
+        for key,byteString in dictionary.items():
+            dictionary[key]=(byteString+b'\x00')[:-1] # Force to make a real copy
+
+
+    def saveToHistory(self, action, layerNr):
+        """ Makes a copy of current /Layer Data to memory
+            Since all are bytearrays no Copy.Deepcopy is needed.
+        """
+
+        # Copy LayerDefs and LayerData
+        layerDef=copy.deepcopy(self.LayerDefs[layerNr])
+        layerData=copy.deepcopy(self.LayerData[layerNr])
+        self.realDeepCopy(layerDef)
+        self.realDeepCopy(layerData)
+
+        # Append to history stack/array
+        newH = {"Action":action,"LayerNr":layerNr,"LayerDef":layerDef,"LayerData":layerData}
+        print("Stored:",newH,id(layerDef),id(layerData))
+        self.History.append(newH)
+        if len(self.History)>self.HistoryMaxDepth:
+            self.History.remove(self.History[0])
+
+
+    def loadFromHistory(self):
+        """ Load a copy of current Header/Preview/Layer Data to memory
+            We copy by reference and remove item from history stack.
+        """
+
+        if len(self.History)==0:
+            raise Exception("You have reached the maximum depth to undo.")
+
+        # Find last item added to History
+        idxLastAdded=len(self.History)-1
+        lastItemAdded=self.History[idxLastAdded]
+        (action, layerNr, layerDef, layerData)=lastItemAdded
+
+        print("Found:", self.History[idxLastAdded])
+
+        # Reverse the actions
+        if action=="insert":
+            self.deleteLayer(layerNr)
+        elif action=="delete":
+            self.clipboardDef=layerDef
+            self.clipboardData=layerData
+            self.insertLayerBefore(layerNr,fromClipboard=True)
+        elif action=="replace":
+            self.clipboardDef=layerDef
+            self.clipboardData=layerData
+            self.deleteLayer(layerNr)
+            self.insertLayerBefore(layerNr,fromClipboard=True)
+
+        # Remove this item
+        self.History.remove(lastItemAdded)
+
+    #Make alias for loadFromHistory
+    undo = loadFromHistory
+
+    ########################################################################################################################
     ## Class methods
     ########################################################################################################################
 
@@ -200,9 +271,11 @@ class PhotonFile:
         """ Just stores photon filename. """
         self.filename = photonfilename
 
+
     def nrLayers(self):
         """ Returns 4 bytes for number of layers as int. """
         return  PhotonFile.bytes_to_int(self.Header[self.nrLayersString])
+
 
     def readFile(self):
         """ Reads the photofile from disk to memory. """
@@ -247,6 +320,9 @@ class PhotonFile:
                 self.LayerData[lNr]["EndOfLayer"] = binary_file.read(1)
 
             # print (' '.join(format(x, '02X') for x in header))
+
+            # Clear History for this new file
+            self.History = []
 
 
     def writeFile(self, newfilename=None):
@@ -589,6 +665,9 @@ class PhotonFile:
     def deleteLayer(self, layerNr):
         """ Deletes layer and its image data in the PhotonFile object, but store in clipboard for paste. """
 
+        # Store all data to history
+        self.saveToHistory("delete",layerNr)
+
         # Store the size of layer image we remove to correct starting addresses of higher layer images
         deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
         deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
@@ -621,6 +700,9 @@ class PhotonFile:
         """ Inserts layer copying data of the previous layer or the clipboard. """
 
         if self.clipboardDef==None: raise Exception("Clipboard is empty!")
+
+        # Store all data to history
+        self.saveToHistory("insert",layerNr)
 
         # Calculate how much room we need in between.
         if fromClipboard==False:
@@ -688,6 +770,9 @@ class PhotonFile:
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
 
         print("  ", layerNr, "/", filePath)
+
+        # Store all data to history
+        self.saveToHistory("replace",layerNr)
 
         # Get/encode raw data
         rawData = PhotonFile.encodedBitmap_Bytes(filePath)

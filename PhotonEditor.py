@@ -19,21 +19,13 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
-#todo: too long filenames overflow listbox (see load file dialog)
+#todo: undo not yet working correct
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
-#todo: dragging dialogbox gives error in log: error - compare types | comp to gpoints
-#todo: use new classes GPos en GLine and GRect.shrink to simplify code in Gui elements
-#todo: on click proces (e.g. by menubar) prevent further processing (e.g. by nav buttons)
-#todo: filedialog will give error if pressing on ".." in root
-#todo: sort directories in FileDialog
-#todo: open files does not always show all files!... testcase is placing photon file in resources
-#todo: if in filedialog we scrolled down, and select new dir with less files, it stays empty until we scroll up
-#todo: process ALT-F/E/V/H for menu
+#todo: check if filedialog gives error in linux if pressing on ".." in root
+#todo: process cursor keys for menu
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
-#todo: after click on menuitem, the menulist should close
-#todo: mousescroll in listbox does not move scrollbar
 #todo: drag GUI-scrollbar is not implementend
 
 
@@ -256,6 +248,30 @@ def createMenu():
         pygame.display.set_caption("Photon File Editor - " + barefilename)
 
 
+    def undo():
+        """ Undo by replacing all data with data from history. """
+
+        global dispimg
+        global layerimg
+        global photonfile
+        global layerNr
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if not checkLoadedPhotonfile("No photon file loaded!","There is nothing to undo."): return
+
+        # Insert layer
+        try:
+            photonfile.undo()
+            print("Undo")
+            # Refresh data from layer in sidebar (data length is possible changed)
+            refreshLayerSettings()
+            # Update current layer image with new bitmap retrieved from photonfile
+            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+            dispimg = layerimg
+        except Exception as err: # if clipboard is empty
+            print(err)
+            errMessageBox(str(err))
+
     def deleteLayer():
         """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
 
@@ -474,7 +490,8 @@ def createMenu():
         """ Displays about box """
         dialog = MessageDialog(screen, pos=(140, 140),width=400,
                                title="About Photon File Editor",
-                               message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
+                               #message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
+                               message="Version Alpha \n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
                                center=False,
                                parentRedraw=redrawWindow)
         dialog.show()
@@ -502,6 +519,8 @@ def createMenu():
     menubar.addItem("File","Save As",saveFile)
     menubar.addItem("File","Exit",exitFile)
     menubar.addMenu("Edit", "E")
+    menubar.addItem("Edit", "Undo", undo)
+    menubar.addItem("Edit", "______________", None)
     menubar.addItem("Edit", "Cut Layer", deleteLayer)
     menubar.addItem("Edit", "Copy Layer", copyLayer)
     menubar.addItem("Edit", "Paste Layer", pasteLayer)
@@ -933,8 +952,9 @@ def handleLayerSlider(checkRect=True):
             layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
             dispimg = layerimg
             refreshLayerSettings()
+            return True
         else:
-            None
+            return False
             # layerCursorActive=False
         # print (event.button)
 
@@ -970,25 +990,21 @@ def main():
 
             if event.type == pygame.MOUSEBUTTONUP:
                 mouseDrag=False
-                menubar.handleMouseUp(pos,event.button)
-                for ctrl in controls:
-                    ctrl.handleMouseUp(pos,event.button)
+                if not menubar.handleMouseUp(pos,event.button):
+                    for ctrl in controls:
+                        ctrl.handleMouseUp(pos,event.button)
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouseDrag=handleLayerSlider()
+                if not menubar.handleMouseDown(pos,event.button):
+                    for ctrl in controls:
+                        ctrl.handleMouseDown(pos,event.button)
 
             if event.type == pygame.MOUSEMOTION:
                 if mouseDrag: handleLayerSlider(False)
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouseDrag = True
-                handleLayerSlider()
-
-                menubar.handleMouseDown(pos,event.button)
-                for ctrl in controls:
-                    ctrl.handleMouseDown(pos,event.button)
-
-            if event.type == pygame.MOUSEMOTION:
-                menubar.handleMouseMove(pos)
-                for ctrl in controls:
-                    ctrl.handleMouseMove(pos)
+                if not menubar.handleMouseMove(pos):
+                    for ctrl in controls:
+                        ctrl.handleMouseMove(pos)
 
             if event.type == pygame.KEYDOWN :
                 #If numlock on then we use it to navigate layers
@@ -1008,8 +1024,9 @@ def main():
                   print ("Escape key pressed down. Exit!")
                   running = False
                 else:
-                    for ctrl in controls:
-                        ctrl.handleKeyDown(event.key,event.unicode)
+                    if not menubar.handleKeyDown(event.key,event.unicode):
+                        for ctrl in controls:
+                            ctrl.handleKeyDown(event.key,event.unicode)
 
     pygame.quit()
 

@@ -55,10 +55,10 @@ class GPoint():
     def __lt__(self, other): return (self.x < other.x and self.y < other.y)
     def __eq__(self, other):
         try:
-            print ("comp to gpoints")
+            #print ("comp to gpoints")
             return (self.x == other.x and self.y == other.y)
         except:
-            print ("error - compare types")
+            #print ("error - compare types")
             return type(self)==type(other)
     def __len__(self, other): return (math.sqrt(self.x^2 + self.y^2))
 

@@ -63,6 +63,7 @@ class MenuBar():
         if (height + self.margins.y + self.margins.height) > self.height:
             self.height = height + self.margins.y + self.margins.height
 
+
     def addMenu(self, menutitle,shortcutChar):
         """ Adds new menu in the menubar (with empty menulist)."""
 
@@ -73,14 +74,15 @@ class MenuBar():
         else:
             prevTitle = self.menus[prevIdx]["title"]
             prevLeft =self.menus[prevIdx]["left"]
-            prevWidth, height = self.font.size(prevTitle)
-            if prevWidth<self.minwidth: prevWidth=self.minwidth
-            x= prevLeft+prevWidth+ self.spacing
+            prevWidth = self.menus[prevIdx]["width"]#, height = self.font.size(prevTitle)
+            #if prevWidth<self.minwidth: prevWidth=self.minwidth
+            x= prevLeft+prevWidth#+ self.spacing
         scNr=0
 
         # Determine width of new menu
         width, height = self.font.size(menutitle)
         width=width+self.spacing
+        if width<self.minwidth: width=self.minwidth+self.spacing
 
         # Get position of shortcutchar
         for idx,ch in enumerate(menutitle):
@@ -106,6 +108,7 @@ class MenuBar():
                 menulist=menu["menulist"]
                 menulist.addItem(menuitem,func_on_click)
 
+
     def redraw(self):
         """ Redraws MenuBar. """
 
@@ -123,7 +126,8 @@ class MenuBar():
             menuwidth = menudata["width"]
             # Highlight current menu if mouse hovers and set textcolor depending if mouse hover or not.
             if menudata==self.activeMenu:
-                pygame.draw.rect(self.pyscreen, self.highbackcolor, (menuleft-self.spacing, 0,menuwidth+self.spacing, h), 0)
+                #pygame.draw.rect(self.pyscreen, self.highbackcolor, (menuleft-self.spacing, 0,menuwidth, h), 0)
+                pygame.draw.rect(self.pyscreen, self.highbackcolor, (menuleft, 0, menuwidth, h), 0)
                 localtextcolor=defHighMenuForeground
             else:
                 localtextcolor=defMenuForeground
@@ -141,19 +145,20 @@ class MenuBar():
             # Draw text before shorcut Char
             self.font.set_underline(False)
             textsurface = self.font.render(preStr, True, localtextcolor)
-            self.pyscreen.blit(textsurface, (menuleft , self.margins.y))
+            self.pyscreen.blit(textsurface, (menuleft+self.margins.x, self.margins.y))
 
             # Draw shorcut Char
             self.font.set_underline(True)
             textsurface = self.font.render(scStr,True, localtextcolor)
-            self.pyscreen.blit(textsurface, (menuleft +wPre, self.margins.y))
+            self.pyscreen.blit(textsurface, (menuleft+self.margins.x +wPre, self.margins.y))
 
             # Draw text after shorcut Char
             self.font.set_underline(False)
             textsurface = self.font.render(postStr, True, localtextcolor)
-            self.pyscreen.blit(textsurface, (menuleft +wPre+wSc, self.margins.y))
+            self.pyscreen.blit(textsurface, (menuleft+self.margins.x+wPre+wSc, self.margins.y))
 
             menudata["menulist"].redraw()
+
 
     def handleMouseDown(self, pos,button):
         """ Updates menu states if user clicked on menubar. """
@@ -162,41 +167,88 @@ class MenuBar():
         if not button == 1: return
 
         # Check if mouse clicked within menubar area
-        if pos[1]>(self.height+self.margins.y+self.margins.height): return
+        if pos[1]<=(self.height+self.margins.y+self.margins.height):
+            # If menu visible/active then hide menu, else show
+            pygame.event.clear()
+            if self.activeMenu==None:
+                for menu in self.menus:
+                    if pos[0]>menu["left"] and pos[0]<(menu["left"]+menu["width"]):
+                        self.activeMenu=menu
+                        menulist=menu["menulist"]
+                        menulist.isVisible=True
+                    else:
+                        menulist = menu["menulist"]
+                        menulist.isVisible = False
+                pygame.event.clear()
+                return True
+            else:
+                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu=None
+                return
 
-        # If menu visible/active then hide menu, else show
-        if self.activeMenu==None:
+        # Call upon menulists to handle mouse (if above menulists). """
+        for menu in self.menus:
+            if menu["menulist"].handleMouseDown(pos,button): return True
+
+
+    def handleMouseUp(self, pos,button):
+        """ Updates menu states if user clicked on menubar. """
+        if not button == 1: return
+        # Call upon menulists to handle mouse (if above menulists). """
+        for menu in self.menus:
+            # If menulist accepts MouseUp we can close menulist and active item in menubar
+            if menu["menulist"].handleMouseUp(pos,button):
+                pygame.event.clear()
+                self.activeMenu["menulist"].isVisible = False
+                self.activeMenu = None
+                return True
+
+        # If we are below menubar and nothing in menulists (not returned True) then user clicks on workarea of window to hide all menus
+        if pos[1]>=(self.height+self.margins.y+self.margins.height):
+            if self.activeMenu:
+                pygame.event.clear()
+                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu=None
+
+
+    def handleMouseMove(self, pos):
+        """ Switch open menu if in menubar else call upon menulists to handle mouse (if above menulists). """
+        # Move activemenu if mouse is moving within menubar area and menu is active
+        if pos[1] <= (self.height + self.margins.y + self.margins.height):
+            if not self.activeMenu == None:
+                for menu in self.menus:
+                    if pos[0] > menu["left"] and pos[0] < (menu["left"] + menu["width"]):
+                        self.activeMenu = menu
+                        menulist = menu["menulist"]
+                        menulist.isVisible = True
+                    else:
+                        menulist = menu["menulist"]
+                        menulist.isVisible = False
+                pygame.event.clear()
+                return True
+
+        # Let menulist check if mouse moved within their areas
+        for menu in self.menus:
+            if menu["menulist"].handleMouseMove(pos): return True
+
+
+    def handleKeyDown(self,key,unicode):
+        isAlt = (pygame.key.get_mods() & pygame.KMOD_ALT)
+        if isAlt:
             for menu in self.menus:
-                if pos[0]>menu["left"] and pos[0]<(menu["left"]+menu["width"]):
+                scNr=menu["scChar"]
+                title=menu["title"]
+                scChr=title[scNr]
+                scNr=ord(scChr)-ord("A")
+                keyNr=key-pygame.K_a
+                if keyNr == scNr:
                     self.activeMenu=menu
                     menulist=menu["menulist"]
                     menulist.isVisible=True
                 else:
                     menulist = menu["menulist"]
                     menulist.isVisible = False
-            # Call upon menulists to handle mouse (if above menulists). """
-            for menu in self.menus:
-                menu["menulist"].handleMouseDown(pos,button)
-        else:
-            #todo: this should hide the menulist...why is this not happening?
-            self.activeMenu["menulist"].isVisible=False
-            self.activeMenu=None
-            return
-
-
-    def handleMouseUp(self, pos,button):
-        """ Updates menu states if user clicked on menubar. """
-        if not button == 1: return
-        #if pos[1] < (self.height + self.margins.y + self.margins.height): return
-        self.activeMenu=None
-        # Call upon menulists to handle mouse (if above menulists). """
-        for menu in self.menus:
-            menu["menulist"].handleMouseUp(pos,button)
-
-    def handleMouseMove(self, pos):
-        """ Call upon menulists to handle mouse (if above menulists). """
-        for menu in self.menus:
-            menu["menulist"].handleMouseMove(pos)
+                pygame.event.clear()
 
     def openMenu(self,menutitle):
         """ Opens menu. """
@@ -228,7 +280,7 @@ class MenuList():
     activeItem=-1
 
 
-    def __init__(self, pyscreen, location, margins=GRect(4, 4, 4, 4), fontname=defFontName, fontsize=defFontSize, title="unknown"):
+    def __init__(self, pyscreen, location, margins=GRect(6, 6, 6, 6), fontname=defFontName, fontsize=defFontSize, title="unknown"):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         l_x = location[0]
@@ -266,7 +318,6 @@ class MenuList():
             self.activeItem=-1 # so on reopening we don have floating cursor
             return
 
-
         # Draw background and border
         pygame.draw.rect(self.pyscreen, self.backcolor, self.pos.tuple (), 0)
         pygame.draw.rect(self.pyscreen, self.bordercolor, (self.pos.tuple()), 1)
@@ -291,8 +342,9 @@ class MenuList():
             pos[1] < (self.pos.y + self.pos.height):
             rely=pos[1]-self.pos.y
             self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
-        else:
-            self.isVisible=False
+            pygame.event.clear()
+            return True
+
 
     def handleMouseDown(self, pos,button):
         return
@@ -301,13 +353,15 @@ class MenuList():
         """ Calls on user function if clicked on menu item."""
         if not button == 1: return
         if not self.isVisible: return
-        if pos[0] > self.pos.x and pos[0] < (self.pos.x+self.pos.width) and \
-           pos[1] > self.pos.y and pos[1] < (self.pos.y + self.pos.height):
+        gpos=GPoint.fromTuple(pos)
+        if gpos.inGRect(self.pos):
+            pygame.event.clear()
             for row, (item, func_on_click) in enumerate(self.items):
                 if row == self.activeItem:
                     if not func_on_click==None:
                         func_on_click()
                         self.isVisible=False
+                        return True
 
 
 ########################################################################################################################
@@ -368,6 +422,7 @@ class ImgBox():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.hoverActive=True
+            pygame.event.clear()
         else:
             self.hoverActive=False
 
@@ -376,6 +431,7 @@ class ImgBox():
         if not button==1: return
         gpos = GPoint(pos[0], pos[1])
         if gpos.inGRect(self.rect):
+            pygame.event.clear()
             if not self.func_on_click==None:
                 self.func_on_click()
 
@@ -491,6 +547,7 @@ class Button():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.hover
+            pygame.event.clear()
         else:
             self.state=self.normal
         #print (self.state)
@@ -501,6 +558,7 @@ class Button():
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.normal
+            pygame.event.clear()
             if not self.func_on_click==None:
                 self.func_on_click()
 
@@ -509,6 +567,7 @@ class Button():
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
+            pygame.event.clear()
             self.state=self.down
 
     def handleKeyDown(self,key,unicode):
@@ -629,6 +688,7 @@ class ScrollBarV():
         """ Updates state of Scroll Area and Up and Down buttons on hover. """
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
+            pygame.event.clear()
             self.state=self.hover
         else:
             self.state=self.normal
@@ -652,9 +712,14 @@ class ScrollBarV():
 
         #If not left mousebutton then nothing to do
         if not button == 1: return
+
+        #Check if in rect
         gpos=GPoint(pos[0],pos[1])
-        if gpos.inGRect(self.rect):
-            self.state=self.down
+        if not gpos.inGRect(self.rect): return
+
+        # Set state if clicked within area
+        pygame.event.clear()
+        self.state=self.down
 
         # Determine scroll area between up and down buttons
         innerRect = self.rect.copy()
@@ -722,6 +787,8 @@ class ListBox():
     def setItems(self, items):
         """ Update items in ListBox """
         self.items=items
+        self.offset=0
+        self.activeItem=-1
 
 
     def items(self):
@@ -730,7 +797,7 @@ class ListBox():
 
 
     def scrollItems(self,curScroll):
-        """ Sets first listitem to show ListBox to curScroll."""
+        """ Sets first listitem to show ListBox to curScroll"""
         self.offset=curScroll
 
 
@@ -759,12 +826,12 @@ class ListBox():
             if idx<len(self.items):
                 item=self.items[idx]
                 rowtop = self.rect.y + self.margins.y + row * (self.rowheight + self.spacing)
-                if row==self.activeItem:
+                if idx==self.activeItem:
                     pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.rect.x+self.margins.x, rowtop-int(self.spacing/2), self.rect.width-self.margins.x-self.margins.width, self.rowheight), 0)
                     textsurface = self.font.render(item, True, self.hightextcolor)
                 else:
                     textsurface = self.font.render(item, True, self.textcolor)
-                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)))
+                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)),(0,0,self.rect.width,self.rowheight+self.spacing))
 
         # Position scrollbar and call upon scrollbarV to redraw itself
         scrollRect = self.rect.copy()
@@ -780,7 +847,7 @@ class ListBox():
     def activeText(self):
         """ Returns the selected item in ListBox. """
         try:
-            return self.items[self.activeItem+self.offset]
+            return self.items[self.activeItem]
         except:
             print ("Error from ListBox.activeText()")
             return ""
@@ -797,7 +864,7 @@ class ListBox():
             # Mousedown on item, store it in activeItem
             if button == 1:
                 rely=pos[1]-self.rect.y
-                self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
+                self.activeItem=self.offset+ int((rely-self.margins.y)/(self.rowheight+self.spacing))
                 #print ("down on: ", self.activeItem,self.activeText())
             # Mousewheel UP, so scroll up by setting offset (first item to be displayed)
             if button==4: # mousewheel up
@@ -809,6 +876,7 @@ class ListBox():
                 self.offset = self.offset + 1
                 if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
                 self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
+            pygame.event.clear()
         # Else ask to check if clicked on scrollbarV
         else:
             self.scrollbarV.handleMouseDown(pos,button)
@@ -825,6 +893,7 @@ class ListBox():
         innerRect=self.rect.copy()
         if self.scrollbarV.visible: innerRect.width=innerRect.width-self.scrollbarV.rect.width
         if gpos.inGRect(innerRect):
+            pygame.event.clear()
             if not self.func_on_click==None: self.func_on_click(self.activeText())
         else:
             # Else ask to check if clicked on scrollbarV
@@ -1083,6 +1152,7 @@ class TextBox():
         # Check if clicked within textbox
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.rect):
+            pygame.event.clear()
             # Set cursorActive for redraw and handleKeydown
             self.cursorActive=True
 
@@ -1114,6 +1184,7 @@ class TextBox():
 
         # Check if textbox was clicked and in editmode
         if self.cursorActive:
+            pygame.event.clear()
             # Process navigation (left,right) and modify (del, backspace) keys
             if key == K_BACKSPACE:
                 self.text = self.text[0:self.cursorChar - 1] + self.text[self.cursorChar:]

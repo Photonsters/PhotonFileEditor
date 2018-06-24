@@ -159,9 +159,10 @@ class FileDialog():
         # Extract dirs
         dirs = [".."]
         for entry in direntries:
-            fullname = os.path.join(self.startdir, entry)
-            if os.path.isdir(fullname): dirs.append(entry + "/")
-        dirs.sort()
+            if not entry.startswith("$"):   # recycle bin in windows
+                fullname = os.path.join(self.startdir, entry)
+                if os.path.isdir(fullname): dirs.append(entry + "/")
+        dirs.sort(key=str.lower)
 
         # Extract files and apply filter
         files = []
@@ -169,12 +170,12 @@ class FileDialog():
             if not self.ext == "*":
                 for entry in direntries:
                     if entry.endswith(self.ext): files.append(entry)
-            files.sort()
+            files.sort(key=str.lower)
 
         # Make one list of dirs and files
         self.dirsandfiles = dirs + files
-        # print("dirs : ",dirs)
-        # print("files: ", files)
+        #print("dirs : ",dirs)
+        #print("files: ", files)
 
 
     def redraw(self):
@@ -258,14 +259,12 @@ class FileDialog():
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
-            self.listbox.activeItem=-1
         # Check if user selects a directory
         elif text.endswith("/"):
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
-            self.listbox.activeItem = -1
             print ("Nav to dir: ",self.selDirectory)
         # Else user selected a file
         else:
