@@ -23,6 +23,8 @@ defMenuBackground=defFormBackground
 defMenuForeground=(0,0,0)
 defHighMenuForeground=(255,255,255)
 defHighMenuBackground=(68,123,213)
+defHighSelectForeground=defHighMenuForeground
+defHighSelectBackground=defHighMenuBackground
 defEditorBackground=(255,255,255)
 defEditorForeground=(0,0,0)
 defHighEditorBackground=(255,255,12*16)
@@ -384,8 +386,10 @@ class ImgBox():
     action=None
     visible=True
     drawBorder=False
+    resizeto=GPoint()
 
-    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,func_on_click=None):
+    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,
+                 resizeto=None,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.bordercolor = bordercolor
@@ -397,6 +401,17 @@ class ImgBox():
         self.img=pygame.image.load(filename)
         if not filename_hover==None:
             self.hoverimg = pygame.image.load(filename_hover)
+
+        # If user want other size we try to resize
+        try:
+            if not resizeto == None:
+                self.img=pygame.transform.scale(self.img, resizeto)
+                if not filename_hover==None:
+                    self.hoverimg = pygame.transform.scale(self.hoverimg, resizeto)
+        except Exception as err:
+            print(err)
+
+        # Determine size of control based on image size
         imgrect=self.img.get_rect()
         self.rect=GRect(imgrect[0],imgrect[1],imgrect[2],imgrect[3])
         self.rect.x=pos[0]
@@ -770,8 +785,8 @@ class ListBox():
     bordercolor = (128, 128, 128)
     backcolor = defEditorBackground
     textcolor = defEditorForeground
-    highbackcolor = defHighEditorBackground
-    hightextcolor = defHighEditorForeground
+    highbackcolor = defHighSelectBackground
+    hightextcolor = defHighSelectForeground
     font=None
     fontname = "Consolas"
     fontsize = 16
@@ -1182,13 +1197,13 @@ class TextBox():
         # Check if clicked within textbox
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.rect):
-
+            # Register if we doubleclick and if so set allSelected to True (we want to select all the text)
             if (time.time()-self.prevClick)<0.3:
-                print ("Double click")
+                #print ("Double click")
                 self.allSelected=True
             else:
                 self.allSelected=False
-                print("Single click")
+                #print("Single click")
                 self.prevClick = time.time()
 
             # We are handling this so clear queue for others
@@ -1228,24 +1243,20 @@ class TextBox():
         if self.cursorActive:
             # We are handling this so clear queue for others
             pygame.event.clear()
+            # If all is selected each key will clear textbox
+            if self.allSelected:
+                self.text = ""
+                self.allSelected = False
             # Process navigation (left,right) and modify (del, backspace) keys
             if key == K_BACKSPACE:
-                if self.allSelected:
-                    self.text=""
-                    self.allSelected=False
-                else:
-                    if self.cursorChar == 0: return
-                    self.text = self.text[0:self.cursorChar - 1] + self.text[self.cursorChar:]
-                    self.cursorChar = self.cursorChar - 1
-                    if self.cursorChar < 0: self.cursorChar = 0
+                if self.cursorChar == 0: return
+                self.text = self.text[0:self.cursorChar - 1] + self.text[self.cursorChar:]
+                self.cursorChar = self.cursorChar - 1
+                if self.cursorChar < 0: self.cursorChar = 0
                 return
             if key == K_DELETE:
-                if self.allSelected:
-                    self.text=""
-                    self.allSelected=False
-                else:
-                    if self.cursorChar==len(self.text): return
-                    self.text = self.text[0:self.cursorChar] + self.text[self.cursorChar + 1:]
+                if self.cursorChar==len(self.text): return
+                self.text = self.text[0:self.cursorChar] + self.text[self.cursorChar + 1:]
                 return
             if key == K_LEFT:
                 self.cursorChar = self.cursorChar - 1
