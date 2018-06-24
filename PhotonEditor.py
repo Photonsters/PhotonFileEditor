@@ -987,7 +987,12 @@ def handleLayerSlider(checkRect=True):
         # print (event.button)
 
 
-
+def activeControlIdx():
+    """ Returns first textbox in controls where cursorActive is True. """
+    for idx, control in enumerate(controls):
+        if type(control) == TextBox:
+            if control.cursorActive == True: return idx
+    return None
 
 # Define a variable to control the main loop
 running = True
@@ -1050,6 +1055,28 @@ def main():
                         if event.key == pygame.K_KP3: layerDown(page)
                     if event.key == pygame.K_UP: layerUp()
                     if event.key == pygame.K_DOWN: layerDown()
+
+                #We use tab to navigate the textboxes in controls
+                if event.key == pygame.K_TAB:
+                    # Check shift state, without we move to next, with to previous control
+                    isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
+                    dir=1 if not isLShift else -1
+                    # Get control with active cursor
+                    prevActive=activeControlIdx()
+                    # Check because maybe there is none active
+                    if not prevActive==None:
+                        # Remove cursor from found control
+                        controls[prevActive].cursorActive=False
+                        # Make first editable textbox we find in direction of dir
+                        fnd=False
+                        idx=prevActive+dir
+                        while not fnd:
+                            if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
+                                controls[idx].cursorActive = True
+                                fnd=True
+                            idx=idx+dir
+                            if idx>=len(controls): idx=0
+                            if idx<0: idx=len(controls)-1
 
                 if event.key == pygame.K_ESCAPE :
                   print ("Escape key pressed down. Exit!")
