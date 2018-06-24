@@ -21,12 +21,13 @@ from PopupDialog import *
 #TODO LIST
 #todo: undo not yet working correct
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
-#todo: check if filedialog gives error in linux if pressing on ".." in root
 #todo: process cursor keys for menu
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
 #todo: drag GUI-scrollbar is not implementend
+#todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
+
 
 
 ########################################################################################################################
@@ -189,8 +190,26 @@ def createMenu():
         saveLayerSettings2PhotonFile()
 
         # Ask user for filename
-        dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
-        retfilename=dialog.newFile()
+        okUser=False
+        retfilename=""
+        while not okUser:
+            dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
+            retfilename=dialog.newFile()
+            print (retfilename)
+            # Check if file exists
+            if retfilename == None:
+                okUser = True
+            else:
+                okUser = not os.path.isfile(retfilename)
+            if not okUser:
+                dialog = MessageDialog(screen, pos=(140, 140), width=400,
+                                       title="Please confirm",
+                                       message="This file already exists. Do you want to continue?",
+                                       center=True,
+                                       buttonChoice=MessageDialog.OKCANCEL,
+                                       parentRedraw=redrawWindow)
+                ret = dialog.show()
+                if ret=="OK": okUser=True
 
         # Check if user pressed Cancel
         if not retfilename==None:
@@ -918,7 +937,7 @@ def redrawWindow():
         pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
         pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
 
-
+imgPrevLoadTime=0
 def handleLayerSlider(checkRect=True):
     """ Checks if layerslider is used (dragged by mouse) and updates layer image and settings"""
 
@@ -932,6 +951,8 @@ def handleLayerSlider(checkRect=True):
     global scrollLayerVMargin
     global scrollLayerWidth
     global layerCursorRect
+    global imgPrevLoadTime
+
 
     # Check if mouse is in area of layerSlider (only needed on mousedown) of check is not needed (checkOk==Truel; if mouse dragged)
     checkOk=True
@@ -949,14 +970,21 @@ def handleLayerSlider(checkRect=True):
             layerCursorRect.y = mousePoint.y - 2
             layerCursorRect.height = 4
             # Get image of new layer, display and update layer settings
-            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
-            dispimg = layerimg
-            refreshLayerSettings()
+            secSincePrevLoad = time.time()-imgPrevLoadTime
+            if secSincePrevLoad>0.1: # to not overload the pc, we have a minimal interval between images (in sec)
+                waitForImg=True
+                layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+                dispimg = layerimg
+                refreshLayerSettings()
+                imgPrevLoadTime = time.time()
             return True
         else:
             return False
             # layerCursorActive=False
         # print (event.button)
+
+
+
 
 # Define a variable to control the main loop
 running = True

@@ -17,8 +17,10 @@ from pygame.locals import *
 try:
     import numpy
     numpyAvailable = True
+    print("Numpy library available.")
 except ImportError:
     numpyAvailable = False
+    print ("Numpy library not found.")
 
 
 ########################################################################################################################
@@ -594,7 +596,7 @@ class PhotonFile:
 
 
     def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(0.25, 0.25)):
-        """ Depening on availability of Numpy, calls upon correct Decoding method."""
+        """ Depending on availability of Numpy, calls upon correct Decoding method."""
         if numpyAvailable:
             return self.getBitmap_withnumpy(layerNr,forecolor,backcolor,scale)
         else:
