@@ -189,18 +189,20 @@ def createMenu():
         savePreviewSettings2PhotonFile()
         saveLayerSettings2PhotonFile()
 
-        # Ask user for filename
+        # Ask user for filename and if exists to confirm overwrite resulting in okUser=True
         okUser=False
         retfilename=""
         while not okUser:
+            # Get filename
             dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
             retfilename=dialog.newFile()
-            print (retfilename)
-            # Check if file exists
+            # If user canceled saveFile on FileDialog, retfilename=None and we should continue and thus set okUser to true
             if retfilename == None:
                 okUser = True
+            # If user selected filename, we check if filename exists (if exists okUser set to False, if not okUser is True)
             else:
                 okUser = not os.path.isfile(retfilename)
+            # If fileexists or user canceled saveFile on FileDialog
             if not okUser:
                 dialog = MessageDialog(screen, pos=(140, 140), width=400,
                                        title="Please confirm",
@@ -209,6 +211,7 @@ def createMenu():
                                        buttonChoice=MessageDialog.OKCANCEL,
                                        parentRedraw=redrawWindow)
                 ret = dialog.show()
+                #if user selected ok, the users want to overwrite file so set okUser to True
                 if ret=="OK": okUser=True
 
         # Check if user pressed Cancel
