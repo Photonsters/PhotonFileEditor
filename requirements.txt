@@ -16,5 +16,4 @@ pygame>=1.9.3
 pylint>=1.9.2
 Pypubsub>=4.0.0
 pytest>=3.6.2
-six>=1.11.0
 wrapt>=1.10.11
