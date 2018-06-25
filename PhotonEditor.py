@@ -24,6 +24,7 @@ from PopupDialog import *
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
+#todo: The exposure time, off times  in layerdefs are ignored by Photon printer, (so those values are just placeholders for future firmware.)
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
@@ -137,6 +138,7 @@ def layerDown(delta:int=1):
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
     return
 
 
@@ -155,6 +157,7 @@ def layerUp(delta=1):
     dispimg = layerimg
     # print("refreshLayerSettings()")
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
     return
 
 
@@ -599,8 +602,8 @@ def createLayernavigation():
 
     # Add two imageboxes to control as layer nav buttons
     viewport_yoffset=menubar.height+8
-    controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
-    controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
     layerLabel.font.set_bold(True)
     controls.append(layerLabel)
@@ -976,6 +979,19 @@ def redrawWindow():
     if layerCursorActive and not photonfile==None and dispimg==layerimg:
         pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
         pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
+
+
+def setLayerSliderFromLayerNr():
+    global photonfile
+    global scrollLayerRect
+    global layerCursorRect
+
+    relY = layerNr / int(photonfile.nrLayers() - 1)
+    scrnY=relY * (2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin
+    layerCursorRect = scrollLayerRect.copy()
+    layerCursorRect.y = scrnY - 2
+    layerCursorRect.height = 4
+
 
 imgPrevLoadTime=0
 def handleLayerSlider(checkRect=True):
