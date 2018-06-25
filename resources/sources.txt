@@ -1,4 +1,3 @@
-All icons are believed to be royalty free and free to use.
-
-All made by Nard Janssens
-
+All icons are heavily based on the design of https://thenounproject.com/aathis/uploads/
+Due to missing icons, they were redesigned by Nard Janssens
+.
