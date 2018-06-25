@@ -110,7 +110,7 @@ class PhotonFile:
     LayerData = []
 
     History=[]
-    HistoryMaxDepth = 3
+    HistoryMaxDepth = 10
 
 
     ########################################################################################################################
@@ -242,8 +242,10 @@ class PhotonFile:
         # Find last item added to History
         idxLastAdded=len(self.History)-1
         lastItemAdded=self.History[idxLastAdded]
-        (action, layerNr, layerDef, layerData)=lastItemAdded
-
+        action=lastItemAdded["Action"]
+        layerNr =lastItemAdded["LayerNr"]
+        layerDef = lastItemAdded["LayerDef"]
+        layerData = lastItemAdded["LayerData"]
         print("Found:", self.History[idxLastAdded])
 
         # Reverse the actions
@@ -664,6 +666,24 @@ class PhotonFile:
     ## Layer (Image) Operations
     ########################################################################################################################
 
+    def layerHeight(self,layerNr):
+        """ Return height between two layers
+        """
+        # We retrieve layer height from previous layer
+        if layerNr>0:
+            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+            prevLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr-1]["Layer height (mm)"])
+        else:
+            if self.nrLayers()>1:
+                curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr+1]["Layer height (mm)"])
+                prevLayerHeight=0
+            else:
+                curLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
+                prevLayerHeight = 0
+        return curLayerHeight-prevLayerHeight
+        #print ("Delta:", deltaHeight)
+
+
     def deleteLayer(self, layerNr):
         """ Deletes layer and its image data in the PhotonFile object, but store in clipboard for paste. """
 
@@ -672,7 +692,10 @@ class PhotonFile:
 
         # Store the size of layer image we remove to correct starting addresses of higher layer images
         deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
-        deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+
+        #deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+        deltaHeight =self.layerHeight(layerNr)
+        print ("deltaHeight:",deltaHeight)
 
         # Update start addresses of RawData of all following images
         nLayers=self.nrLayers()
@@ -713,18 +736,7 @@ class PhotonFile:
         else:
             deltaLength = self.bytes_to_int(self.clipboardDef["Data Length"])
 
-        # We retrieve layer height from previous layer
-        if layerNr>0:
-            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
-            prevLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr-1]["Layer height (mm)"])
-        else:
-            if self.nrLayers()>1:
-                curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr+1]["Layer height (mm)"])
-                prevLayerHeight=0
-            else:
-                curLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
-                prevLayerHeight = 0
-        deltaHeight=curLayerHeight-prevLayerHeight
+        deltaHeight = self.layerHeight(layerNr)
         print ("Delta:", deltaHeight)
 
         # Make duplicate of layerDef and layerData if not pasting form clipboard
@@ -736,6 +748,7 @@ class PhotonFile:
         if layerNr==0: # if first layer than the height should start at 0
             self.clipboardDef["Layer height (mm)"] = self.float_to_bytes(0)
         else:          # start at layer height of layer at which we insert
+            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
             self.clipboardDef["Layer height (mm)"]=self.float_to_bytes(curLayerHeight)
 
         # Update start addresses of RawData of all following images
