@@ -19,7 +19,7 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
-#todo: layer op icons in icon bar
+#todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
 #todo: load resin settings from pulldown list?
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
@@ -77,6 +77,10 @@ scrollLayerVMargin=30
 scrollLayerRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin,scrollLayerWidth,2560/4-scrollLayerVMargin*2)
 layerCursorActive=True
 layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWidth,4)
+
+# Resin settings
+resins=None
+
 
 ########################################################################################################################
 ##  Message boxes
@@ -570,7 +574,9 @@ def createMenu():
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
 
+
 def createLayerOperations():
+    """ Create the layer modification buttons pointing to Edit menu layer options """
     global controls
     global menubar
     viewport_yoffset = 8
@@ -578,19 +584,15 @@ def createLayerOperations():
     icondist=iconsize[0]+16
     controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
                            pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
-    #                       resizeto=iconsize,
                            borderhovercolor=(0,0,0),func_on_click=deleteLayer))
     controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
                            pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=copyLayer))
     controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
                            pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=pasteLayer))
     controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
                            pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=duplicateLayer))
 
 
@@ -628,6 +630,8 @@ def createSidebar():
     global firstHeaderTextbox
     global firstPreviewTextbox
     global firstLayerTextbox
+
+    global resins
 
     # The controls are placed below the menubar
     viewport_yoffset=menubar.height+8
@@ -715,6 +719,28 @@ def createSidebar():
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
 
+    # Add Resin Presets Chooser
+    # First read settings from file
+    ifile = open("resources/resins.txt", "r")
+    lines = ifile.readlines()
+    resins = [tuple(line.strip().split(",")) for line in lines]
+    resinnames=[]
+    for resin in resins:
+        resinnames.append(resin[0])
+
+    # Start with the title of this settingsgroup
+    row=16
+    titlebox = Label(screen, text="Resin Presets", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
+    titlebox.font.set_bold(True)
+    controls.append(titlebox)
+
+    # Add label and combobox
+    row=row+1
+    controls.append(Combobox(screen,
+                             rect=GRect(settingsleft + settingslabelmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth+settingslabelwidth, settingsrowheight),\
+                             items=resinnames,
+                             defitemnr=0
+                             ))
 
 ########################################################################################################################
 ##  Setup windows, pygame, menu and controls
@@ -982,6 +1008,9 @@ def redrawWindow():
 
 
 def setLayerSliderFromLayerNr():
+    """ Calculates correct position of layerscroll indicator from layerNr.
+        (Used after layer navigation buttons are used.
+    """
     global photonfile
     global scrollLayerRect
     global layerCursorRect
@@ -993,7 +1022,7 @@ def setLayerSliderFromLayerNr():
     layerCursorRect.height = 4
 
 
-imgPrevLoadTime=0
+imgPrevLoadTime=0 # keeps time since last img load and used to prevent to many image load
 def handleLayerSlider(checkRect=True):
     """ Checks if layerslider is used (dragged by mouse) and updates layer image and settings"""
 

@@ -942,6 +942,129 @@ class ListBox():
 
 
 ########################################################################################################################
+## Class Combobox
+########################################################################################################################
+
+class Combobox():
+    items=[]
+    rect = GRect(0, 0, 80, 32)
+    margins = GRect(4, 4, 4, 4)
+    font=None
+    fontname = "Consolas"
+    fontsize = 16
+    activeItem=-1
+    rowheight=0
+    spacing=4
+    offset=0
+    visible=True
+
+    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.rect=rect
+        self.items=items
+        self.font = pygame.font.SysFont(fontname, fontsize)
+        text_width, text_height = self.font.size("M[].j")
+        self.rowheight=text_height
+        self.items=items
+        if not func_on_click==None: self.func_on_click=func_on_click
+
+        #Combobox is made up of Label, Button to show Listbox and Listbox itself
+        fname=fontname
+        fsize=fontsize
+
+        # Calc positions
+        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,120)
+        # Add Label
+        defitem=items[defitemnr]
+        self.label=Label(pyscreen,rect=labelRect,text=defitem,fontname=fname,fontsize=fsize,autowrap=False)
+        self.label.backcolor=defEditorBackground
+        self.label.textcolor=defEditorForeground
+        self.label.bordercolor=defBorder
+        self.label.borderwidt=1
+        self.label.drawBorder=True
+        labelRect=self.label.rect
+        # Label will resize itself in height
+        self.label.rect.width=rect.width-self.label.rect.height
+        buttonRect.height=self.label.rect.height
+        buttonRect.left=self.label.rect.right
+        buttonRect.width=self.label.rect.height
+        listboxRect.top=labelRect.bottom
+        # Add Button
+        self.button=Button(pyscreen,rect=buttonRect,text="V",fontname=fname,fontsize=fsize,func_on_click=self.buttonClick)
+        # Add Listbox
+        self.listbox=ListBox(pyscreen,rect=listboxRect,items=items,fontname=fname,fontsize=fsize,func_on_click=self.listClick)
+
+        # Initially combobox is not expanded / listbox is not visible
+        self.listbox.visible=False
+
+    """ 
+    def reposControls(self): #called after winrect is moved
+        # Recalculates all positions after moving dialog box. 
+        rect=self.rect
+        #buttons is as wide as height
+        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,40)
+        self.button.rect=buttonRect
+        self.label.rect=labelRect
+        #todo: listbox below label, but this should depend on room
+        self.listbox.rect=listboxRect
+    """
+
+    def redraw(self):
+        self.label.redraw()
+        self.button.redraw()
+        self.listbox.redraw()
+
+
+    def listClick(self,clickedtext):
+        print (clickedtext,self.listbox.activeText())
+        self.label.setText(clickedtext)
+        self.listbox.visible=False
+
+
+    def buttonClick(self):
+        self.listbox.visible= not self.listbox.visible
+
+
+    def handleMouseUp(self,pos,button):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseUp(pos,button)
+        self.button.handleMouseUp(pos,button)
+        self.label.handleMouseUp(pos,button)
+
+
+    def handleMouseDown(self,pos,button):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseDown(pos,button)
+        self.button.handleMouseDown(pos,button)
+        self.label.handleMouseDown(pos,button)
+
+
+    def handleMouseMove(self,pos):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseMove(pos)
+        self.button.handleMouseMove(pos)
+        self.label.handleMouseMove(pos)
+
+    def handleKeyDown(self,key,unicode):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleKeyDown(key,unicode)
+        self.button.handleKeyDown(key,unicode)
+        self.label.handleKeyDown(key,unicode)
+
+########################################################################################################################
 ## Class Label
 ########################################################################################################################
 
