@@ -1,8 +1,10 @@
 langage: python
+dist: trusty
+sudo: required
 python:
   - "3.6"
 install:
-  - pip install --upgrade pip
-  - pip install -r requirements.txt
+  - sudo pip install --upgrade pip
+  - sudo pip install -r requirements.txt
 script:
   - pytest
