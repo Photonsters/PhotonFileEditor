@@ -21,7 +21,7 @@ from PopupDialog import *
 #TODO LIST
 #todo: layer op icons in icon bar
 #todo: load resin settings from pulldown list?
-#todo: undo not yet working correct
+#todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
@@ -279,6 +279,9 @@ def undo():
     if not checkLoadedPhotonfile("No photon file loaded!","There is nothing to undo."): return
 
     # Insert layer
+    photonfile.undo()
+    refreshLayerSettings()
+    """
     try:
         photonfile.undo()
         print("Undo")
@@ -290,6 +293,7 @@ def undo():
     except Exception as err: # if clipboard is empty
         print(err)
         errMessageBox(str(err))
+    """
 
 def deleteLayer():
     """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
@@ -567,23 +571,23 @@ def createLayerOperations():
     global controls
     global menubar
     viewport_yoffset = 8
-    iconsize=40
-    icondist=48
+    iconsize=(46,59)
+    icondist=iconsize[0]+16
     controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
-                           pos=(20+0*icondist,2560/4-iconsize-viewport_yoffset),
-                           resizeto=(iconsize,iconsize),
+                           pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
+    #                       resizeto=iconsize,
                            borderhovercolor=(0,0,0),func_on_click=deleteLayer))
     controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
-                           pos=(20+1*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
+                           pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=copyLayer))
     controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
-                           pos=(20+2*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
+                           pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=pasteLayer))
     controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
-                           pos=(20+3*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
+                           pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+    #                       resizeto=iconsize,
                            borderhovercolor=(0, 0, 0), func_on_click=duplicateLayer))
 
 
