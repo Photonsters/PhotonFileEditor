@@ -24,7 +24,7 @@ from PopupDialog import *
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
-#todo: The exposure time, off times  in layerdefs are ignored by Photon printer, (so those values are just placeholders for future firmware.)
+#todo: The exposure time, off times in layerdefs are ignored by Photon printer, however layerheight not (so first two are just placeholders for future firmware.)
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
@@ -286,9 +286,6 @@ def undo():
     if not checkLoadedPhotonfile("No photon file loaded!","There is nothing to undo."): return
 
     # Insert layer
-    photonfile.undo()
-    refreshLayerSettings()
-    """
     try:
         photonfile.undo()
         print("Undo")
@@ -300,7 +297,6 @@ def undo():
     except Exception as err: # if clipboard is empty
         print(err)
         errMessageBox(str(err))
-    """
 
 def deleteLayer():
     """ Deletes current layer, but stores in memory/clipboard, ready for pasting  """
