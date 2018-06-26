@@ -1,11 +1,5 @@
-langage: python
-sudo: required
-python:
-  - "3.6"
-install:
-  - sudo pip install --upgrade pip
-  #- sudo pip install -r requirements.txt done automatically by travis
-script:
-  - python --version
-  - python -m pytest
-  - pytest
+language: python
+  python:
+    - "3.6"
+  script:
+    - pytest
