@@ -2,7 +2,9 @@
 
 Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer.
 
-*** Beware: The  Master Branch is currently not working. Within a few days however we will release a new version with new features and fully working. Please check back in a few days... *** 
+
+## Beware: The  Master Branch is currently not working. Within a few days however we will release a new version with new features and fully working. Please check back in a few days... 
+
 
 ## Installation
 PhotonFileEditor is programmed in Python 3.6 and only one external library, pygame, is required but numpy is also recommended. 
