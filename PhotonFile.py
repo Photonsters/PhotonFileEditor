@@ -23,6 +23,13 @@ except ImportError:
     print ("Numpy library not found.")
 
 
+# 50% smilie
+#0.50mm 11 layers, last not used
+#0.55mm 12 layers, last not used
+#0.60mm 13 layers, last not used
+#0.65mm 13 layers, last used
+#0.70mm 14 layers, last used
+
 ########################################################################################################################
 ## Convert byte string to hex string
 ########################################################################################################################
@@ -723,8 +730,8 @@ class PhotonFile:
 
     def insertLayerBefore(self, layerNr, fromClipboard=False):
         """ Inserts layer copying data of the previous layer or the clipboard. """
-
-        if self.clipboardDef==None: raise Exception("Clipboard is empty!")
+        print ('INSERT')
+        if fromClipboard and self.clipboardDef==None: raise Exception("Clipboard is empty!")
 
         # Store all data to history
         self.saveToHistory("insert",layerNr)
@@ -732,12 +739,13 @@ class PhotonFile:
         # Calculate how much room we need in between.
         if fromClipboard==False:
             # Store the size of layer image we duplicate to correct starting addresses of higher layer images
-            deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
+            deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"])
         else:
             deltaLength = self.bytes_to_int(self.clipboardDef["Data Length"])
 
         deltaHeight = self.layerHeight(layerNr)
-        print ("Delta:", deltaHeight)
+        print ("DeltaL:", deltaLength)
+        print ("DeltaH:", deltaHeight)
 
         # Make duplicate of layerDef and layerData if not pasting form clipboard
         if fromClipboard == False:
@@ -750,6 +758,9 @@ class PhotonFile:
         else:          # start at layer height of layer at which we insert
             curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
             self.clipboardDef["Layer height (mm)"]=self.float_to_bytes(curLayerHeight)
+
+        # Set start addresses of layer in clipboard
+        self.clipboardDef["Image Address"]=self.LayerDefs[layerNr]["Image Address"]
 
         # Update start addresses of RawData of all following images
         nLayers=self.nrLayers()
@@ -768,11 +779,16 @@ class PhotonFile:
         # Insert layer settings and data and reduce number of layers in header
         self.LayerDefs.insert(layerNr,self.clipboardDef)
         self.LayerData.insert(layerNr,self.clipboardData)
-        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)
+        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)# this line causes image shift in anycubic slicer
+
+        print ("nrLayersString |"+self.nrLayersString+"|")
+        print ("new |"+str(self.Header[self.nrLayersString])+"|")
+        print ("len ",len(self.Header[self.nrLayersString]))
 
         # Make new copy so second paste will not reference this inserted objects
         self.clipboardDef = self.LayerDefs[layerNr].copy()
         self.clipboardData = self.LayerData[layerNr].copy()
+
 
 
     def copyLayer(self,layerNr):

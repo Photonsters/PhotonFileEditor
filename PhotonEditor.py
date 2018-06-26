@@ -19,6 +19,7 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: insert layer is not working. If layernr is increased, we get image shift in Anycubic Photon Slicer
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
 #todo: load resin settings from pulldown list?
 #todo: button.png should be used in scrollbarv
@@ -368,7 +369,7 @@ def duplicateLayer():
     if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
 
     # Insert layer
-    photonfile.insertLayerBefore(layerNr)
+    photonfile.insertLayerBefore(layerNr,False)
     print("Layer "+str(layerNr)+ " inserted.")
     # Update layer settings with new layer
     refreshLayerSettings()
@@ -601,6 +602,7 @@ def createLayernavigation():
     global layerLabel
     global menubar
     global controls
+    global layerNr
 
     # Add two imageboxes to control as layer nav buttons
     viewport_yoffset=menubar.height+8
@@ -610,6 +612,8 @@ def createLayernavigation():
     layerLabel.font.set_bold(True)
     controls.append(layerLabel)
 
+    layerNr=0
+    setLayerSliderFromLayerNr()
 
 def createSidebar():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
@@ -971,6 +975,7 @@ def openPhotonFile(filename):
     refreshHeaderSettings()
     refreshPreviewSettings()
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
 
 
 
@@ -1014,8 +1019,13 @@ def setLayerSliderFromLayerNr():
     global photonfile
     global scrollLayerRect
     global layerCursorRect
+    global layerNr
 
-    relY = layerNr / int(photonfile.nrLayers() - 1)
+    if not photonfile==None:
+        if photonfile.nrLayers()>1:
+            relY = layerNr / int(photonfile.nrLayers() - 1)
+        else: relY=0
+    else: relY=0
     scrnY=relY * (2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin
     layerCursorRect = scrollLayerRect.copy()
     layerCursorRect.y = scrnY - 2
@@ -1131,12 +1141,12 @@ def main():
                     if not isNumlockOn:
                         maxLayer = photonfile.nrLayers()
                         page=int(maxLayer/10)
-                        if event.key == pygame.K_KP8: layerUp()
-                        if event.key == pygame.K_KP9: layerUp(page)
-                        if event.key == pygame.K_KP2: layerDown()
-                        if event.key == pygame.K_KP3: layerDown(page)
-                    if event.key == pygame.K_UP: layerUp()
-                    if event.key == pygame.K_DOWN: layerDown()
+                        if event.key == pygame.K_KP8: layerDown()
+                        if event.key == pygame.K_KP9: layerDown(page)
+                        if event.key == pygame.K_KP2: layerUp()
+                        if event.key == pygame.K_KP3: layerUp(page)
+                    if event.key == pygame.K_UP: layerDown()
+                    if event.key == pygame.K_DOWN: layerUp()
 
                 #We use tab to navigate the textboxes in controls
                 if event.key == pygame.K_TAB:
