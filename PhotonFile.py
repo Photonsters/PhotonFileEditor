@@ -691,7 +691,7 @@ class PhotonFile:
         self.saveToHistory("delete",layerNr)
 
         # Store the size of layer image we remove to correct starting addresses of higher layer images
-        deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
+        deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) # +1 for len(EndOfLayer)
 
         #deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
         deltaHeight =self.layerHeight(layerNr)

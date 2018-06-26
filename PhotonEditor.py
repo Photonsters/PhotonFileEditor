@@ -291,6 +291,7 @@ def undo():
         print("Undo")
         # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
+        refreshHeaderSettings()  # number layers could have changed
         # Update current layer image with new bitmap retrieved from photonfile
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
@@ -338,6 +339,7 @@ def deleteLayer():
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
         refreshLayerSettings()
+        refreshHeaderSettings() # number layers changed
     else:
         print ("User canceled deleting a layer.")
 
@@ -370,6 +372,7 @@ def duplicateLayer():
     print("Layer "+str(layerNr)+ " inserted.")
     # Update layer settings with new layer
     refreshLayerSettings()
+    refreshHeaderSettings()  # number layers changed
     # Update current layer image with new bitmap retrieved from photonfile
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
@@ -392,6 +395,7 @@ def pasteLayer():
         print("Layer "+str(layerNr)+ " inserted.")
         # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
+        refreshHeaderSettings()  # number layers changed
         # Update current layer image with new bitmap retrieved from photonfile
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
