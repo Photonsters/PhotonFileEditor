@@ -1,3 +1,4 @@
+pytest>=3.6.2
 Markdown>=2.0.1
 astroid>=1.6.5
 atomicwrites>=1.1.5
@@ -15,5 +16,4 @@ py>=1.5.3
 pygame>=1.9.3
 pylint>=1.9.2
 Pypubsub>=4.0.0
-pytest>=3.6.2
 wrapt>=1.10.11
