@@ -46,7 +46,7 @@ Currently the following functionality is implemented:
 1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info, meta-info and preview images/thumbnails.
 2. Saving to a .Photon file.
 3. Exporting all images
-
+-
 4. Editing all numeric data of the Photon File. Data-bytes which are internally used (location of bitmaps etc) are shown but readonly.
 5. Importing bitmaps (.e.g. from Povray as png-files) in an exisiting Photon File (which is thus used as a template)
 6. Delete/Duplicate/Copy Layers
