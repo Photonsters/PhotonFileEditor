@@ -44,14 +44,13 @@ Since this is very much an alpha version (or rather an alpha *of* an alpha versi
 ## Implemented functionality
 Currently the following functionality is implemented:
 1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info, meta-info and preview images/thumbnails.
-2. Saving to a .Photon file.
+2. Editing all numeric data of the Photon File. Data-bytes which are internally used (location of bitmaps etc) are shown but readonly.
 3. Exporting all images
--
-4. Editing all numeric data of the Photon File. Data-bytes which are internally used (location of bitmaps etc) are shown but readonly.
-5. Importing bitmaps (.e.g. from Povray as png-files) in an exisiting Photon File (which is thus used as a template)
-6. Delete/Duplicate/Copy Layers
-7. Undo before mentioned actions
-8. Apply new resin settings to the photon file
+4. Importing bitmaps (.e.g. from Povray as png-files) in an exisiting Photon File (which is thus used as a template)
+5. Delete/Duplicate/Copy Layers
+6. Undo before mentioned actions
+7. Apply new resin settings to the photon file
+8. Saving to a .Photon file.
 
 ## Functionality under development
 The following functionality will be implemented soon:
