@@ -19,6 +19,8 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: check on save if layerheighs are consecutive and printer does not midprint go down
+#todo: refine tooltips
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
 #todo: load resin settings from pulldown list?
 #todo: button.png should be used in scrollbarv
