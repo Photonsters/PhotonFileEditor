@@ -1,8 +1,9 @@
 # PhotonFileUtils
 
 Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer. The current version is alpha. This means that you may encounter bugs. __Some bugs can potentially harm your printer__, imagine for instance a buggy photonfile which tells your printer to move down instead of up after printing a layer!
-
-
+ 
+ ---
+  
 ## Installation
 PhotonFileEditor is programmed in Python 3.6 and only one external library, pygame, is required but numpy is also recommended. 
 If you want to test it follow these instructions:
@@ -24,6 +25,8 @@ __or__ install Anaconda 3.6 https://www.anaconda.com/download/
 
 In the near future (approaching version 1.0), I will make a windows executables and a linux package available..
 
+---
+
 ## How to help with the development
 Since I myself do not (yet) have my own Anycubic Photon, there are a few things you could do to help me out with developing this program further:
 
@@ -41,6 +44,8 @@ If you are missing functionality which is not mentioned below, please let me kno
 
 Since this is very much an alpha version (or rather an alpha *of* an alpha version), all suggestions of any kind are more than welcome!
 
+---
+
 ## Implemented functionality
 Currently the following functionality is implemented:
 1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info, meta-info and preview images/thumbnails.
@@ -53,13 +58,19 @@ Currently the following functionality is implemented:
 8. Starting fresh with a new .Photon file
 9. Saving to a .Photon file.
 
+---
+
 ## Functionality under development
 The following functionality will be implemented soon:
 1. Improved GUI
 2. 3D view of bitmap data
 
+---
+
 ## Current screenshot
 ![image](https://user-images.githubusercontent.com/11459480/41983949-b2a3c7b2-7a2f-11e8-9168-6176c4a9b16b.png)
+
+---
 
 ## Previous screenshots
 ![image](https://user-images.githubusercontent.com/11083514/41735866-babb511a-7582-11e8-8e4e-37a96751b097.png)
