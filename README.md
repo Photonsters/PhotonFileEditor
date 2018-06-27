@@ -50,7 +50,8 @@ Currently the following functionality is implemented:
 5. Delete/Duplicate/Copy Layers
 6. Undo before mentioned actions
 7. Apply new resin settings to the photon file
-8. Saving to a .Photon file.
+8. Starting fresh with a new .Photon file
+9. Saving to a .Photon file.
 
 ## Functionality under development
 The following functionality will be implemented soon:
