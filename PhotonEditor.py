@@ -586,16 +586,20 @@ def createLayerOperations():
     icondist=iconsize[0]+16
     controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
                            pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
-                           borderhovercolor=(0,0,0),func_on_click=deleteLayer))
+                           borderhovercolor=(0,0,0),toolTip="Cut (and store in clipboard)",
+                           func_on_click=deleteLayer))
     controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
                            pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-                           borderhovercolor=(0, 0, 0), func_on_click=copyLayer))
+                           borderhovercolor=(0, 0, 0),toolTip="Copy (to clipboard)",
+                           func_on_click=copyLayer))
     controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
                            pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-                           borderhovercolor=(0, 0, 0), func_on_click=pasteLayer))
+                           borderhovercolor=(0, 0, 0), toolTip="Paste (from clipboard)",
+                           func_on_click=pasteLayer))
     controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
                            pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
-                           borderhovercolor=(0, 0, 0), func_on_click=duplicateLayer))
+                           borderhovercolor=(0, 0, 0), toolTip="Duplicate (current layer)",
+                           func_on_click=duplicateLayer))
 
 
 def createLayernavigation():
