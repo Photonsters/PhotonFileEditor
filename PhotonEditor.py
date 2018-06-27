@@ -19,10 +19,9 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
-#todo: refine tooltips
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
-#todo: load resin settings from pulldown list?
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
@@ -290,6 +289,9 @@ def undo():
     # Insert layer
     try:
         photonfile.undo()
+        if layerNr >= photonfile.nrLayers():
+            layerNr = photonfile.nrLayers() - 1
+            setLayerSliderFromLayerNr()
         print("Undo")
         # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
@@ -1129,7 +1131,7 @@ def handleLayerSlider(checkRect=True):
             relY = (mousePoint.y - scrollLayerVMargin) / (2560 / 4 - scrollLayerVMargin * 2)
             if relY<0: relY=0
             if relY>1: relY=1
-            layerNr = int((photonfile.nrLayers() - 1) * relY)
+            layerNr = round((photonfile.nrLayers() - 1) * relY)
             layerCursorRect = scrollLayerRect.copy()
             layerCursorRect.y = (relY*(2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin) - 2
             layerCursorRect.height = 4

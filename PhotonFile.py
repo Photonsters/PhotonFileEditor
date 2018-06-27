@@ -250,16 +250,16 @@ class PhotonFile:
 
         # Reverse the actions
         if action=="insert":
-            self.deleteLayer(layerNr)
+            self.deleteLayer(layerNr, saveToHistory=False)
         elif action=="delete":
             self.clipboardDef=layerDef
             self.clipboardData=layerData
-            self.insertLayerBefore(layerNr,fromClipboard=True)
+            self.insertLayerBefore(layerNr,fromClipboard=True, saveToHistory=False)
         elif action=="replace":
             self.clipboardDef=layerDef
             self.clipboardData=layerData
             self.deleteLayer(layerNr)
-            self.insertLayerBefore(layerNr,fromClipboard=True)
+            self.insertLayerBefore(layerNr,fromClipboard=True, saveToHistory=False)
 
         # Remove this item
         self.History.remove(lastItemAdded)
@@ -684,11 +684,11 @@ class PhotonFile:
         #print ("Delta:", deltaHeight)
 
 
-    def deleteLayer(self, layerNr):
+    def deleteLayer(self, layerNr, saveToHistory=True):
         """ Deletes layer and its image data in the PhotonFile object, but store in clipboard for paste. """
 
         # Store all data to history
-        self.saveToHistory("delete",layerNr)
+        if saveToHistory: self.saveToHistory("delete",layerNr)
 
         #deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
         deltaHeight =self.layerHeight(layerNr)
@@ -725,18 +725,25 @@ class PhotonFile:
         self.LayerData.remove(self.LayerData[layerNr])
         self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()-1)
 
-
-    def insertLayerBefore(self, layerNr, fromClipboard=False):
+    def insertLayerBefore(self, layerNr, fromClipboard=False, saveToHistory=True):
         """ Inserts layer copying data of the previous layer or the clipboard. """
-        print ('INSERT')
         if fromClipboard and self.clipboardDef==None: raise Exception("Clipboard is empty!")
 
         # Store all data to history
-        self.saveToHistory("insert",layerNr)
+        if saveToHistory: self.saveToHistory("insert",layerNr)
 
+        # Check if layerNr in range, could occur on undo after deleting last layer
+        #   print(layerNr, "/", self.nrLayers())
+        insertLast=False
+        if layerNr>self.nrLayers(): layerNr=self.nrLayers()
+        if layerNr == self.nrLayers():
+            layerNr=layerNr-1 # temporary reduce layerNr
+            insertLast=True
+
+        # Check deltaHeight
         deltaHeight = self.layerHeight(layerNr)
 
-        # Make duplicate of layerDef and layerData if not pasting form clipboard
+        # Make duplicate of layerDef and layerData if not pasting from clipboard
         if fromClipboard == False:
             self.clipboardDef=self.LayerDefs[layerNr].copy()
             self.clipboardData=self.LayerData[layerNr].copy()
@@ -750,7 +757,12 @@ class PhotonFile:
 
         # Set start addresses of layer in clipboard, we add 1 layer(def) so add 36 bytes
         lA=self.bytes_to_int(self.LayerDefs[layerNr]["Image Address"])+36
+        #   if lastlayer we need to add last image length
+        if insertLast: lA=lA+self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"])
         self.clipboardDef["Image Address"]=self.int_to_bytes(lA)
+
+        # If we inserting last layer, we correct layerNr
+        if insertLast: layerNr = layerNr + 1  # fix temporary reduced layerNr
 
         # Update start addresses of RawData of before insertion with size of one extra layerdef (36 bytes)
         for rLayerNr in range(0,layerNr):
@@ -761,11 +773,7 @@ class PhotonFile:
 
         # Update start addresses of RawData of after insertion with size of image and layerdef
         #   Calculate how much room we need in between. We insert an extra layerdef (36 bytes) and a extra image
-        if fromClipboard==False:
-            # Store the size of layer image we duplicate to correct starting addresses of higher layer images
-            deltaLayerImgAddress =self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) +36
-        else:
-            deltaLayerImgAddress = self.bytes_to_int(self.clipboardDef["Data Length"]) + 36
+        deltaLayerImgAddress = self.bytes_to_int(self.clipboardDef["Data Length"]) + 36
         nLayers=self.nrLayers()
         #   remove
         for rLayerNr in range(layerNr,nLayers):
@@ -781,18 +789,14 @@ class PhotonFile:
             #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr, "|", curHeight,newHeight ,">",self.bytes_to_float(self.LayerDefs[rLayerNr]["Layer height (mm)"]))
 
         # Insert layer settings and data and reduce number of layers in header
-        self.LayerDefs.insert(layerNr,self.clipboardDef)
-        self.LayerData.insert(layerNr,self.clipboardData)
-        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)# this line causes image shift in anycubic slicer
+        self.LayerDefs.insert(layerNr, self.clipboardDef)
+        self.LayerData.insert(layerNr, self.clipboardData)
 
-        print ("nrLayersString |"+self.nrLayersString+"|")
-        print ("new |"+str(self.Header[self.nrLayersString])+"|")
-        print ("len ",len(self.Header[self.nrLayersString]))
+        self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)
 
         # Make new copy so second paste will not reference this inserted objects
         self.clipboardDef = self.LayerDefs[layerNr].copy()
         self.clipboardData = self.LayerData[layerNr].copy()
-
 
 
     def copyLayer(self,layerNr):
@@ -801,13 +805,13 @@ class PhotonFile:
         self.clipboardData=self.LayerData[layerNr].copy()
 
 
-    def replaceBitmap(self, layerNr,filePath):
+    def replaceBitmap(self, layerNr,filePath, saveToHistory=True):
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
 
         print("  ", layerNr, "/", filePath)
 
         # Store all data to history
-        self.saveToHistory("replace",layerNr)
+        if saveToHistory: self.saveToHistory("replace",layerNr)
 
         # Get/encode raw data
         rawData = PhotonFile.encodedBitmap_Bytes(filePath)
