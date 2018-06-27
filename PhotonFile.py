@@ -22,14 +22,21 @@ except ImportError:
     numpyAvailable = False
     print ("Numpy library not found.")
 
+"""
+# smilie 
+0.05
+0.06
+0.07
+0.08
+0.09
+0.10
+0.12
+0.13
+0.14
+0.15
 
-# 50% smilie
-#0.50mm 11 layers, last not used
-#0.55mm 12 layers, last not used
-#0.60mm 13 layers, last not used
-#0.65mm 13 layers, last used
-#0.70mm 14 layers, last used
 
+"""
 ########################################################################################################################
 ## Convert byte string to hex string
 ########################################################################################################################
@@ -697,14 +704,19 @@ class PhotonFile:
         # Store all data to history
         self.saveToHistory("delete",layerNr)
 
-        # Store the size of layer image we remove to correct starting addresses of higher layer images
-        deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) # +1 for len(EndOfLayer)
-
         #deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
         deltaHeight =self.layerHeight(layerNr)
         print ("deltaHeight:",deltaHeight)
 
-        # Update start addresses of RawData of all following images
+        # Update start addresses of RawData of before deletion with size of one extra layerdef (36 bytes)
+        for rLayerNr in range(0,layerNr):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr-36 # size of layerdef
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+        # Update start addresses of RawData of after deletion with size of image and layerdef
+        deltaLength = self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 36  # +1 for len(EndOfLayer)
         nLayers=self.nrLayers()
         for rLayerNr in range(layerNr+1,nLayers):
             # Adjust image address for removal of image raw data and end byte
@@ -736,16 +748,7 @@ class PhotonFile:
         # Store all data to history
         self.saveToHistory("insert",layerNr)
 
-        # Calculate how much room we need in between.
-        if fromClipboard==False:
-            # Store the size of layer image we duplicate to correct starting addresses of higher layer images
-            deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"])
-        else:
-            deltaLength = self.bytes_to_int(self.clipboardDef["Data Length"])
-
         deltaHeight = self.layerHeight(layerNr)
-        print ("DeltaL:", deltaLength)
-        print ("DeltaH:", deltaHeight)
 
         # Make duplicate of layerDef and layerData if not pasting form clipboard
         if fromClipboard == False:
@@ -759,15 +762,30 @@ class PhotonFile:
             curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
             self.clipboardDef["Layer height (mm)"]=self.float_to_bytes(curLayerHeight)
 
-        # Set start addresses of layer in clipboard
-        self.clipboardDef["Image Address"]=self.LayerDefs[layerNr]["Image Address"]
+        # Set start addresses of layer in clipboard, we add 1 layer(def) so add 36 bytes
+        lA=self.bytes_to_int(self.LayerDefs[layerNr]["Image Address"])+36
+        self.clipboardDef["Image Address"]=self.int_to_bytes(lA)
 
-        # Update start addresses of RawData of all following images
+        # Update start addresses of RawData of before insertion with size of one extra layerdef (36 bytes)
+        for rLayerNr in range(0,layerNr):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr+36 # size of layerdef
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+        # Update start addresses of RawData of after insertion with size of image and layerdef
+        #   Calculate how much room we need in between. We insert an extra layerdef (36 bytes) and a extra image
+        if fromClipboard==False:
+            # Store the size of layer image we duplicate to correct starting addresses of higher layer images
+            deltaLayerImgAddress =self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) +36
+        else:
+            deltaLayerImgAddress = self.bytes_to_int(self.clipboardDef["Data Length"]) + 36
         nLayers=self.nrLayers()
+        #   remove
         for rLayerNr in range(layerNr,nLayers):
             # Adjust image address for removal of image raw data and end byte
             curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
-            newAddr=curAddr+deltaLength
+            newAddr=curAddr+deltaLayerImgAddress
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
             # Adjust layer starting height for removal of layer
@@ -1038,3 +1056,83 @@ for i in range (0,20):
     c = c + 0.05
 #quit()
 '''
+files=("SamplePhotonFiles/Debug/debug 0.05mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.07mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.08mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.09mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.10mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.11mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.12mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.13mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.14mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.15mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.20mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.25mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.30mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.35mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.40mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.45mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.50mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.55mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.60mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.65mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.70mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.75mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.80mm.photon",
+       )
+files=("SamplePhotonFiles/Debug/debug 0.65mm test.photon",)
+for file in files:
+    ph=PhotonFile(file)
+    ph.readFile()
+    print ( file[30:34],':',
+            PhotonFile.bytes_to_int(ph.Header["# Layers"]),
+            PhotonFile.bytes_to_int(ph.Header["Preview 0 (addr)"]),
+            PhotonFile.bytes_to_int(ph.Header["Preview 1 (addr)"]),
+            PhotonFile.bytes_to_int(ph.Previews[0]["Image Address"]),
+            PhotonFile.bytes_to_int(ph.Previews[0]["Data Length"]),
+            PhotonFile.bytes_to_int(ph.Previews[1]["Image Address"]),
+            PhotonFile.bytes_to_int(ph.Previews[1]["Data Length"]),
+            PhotonFile.bytes_to_int(ph.Header["Layer Defs (addr)"]),
+            )
+
+"""
+("Header", 8, tpByte, False),
+("Bed X (mm)", 4, tpFloat, True),
+("Bed Y (mm)", 4, tpFloat, True),
+("Bed Z (mm)", 4, tpFloat, True),
+("padding0", 3 * 4, tpByte, False),  # 3 ints
+("Layer height (mm)", 4, tpFloat, True),
+("Exp. time (s)", 4, tpFloat, True),
+("Exp. bottom (s)", 4, tpFloat, True),
+("Off time (s)", 4, tpFloat, True),
+("# Bottom Layers", 4, tpInt, True),
+("Resolution X", 4, tpInt, True),
+("Resolution Y", 4, tpInt, True),
+("Preview 0 (addr)", 4, tpInt, False),  # start of preview 0
+("Layer Defs (addr)", 4, tpInt, False),  # start of layerDefs
+(nrLayersString, 4, tpInt, False),
+("Preview 1 (addr)", 4, tpInt, False),  # start of preview 1
+("unknown6", 4, tpInt, False),
+("Proj.type-Cast/Mirror", 4, tpInt, False),  # LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
+("padding1", 6 * 4, tpByte, False)  # 6 ints
+]
+
+pfStruct_Previews = [
+("Resolution X", 4, tpInt, False),
+("Resolution Y", 4, tpInt, False),
+("Image Address", 4, tpInt, False),  # start of rawData0
+("Data Length", 4, tpInt, False),  # size of rawData0
+("padding", 4 * 4, tpByte, False),  # 4 ints
+("Image Data", -1, tpByte, False),
+]
+
+pfStruct_LayerDef = [
+("Layer height (mm)", 4, tpFloat, True),
+("Exp. time (s)", 4, tpFloat, True),
+("Off time (s)", 4, tpFloat, True),
+("Image Address", 4, tpInt, False),  # dataStartPos -> Image Address
+("Data Length", 4, tpInt, False),  # size of rawData+lastByte(1)
+("padding", 4 * 4, tpByte, False)  # 4 ints
+"""
+
+#quit()

@@ -19,7 +19,6 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
-#todo: insert layer is not working. If layernr is increased, we get image shift in Anycubic Photon Slicer
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
 #todo: load resin settings from pulldown list?
 #todo: button.png should be used in scrollbarv
