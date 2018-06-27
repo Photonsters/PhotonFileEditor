@@ -1056,6 +1056,7 @@ for i in range (0,20):
     c = c + 0.05
 #quit()
 '''
+'''
 files=("SamplePhotonFiles/Debug/debug 0.05mm (err).photon",
         "SamplePhotonFiles/Debug/debug 0.07mm (err).photon",
         "SamplePhotonFiles/Debug/debug 0.08mm (err).photon",
@@ -1080,6 +1081,8 @@ files=("SamplePhotonFiles/Debug/debug 0.05mm (err).photon",
         "SamplePhotonFiles/Debug/debug 0.75mm.photon",
         "SamplePhotonFiles/Debug/debug 0.80mm.photon",
        )
+'''
+'''
 files=("SamplePhotonFiles/Debug/debug 0.65mm test.photon",)
 for file in files:
     ph=PhotonFile(file)
@@ -1094,6 +1097,7 @@ for file in files:
             PhotonFile.bytes_to_int(ph.Previews[1]["Data Length"]),
             PhotonFile.bytes_to_int(ph.Header["Layer Defs (addr)"]),
             )
+'''
 
 """
 ("Header", 8, tpByte, False),
