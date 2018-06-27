@@ -1015,6 +1015,8 @@ class Combobox():
     spacing=4
     offset=0
     visible=True
+    text="" #stores text if clicked
+    func_on_click=None
 
     def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         """ Saves all values to internal variables. """
@@ -1082,7 +1084,8 @@ class Combobox():
         print (clickedtext,self.listbox.activeText())
         self.label.setText(clickedtext)
         self.listbox.visible=False
-
+        self.text=clickedtext
+        if not self.func_on_click==None: self.func_on_click(clickedtext)
 
     def buttonClick(self):
         self.listbox.visible= not self.listbox.visible

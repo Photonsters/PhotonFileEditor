@@ -82,7 +82,7 @@ layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWi
 
 # Resin settings
 resins=None
-
+resincombo=None
 
 ########################################################################################################################
 ##  Message boxes
@@ -641,6 +641,7 @@ def createSidebar():
     global firstLayerTextbox
 
     global resins
+    global resincombo
 
     # The controls are placed below the menubar
     viewport_yoffset=menubar.height+8
@@ -733,6 +734,7 @@ def createSidebar():
 
     # Add Resin Presets Chooser
     # First read settings from file
+    # columns are Brand,Type,Layer,NormalExpTime,OffTime,BottomExp,BottomLayers
     ifile = open("resources/resins.txt", "r")
     lines = ifile.readlines()
     resins = [tuple(line.strip().split(",")) for line in lines]
@@ -746,13 +748,70 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
 
-    # Add label and combobox
+    # Make combobox (add last, so always on top)
     row=row+1
-    controls.append(Combobox(screen,
+    resincombo=Combobox(screen,
                              rect=GRect(settingsleft + settingslabelmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth+settingslabelwidth, settingsrowheight),\
                              items=resinnames,
-                             defitemnr=0
+                             defitemnr=0,
+                             )
+
+    # Add apply button
+    row=row+1+0.4 # combo is larger than normal
+    controls.append( Button(screen,
+                            rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth,settingsrowheight*1.6), \
+                            text="Apply", func_on_click=ApplyResinSettings
                              ))
+
+    # Add combobox to controls
+    controls.append(resincombo)
+
+
+def ApplyResinSettings():
+    """ Applies the selected resin settings.
+    """
+    global resins
+    global resincombo
+    global photonfile
+
+    # Check if photonfile is loaded
+    if photonfile==None: return
+
+    # Check if user didn't select title (first item)
+    resinname=resincombo.text
+    if resinname=="Brand": return
+
+    # columns are Brand,Type,Layer Height,NormalExpTime,OffTime,BottomExp,BottomLayers
+    for (sBrand,sType,sLayerHeight,sNormalExpTime,sOffTime,sBottomExp,sBottomLayers)  in resins:
+        if sBrand == resinname:
+            # Convert all strings to floats/int
+            rLayerHeight=float(sLayerHeight)
+            rNormalExpTime = float(sNormalExpTime)
+            rOffTime=float(sOffTime)
+            rBottomExp=float(sBottomExp)
+            rBottomLayers=int(sBottomLayers)
+            #print (sBrand, rLayerHeight,rNormalExpTime, rOffTime, rBottomExp, rBottomLayers)
+
+            # Set Header/General settings
+            photonfile.Header["Layer height (mm)"]=PhotonFile.float_to_bytes(rLayerHeight)
+            photonfile.Header["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+            photonfile.Header["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+            photonfile.Header["Exp. bottom (s)"] = PhotonFile.float_to_bytes(rBottomExp)
+            photonfile.Header["# Bottom Layers"] = PhotonFile.int_to_bytes(rBottomLayers)
+
+            # Set settings of each layer
+            cLayerHeight=0
+            for layerNr, layerDef in enumerate(photonfile.LayerDefs):
+                layerDef["Layer height (mm)"]=PhotonFile.float_to_bytes(cLayerHeight)
+                cLayerHeight=cLayerHeight+rLayerHeight
+                if layerNr<rBottomLayers:
+                    layerDef["Exp. time (s)"]=PhotonFile.float_to_bytes(rBottomExp)
+                else:
+                    layerDef["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+                layerDef["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+            refreshHeaderSettings()
+            refreshLayerSettings()
+
 
 ########################################################################################################################
 ##  Setup windows, pygame, menu and controls
