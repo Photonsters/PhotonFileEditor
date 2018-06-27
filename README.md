@@ -2,8 +2,6 @@
 
 Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer. The current version is alpha. This means that you may encounter bugs. __Some bugs can potentially harm your printer__, imagine for instance a buggy photonfile which tells your printer to move down instead of up after printing a layer!
 
-## Beware: The  Master Branch is currently not working. Within a few days however we will release a new version with new features and fully working. Please check back in a few days... 
-
 
 ## Installation
 PhotonFileEditor is programmed in Python 3.6 and only one external library, pygame, is required but numpy is also recommended. 
@@ -47,15 +45,23 @@ Since this is very much an alpha version (or rather an alpha *of* an alpha versi
 Currently the following functionality is implemented:
 1. Viewing all data from a .Photon file, including encapsulated sliced bitmaps, generic info, meta-info and preview images/thumbnails.
 2. Saving to a .Photon file.
-3. Editing all numeric data of the Photon File. Databytes which are internally used (location of bitmaps etc) are shown but readonly.
-4. Not yet tested - Importing bitmaps (from Povray as png-files) in an exisiting Photon File (which is used as a template)
+3. Exporting all images
+
+4. Editing all numeric data of the Photon File. Data-bytes which are internally used (location of bitmaps etc) are shown but readonly.
+5. Importing bitmaps (.e.g. from Povray as png-files) in an exisiting Photon File (which is thus used as a template)
+6. Delete/Duplicate/Copy Layers
+7. Undo before mentioned actions
+8. Apply new resin settings to the photon file
 
 ## Functionality under development
 The following functionality will be implemented soon:
-1. More polished GUI
+1. Improved GUI
 2. 3D view of bitmap data
 
 ## Current screenshot
+![image](https://user-images.githubusercontent.com/11459480/41983949-b2a3c7b2-7a2f-11e8-9168-6176c4a9b16b.png)
+
+## Previous screenshots
 ![image](https://user-images.githubusercontent.com/11083514/41735866-babb511a-7582-11e8-8e4e-37a96751b097.png)
 ![image](https://user-images.githubusercontent.com/11083514/41695957-74c0e4f0-7509-11e8-9be5-382ac51c9fe2.png)
  
