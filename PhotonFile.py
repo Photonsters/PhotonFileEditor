@@ -61,43 +61,43 @@ class PhotonFile:
     #     - For each layer meta-info                                ( pfStruct_LayerDefs,   LayerDefs)
     #     - For each layer raw image data                           ( pfStruct_LayerData,   LayerData)
     pfStruct_Header = [
-        ("Header", 8, tpByte, False),
-        ("Bed X (mm)", 4, tpFloat, True),
-        ("Bed Y (mm)", 4, tpFloat, True),
-        ("Bed Z (mm)", 4, tpFloat, True),
-        ("padding0", 3 * 4, tpByte, False), # 3 ints
-        ("Layer height (mm)", 4, tpFloat, True),
-        ("Exp. time (s)", 4, tpFloat, True),
-        ("Exp. bottom (s)", 4, tpFloat, True),
-        ("Off time (s)", 4, tpFloat, True),
-        ("# Bottom Layers", 4, tpInt, True),
-        ("Resolution X", 4, tpInt, True),
-        ("Resolution Y", 4, tpInt, True),
-        ("Preview 0 (addr)", 4, tpInt, False),  # start of preview 0
-        ("Layer Defs (addr)", 4, tpInt, False),  # start of layerDefs
-        (nrLayersString, 4, tpInt, False),
-        ("Preview 1 (addr)", 4, tpInt, False),  # start of preview 1
-        ("unknown6", 4, tpInt, False),
-        ("Proj.type-Cast/Mirror", 4, tpInt, False),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
-        ("padding1", 6 * 4, tpByte, False)  # 6 ints
+        ("Header",              8, tpByte,  False, ""),
+        ("Bed X (mm)",          4, tpFloat, True,  "Short side of the print bed."),
+        ("Bed Y (mm)",          4, tpFloat, True,  "Long side of the print bed."),
+        ("Bed Z (mm)",          4, tpFloat, True,  "Maximum height the printer can print."),
+        ("padding0",        3 * 4, tpByte,  False, ""), # 3 ints
+        ("Layer height (mm)",   4, tpFloat, True,  "Default layer height."),
+        ("Exp. time (s)",       4, tpFloat, True,  "Default exposure time."),
+        ("Exp. bottom (s)",     4, tpFloat, True,  "Exposure time for bottom layers."),
+        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers."),
+        ("# Bottom Layers",     4, tpInt,   True,  "Number of bottom layers.\n (These have different exposure time.)"),
+        ("Resolution X",        4, tpInt,   True,  "X-Resolution of the screen through \n which the layer image is projected."),
+        ("Resolution Y",        4, tpInt,   True,  "Y-Resolution of the screen through \n which the layer image is projected." ),
+        ("Preview 0 (addr)",    4, tpInt,   False, "Address where the metadata \n of the High Res preview image can be found."),  # start of preview 0
+        ("Layer Defs (addr)",   4, tpInt,   False, "Address where the metadata \n for the layer images can be found."),  # start of layerDefs
+        (nrLayersString,        4, tpInt,   False, "Number of layers this file has."),
+        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata \n of the Low Res preview image can be found."),  # start of preview 1
+        ("unknown6",            4, tpInt,   False, ""),
+        ("Proj.type-Cast/Mirror", 4, tpInt, False, "LightCuring/Projection type:\n 1=LCD_X_MIRROR \n 0=CAST"),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
+        ("padding1",        6 * 4, tpByte,  False, "")  # 6 ints
     ]
 
     pfStruct_Previews = [
-        ("Resolution X", 4, tpInt, False),
-        ("Resolution Y", 4, tpInt, False),
-        ("Image Address", 4, tpInt, False),  # start of rawData0
-        ("Data Length", 4, tpInt, False),  # size of rawData0
-        ("padding", 4 * 4, tpByte, False),  # 4 ints
-        ("Image Data", -1, tpByte, False),
+        ("Resolution X",        4, tpInt,   False, "X-Resolution of preview pictures."),
+        ("Resolution Y",        4, tpInt,   False, "Y-Resolution of preview pictures."),
+        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),  # start of rawData0
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  # size of rawData0
+        ("padding",         4 * 4, tpByte,  False, ""),  # 4 ints
+        ("Image Data",         -1, tpByte,  False, "The raw image."),
     ]
 
     pfStruct_LayerDef = [
-        ("Layer height (mm)", 4, tpFloat, True),
-        ("Exp. time (s)", 4, tpFloat, True),
-        ("Off time (s)", 4, tpFloat, True),
-        ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
-        ("Data Length", 4, tpInt, False),  #size of rawData+lastByte(1)
-        ("padding", 4 * 4, tpByte, False) # 4 ints
+        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer should be printed."),
+        ("Exp. time (s)",       4, tpFloat, True,  "Exposure time for this layer."),
+        ("Off time (s)",        4, tpFloat, True,  "Off time for this layer."),
+        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),#dataStartPos -> Image Address
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  #size of rawData+lastByte(1)
+        ("padding",         4 * 4, tpByte,  False, "") # 4 ints
     ]
 
     # pfStruct_LayerData =
@@ -110,7 +110,7 @@ class PhotonFile:
     LayerData = []
 
     History=[]
-    HistoryMaxDepth = 3
+    HistoryMaxDepth = 10
 
 
     ########################################################################################################################
@@ -242,22 +242,24 @@ class PhotonFile:
         # Find last item added to History
         idxLastAdded=len(self.History)-1
         lastItemAdded=self.History[idxLastAdded]
-        (action, layerNr, layerDef, layerData)=lastItemAdded
-
+        action=lastItemAdded["Action"]
+        layerNr =lastItemAdded["LayerNr"]
+        layerDef = lastItemAdded["LayerDef"]
+        layerData = lastItemAdded["LayerData"]
         print("Found:", self.History[idxLastAdded])
 
         # Reverse the actions
         if action=="insert":
-            self.deleteLayer(layerNr)
+            self.deleteLayer(layerNr, saveToHistory=False)
         elif action=="delete":
             self.clipboardDef=layerDef
             self.clipboardData=layerData
-            self.insertLayerBefore(layerNr,fromClipboard=True)
+            self.insertLayerBefore(layerNr,fromClipboard=True, saveToHistory=False)
         elif action=="replace":
             self.clipboardDef=layerDef
             self.clipboardData=layerData
             self.deleteLayer(layerNr)
-            self.insertLayerBefore(layerNr,fromClipboard=True)
+            self.insertLayerBefore(layerNr,fromClipboard=True, saveToHistory=False)
 
         # Remove this item
         self.History.remove(lastItemAdded)
@@ -288,12 +290,12 @@ class PhotonFile:
             binary_file.seek(0)
 
             # Read HEADER / General settings
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
                 self.Header[bTitle] = binary_file.read(bNr)
 
             # Read PREVIEWS settings and raw image data
             for previewNr in (0,1):
-                for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                     # if rawData0 or rawData1 the number bytes to read is given bij dataSize0 and dataSize1
                     if bTitle == "Image Data": bNr = dataSize
                     self.Previews[previewNr][bTitle] = binary_file.read(bNr)
@@ -308,7 +310,7 @@ class PhotonFile:
             # print("Reading layer meta-info")
             for lNr in range(0, nLayers):
                 # print("  layer: ", lNr)
-                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
                     self.LayerDefs[lNr][bTitle] = binary_file.read(bNr)
 
             # Read LAYERRAWDATA image data
@@ -340,12 +342,12 @@ class PhotonFile:
             binary_file.seek(0)
 
             # Write HEADER / General settings
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
                 binary_file.write(self.Header[bTitle])
 
             # Write PREVIEWS settings and raw image data
             for previewNr in (0, 1):
-                for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                     #print ("Save: ",bTitle)
                     binary_file.write(self.Previews[previewNr][bTitle])
 
@@ -354,7 +356,7 @@ class PhotonFile:
             for lNr in range(0, nLayers):
                 #print("  layer: ", lNr)
                 #print("    def: ", self.LayerDefs[lNr])
-                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
                     binary_file.write(self.LayerDefs[lNr][bTitle])
 
             # Read LAYERRAWDATA image data
@@ -664,17 +666,43 @@ class PhotonFile:
     ## Layer (Image) Operations
     ########################################################################################################################
 
-    def deleteLayer(self, layerNr):
+    def layerHeight(self,layerNr):
+        """ Return height between two layers
+        """
+        # We retrieve layer height from previous layer
+        if layerNr>0:
+            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+            prevLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr-1]["Layer height (mm)"])
+        else:
+            if self.nrLayers()>1:
+                curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr+1]["Layer height (mm)"])
+                prevLayerHeight=0
+            else:
+                curLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
+                prevLayerHeight = 0
+        return curLayerHeight-prevLayerHeight
+        #print ("Delta:", deltaHeight)
+
+
+    def deleteLayer(self, layerNr, saveToHistory=True):
         """ Deletes layer and its image data in the PhotonFile object, but store in clipboard for paste. """
 
         # Store all data to history
-        self.saveToHistory("delete",layerNr)
+        if saveToHistory: self.saveToHistory("delete",layerNr)
 
-        # Store the size of layer image we remove to correct starting addresses of higher layer images
-        deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
-        deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+        #deltaHeight=self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
+        deltaHeight =self.layerHeight(layerNr)
+        print ("deltaHeight:",deltaHeight)
 
-        # Update start addresses of RawData of all following images
+        # Update start addresses of RawData of before deletion with size of one extra layerdef (36 bytes)
+        for rLayerNr in range(0,layerNr):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr-36 # size of layerdef
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+        # Update start addresses of RawData of after deletion with size of image and layerdef
+        deltaLength = self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 36  # +1 for len(EndOfLayer)
         nLayers=self.nrLayers()
         for rLayerNr in range(layerNr+1,nLayers):
             # Adjust image address for removal of image raw data and end byte
@@ -697,37 +725,25 @@ class PhotonFile:
         self.LayerData.remove(self.LayerData[layerNr])
         self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()-1)
 
-
-    def insertLayerBefore(self, layerNr, fromClipboard=False):
+    def insertLayerBefore(self, layerNr, fromClipboard=False, saveToHistory=True):
         """ Inserts layer copying data of the previous layer or the clipboard. """
-
-        if self.clipboardDef==None: raise Exception("Clipboard is empty!")
+        if fromClipboard and self.clipboardDef==None: raise Exception("Clipboard is empty!")
 
         # Store all data to history
-        self.saveToHistory("insert",layerNr)
+        if saveToHistory: self.saveToHistory("insert",layerNr)
 
-        # Calculate how much room we need in between.
-        if fromClipboard==False:
-            # Store the size of layer image we duplicate to correct starting addresses of higher layer images
-            deltaLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) + 1 # +1 for len(EndOfLayer)
-        else:
-            deltaLength = self.bytes_to_int(self.clipboardDef["Data Length"])
+        # Check if layerNr in range, could occur on undo after deleting last layer
+        #   print(layerNr, "/", self.nrLayers())
+        insertLast=False
+        if layerNr>self.nrLayers(): layerNr=self.nrLayers()
+        if layerNr == self.nrLayers():
+            layerNr=layerNr-1 # temporary reduce layerNr
+            insertLast=True
 
-        # We retrieve layer height from previous layer
-        if layerNr>0:
-            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
-            prevLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr-1]["Layer height (mm)"])
-        else:
-            if self.nrLayers()>1:
-                curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr+1]["Layer height (mm)"])
-                prevLayerHeight=0
-            else:
-                curLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
-                prevLayerHeight = 0
-        deltaHeight=curLayerHeight-prevLayerHeight
-        print ("Delta:", deltaHeight)
+        # Check deltaHeight
+        deltaHeight = self.layerHeight(layerNr)
 
-        # Make duplicate of layerDef and layerData if not pasting form clipboard
+        # Make duplicate of layerDef and layerData if not pasting from clipboard
         if fromClipboard == False:
             self.clipboardDef=self.LayerDefs[layerNr].copy()
             self.clipboardData=self.LayerData[layerNr].copy()
@@ -736,14 +752,34 @@ class PhotonFile:
         if layerNr==0: # if first layer than the height should start at 0
             self.clipboardDef["Layer height (mm)"] = self.float_to_bytes(0)
         else:          # start at layer height of layer at which we insert
+            curLayerHeight = self.bytes_to_float(self.LayerDefs[layerNr]["Layer height (mm)"])
             self.clipboardDef["Layer height (mm)"]=self.float_to_bytes(curLayerHeight)
 
-        # Update start addresses of RawData of all following images
+        # Set start addresses of layer in clipboard, we add 1 layer(def) so add 36 bytes
+        lA=self.bytes_to_int(self.LayerDefs[layerNr]["Image Address"])+36
+        #   if lastlayer we need to add last image length
+        if insertLast: lA=lA+self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"])
+        self.clipboardDef["Image Address"]=self.int_to_bytes(lA)
+
+        # If we inserting last layer, we correct layerNr
+        if insertLast: layerNr = layerNr + 1  # fix temporary reduced layerNr
+
+        # Update start addresses of RawData of before insertion with size of one extra layerdef (36 bytes)
+        for rLayerNr in range(0,layerNr):
+            # Adjust image address for removal of image raw data and end byte
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr+36 # size of layerdef
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
+
+        # Update start addresses of RawData of after insertion with size of image and layerdef
+        #   Calculate how much room we need in between. We insert an extra layerdef (36 bytes) and a extra image
+        deltaLayerImgAddress = self.bytes_to_int(self.clipboardDef["Data Length"]) + 36
         nLayers=self.nrLayers()
+        #   remove
         for rLayerNr in range(layerNr,nLayers):
             # Adjust image address for removal of image raw data and end byte
             curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
-            newAddr=curAddr+deltaLength
+            newAddr=curAddr+deltaLayerImgAddress
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
             # Adjust layer starting height for removal of layer
@@ -753,8 +789,9 @@ class PhotonFile:
             #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr, "|", curHeight,newHeight ,">",self.bytes_to_float(self.LayerDefs[rLayerNr]["Layer height (mm)"]))
 
         # Insert layer settings and data and reduce number of layers in header
-        self.LayerDefs.insert(layerNr,self.clipboardDef)
-        self.LayerData.insert(layerNr,self.clipboardData)
+        self.LayerDefs.insert(layerNr, self.clipboardDef)
+        self.LayerData.insert(layerNr, self.clipboardData)
+
         self.Header[self.nrLayersString]=self.int_to_bytes(self.nrLayers()+1)
 
         # Make new copy so second paste will not reference this inserted objects
@@ -768,13 +805,13 @@ class PhotonFile:
         self.clipboardData=self.LayerData[layerNr].copy()
 
 
-    def replaceBitmap(self, layerNr,filePath):
+    def replaceBitmap(self, layerNr,filePath, saveToHistory=True):
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
 
         print("  ", layerNr, "/", filePath)
 
         # Store all data to history
-        self.saveToHistory("replace",layerNr)
+        if saveToHistory: self.saveToHistory("replace",layerNr)
 
         # Get/encode raw data
         rawData = PhotonFile.encodedBitmap_Bytes(filePath)
@@ -844,14 +881,14 @@ class PhotonFile:
 
         # Calculate the start position of raw imagedata of the FIRST layer
         rawDataStartPos = 0
-        for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+        for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
             rawDataStartPos = rawDataStartPos + bNr
         for previewNr in (0,1):
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+            for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                 if bTitle == "Image Data": bNr = dataSize
                 rawDataStartPos = rawDataStartPos + bNr
                 if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
-        for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+        for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
             rawDataStartPos = rawDataStartPos + bNr * nLayers
 
         # For each image file, get encoded raw image data and store in Photon File object, copying layer settings from Header/General settings.
@@ -1009,3 +1046,87 @@ for i in range (0,20):
     c = c + 0.05
 #quit()
 '''
+'''
+files=("SamplePhotonFiles/Debug/debug 0.05mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.07mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.08mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.09mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.10mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.11mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.12mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.13mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.14mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.15mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.20mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.25mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.30mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.35mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.40mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.45mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.50mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.55mm (err).photon",
+        "SamplePhotonFiles/Debug/debug 0.60mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.65mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.70mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.75mm.photon",
+        "SamplePhotonFiles/Debug/debug 0.80mm.photon",
+       )
+'''
+'''
+files=("SamplePhotonFiles/Debug/debug 0.65mm test.photon",)
+for file in files:
+    ph=PhotonFile(file)
+    ph.readFile()
+    print ( file[30:34],':',
+            PhotonFile.bytes_to_int(ph.Header["# Layers"]),
+            PhotonFile.bytes_to_int(ph.Header["Preview 0 (addr)"]),
+            PhotonFile.bytes_to_int(ph.Header["Preview 1 (addr)"]),
+            PhotonFile.bytes_to_int(ph.Previews[0]["Image Address"]),
+            PhotonFile.bytes_to_int(ph.Previews[0]["Data Length"]),
+            PhotonFile.bytes_to_int(ph.Previews[1]["Image Address"]),
+            PhotonFile.bytes_to_int(ph.Previews[1]["Data Length"]),
+            PhotonFile.bytes_to_int(ph.Header["Layer Defs (addr)"]),
+            )
+'''
+
+"""
+("Header", 8, tpByte, False),
+("Bed X (mm)", 4, tpFloat, True),
+("Bed Y (mm)", 4, tpFloat, True),
+("Bed Z (mm)", 4, tpFloat, True),
+("padding0", 3 * 4, tpByte, False),  # 3 ints
+("Layer height (mm)", 4, tpFloat, True),
+("Exp. time (s)", 4, tpFloat, True),
+("Exp. bottom (s)", 4, tpFloat, True),
+("Off time (s)", 4, tpFloat, True),
+("# Bottom Layers", 4, tpInt, True),
+("Resolution X", 4, tpInt, True),
+("Resolution Y", 4, tpInt, True),
+("Preview 0 (addr)", 4, tpInt, False),  # start of preview 0
+("Layer Defs (addr)", 4, tpInt, False),  # start of layerDefs
+(nrLayersString, 4, tpInt, False),
+("Preview 1 (addr)", 4, tpInt, False),  # start of preview 1
+("unknown6", 4, tpInt, False),
+("Proj.type-Cast/Mirror", 4, tpInt, False),  # LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
+("padding1", 6 * 4, tpByte, False)  # 6 ints
+]
+
+pfStruct_Previews = [
+("Resolution X", 4, tpInt, False),
+("Resolution Y", 4, tpInt, False),
+("Image Address", 4, tpInt, False),  # start of rawData0
+("Data Length", 4, tpInt, False),  # size of rawData0
+("padding", 4 * 4, tpByte, False),  # 4 ints
+("Image Data", -1, tpByte, False),
+]
+
+pfStruct_LayerDef = [
+("Layer height (mm)", 4, tpFloat, True),
+("Exp. time (s)", 4, tpFloat, True),
+("Off time (s)", 4, tpFloat, True),
+("Image Address", 4, tpInt, False),  # dataStartPos -> Image Address
+("Data Length", 4, tpInt, False),  # size of rawData+lastByte(1)
+("padding", 4 * 4, tpByte, False)  # 4 ints
+"""
+
+#quit()

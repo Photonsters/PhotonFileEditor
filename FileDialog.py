@@ -153,11 +153,20 @@ class FileDialog():
     def readDirectory(self):
         """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
 
+        # Always make sure we can go back
+        dirs = [".."]
+
+        # Check if we have access to dir
+        hasAccess=os.access(self.startdir,os.R_OK)
+        if not hasAccess:
+            print ("User has no access to "+self.startdir)
+            self.dirsandfiles=dirs
+            return
+
         # Read dirs and files
         direntries = os.listdir(self.startdir)
 
         # Extract dirs
-        dirs = [".."]
         for entry in direntries:
             if not entry.startswith("$"):   # recycle bin in windows
                 fullname = os.path.join(self.startdir, entry)

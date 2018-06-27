@@ -388,7 +388,13 @@ class ImgBox():
     drawBorder=False
     resizeto=GPoint()
 
+    #Tooltip vars
+    toolTipLabel=None
+    firstHoverTime = 0
+    firstHoverPos=GPoint(0,0)
+
     def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,
+                 toolTip="",
                  resizeto=None,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
@@ -416,6 +422,20 @@ class ImgBox():
         self.rect=GRect(imgrect[0],imgrect[1],imgrect[2],imgrect[3])
         self.rect.x=pos[0]
         self.rect.y=pos[1]
+
+        #And setup tooltip
+        # We need to figure out the correct width correct width of tooltip
+        if not toolTip=="":
+            self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 1024, 20),
+                                      text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
+                                      fontsize=defFontSize-2,
+                                      textcolor=defHighEditorForeground, autowrap=True)
+            max_width=0
+            for line in toolTip.split("\n"):
+                text_width, text_height = self.toolTipLabel.font.size(line)  # needed for self.autoheight
+                if text_width>max_width: max_width=text_width
+            self.toolTipLabel.rect.width=max_width+self.toolTipLabel.margin.x+self.toolTipLabel.margin.width
+            self.toolTipLabel.visible=False
 
 
     def redraw(self):
@@ -465,6 +485,44 @@ class ImgBox():
 
     def handleKeyDown(self,key,unicode):
         return
+
+
+    def handleToolTips(self,pos):
+        """ Returns label control with tooltip if hovered long enough. """
+        # if user did not set a tooltip nothing to do
+        if self.toolTipLabel==None: return None
+
+        #Check if mouse above control, if not exit
+        gpos=GPoint.fromTuple(pos)
+        if not gpos.inGRect(self.rect):
+            self.firstHoverTime=0
+            self.firstHoverPos=GPoint(0,0)
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if first time hovering, if so set timer
+        if self.firstHoverTime==0:
+            self.firstHoverPos=gpos
+            self.firstHoverTime=time.time()
+
+        #Check if moved since hovering, if so reset counter and exit
+        dif=self.firstHoverPos-gpos
+        if math.sqrt(dif.x*dif.x+dif.y*dif.y)>5:
+            self.firstHoverPos=GPoint(0,0)
+            self.firstHoverTime=0
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if hovered enough time and return tooltip
+        timeHovered=time.time()-self.firstHoverTime
+        if timeHovered>1.5 and not self.toolTipLabel.text=="" :
+            self.toolTipLabel.visible=True
+            self.toolTipLabel.rect.x = gpos.x
+            self.toolTipLabel.rect.y = gpos.y
+            #check if tooltip overflow right edge of pyscreen
+            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+                self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
+            return self.toolTipLabel
 
 
 ########################################################################################################################
@@ -942,6 +1000,132 @@ class ListBox():
 
 
 ########################################################################################################################
+## Class Combobox
+########################################################################################################################
+
+class Combobox():
+    items=[]
+    rect = GRect(0, 0, 80, 32)
+    margins = GRect(4, 4, 4, 4)
+    font=None
+    fontname = "Consolas"
+    fontsize = 16
+    activeItem=-1
+    rowheight=0
+    spacing=4
+    offset=0
+    visible=True
+    text="" #stores text if clicked
+    func_on_click=None
+
+    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.rect=rect
+        self.items=items
+        self.font = pygame.font.SysFont(fontname, fontsize)
+        text_width, text_height = self.font.size("M[].j")
+        self.rowheight=text_height
+        self.items=items
+        if not func_on_click==None: self.func_on_click=func_on_click
+
+        #Combobox is made up of Label, Button to show Listbox and Listbox itself
+        fname=fontname
+        fsize=fontsize
+
+        # Calc positions
+        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,120)
+        # Add Label
+        defitem=items[defitemnr]
+        self.label=Label(pyscreen,rect=labelRect,text=defitem,fontname=fname,fontsize=fsize,autowrap=False)
+        self.label.backcolor=defEditorBackground
+        self.label.textcolor=defEditorForeground
+        self.label.bordercolor=defBorder
+        self.label.borderwidt=1
+        self.label.drawBorder=True
+        labelRect=self.label.rect
+        # Label will resize itself in height
+        self.label.rect.width=rect.width-self.label.rect.height
+        buttonRect.height=self.label.rect.height
+        buttonRect.left=self.label.rect.right
+        buttonRect.width=self.label.rect.height
+        listboxRect.top=labelRect.bottom
+        # Add Button
+        self.button=Button(pyscreen,rect=buttonRect,text="V",fontname=fname,fontsize=fsize,func_on_click=self.buttonClick)
+        # Add Listbox
+        self.listbox=ListBox(pyscreen,rect=listboxRect,items=items,fontname=fname,fontsize=fsize,func_on_click=self.listClick)
+
+        # Initially combobox is not expanded / listbox is not visible
+        self.listbox.visible=False
+
+    """ 
+    def reposControls(self): #called after winrect is moved
+        # Recalculates all positions after moving dialog box. 
+        rect=self.rect
+        #buttons is as wide as height
+        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,40)
+        self.button.rect=buttonRect
+        self.label.rect=labelRect
+        #todo: listbox below label, but this should depend on room
+        self.listbox.rect=listboxRect
+    """
+
+    def redraw(self):
+        self.label.redraw()
+        self.button.redraw()
+        self.listbox.redraw()
+
+
+    def listClick(self,clickedtext):
+        print (clickedtext,self.listbox.activeText())
+        self.label.setText(clickedtext)
+        self.listbox.visible=False
+        self.text=clickedtext
+        if not self.func_on_click==None: self.func_on_click(clickedtext)
+
+    def buttonClick(self):
+        self.listbox.visible= not self.listbox.visible
+
+
+    def handleMouseUp(self,pos,button):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseUp(pos,button)
+        self.button.handleMouseUp(pos,button)
+        self.label.handleMouseUp(pos,button)
+
+
+    def handleMouseDown(self,pos,button):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseDown(pos,button)
+        self.button.handleMouseDown(pos,button)
+        self.label.handleMouseDown(pos,button)
+
+
+    def handleMouseMove(self,pos):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleMouseMove(pos)
+        self.button.handleMouseMove(pos)
+        self.label.handleMouseMove(pos)
+
+    def handleKeyDown(self,key,unicode):
+        """ Passes event to children. """
+        if not self.visible: return
+        # Pass event to children
+        self.listbox.handleKeyDown(key,unicode)
+        self.button.handleKeyDown(key,unicode)
+        self.label.handleKeyDown(key,unicode)
+
+########################################################################################################################
 ## Class Label
 ########################################################################################################################
 
@@ -1104,6 +1288,11 @@ class TextBox():
     visible=True
     allSelected=False
 
+    #Tooltip vars
+    toolTipLabel=None
+    firstHoverTime = 0
+    firstHoverPos=GPoint(0,0)
+
     # We need constants which dictate what the allowes userinput is
     TEXT = 0
     INT=1
@@ -1115,7 +1304,9 @@ class TextBox():
                  bordercolor=defBorder, backcolor=defEditorBackground, textcolor=defEditorForeground,
                  borderwidth=1, drawBorder=True,
                  text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
-                 inputType=TEXT, onEnter=None, linkedData=None):
+                 inputType=TEXT,
+                 toolTip="",
+                 onEnter=None, linkedData=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect = rect
@@ -1142,6 +1333,20 @@ class TextBox():
         #And that the textbox has enough height to show each letter
         text_width, text_height = self.font.size("M[].j")
         if self.rect.height<(text_height+2*self.margin.y): self.rect.height=text_height+2*self.margin.y
+
+        #And setup tooltip
+        # We need to figure out the correct width correct width of tooltip
+        if not toolTip=="":
+            self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 1024, 20),
+                                      text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
+                                      fontsize=defFontSize - 2,
+                                      textcolor=defHighEditorForeground, autowrap=True)
+            max_width=0
+            for line in toolTip.split("\n"):
+                text_width, text_height = self.toolTipLabel.font.size(line)  # needed for self.autoheight
+                if text_width>max_width: max_width=text_width
+            self.toolTipLabel.rect.width=max_width+self.toolTipLabel.margin.x+self.toolTipLabel.margin.width
+            self.toolTipLabel.visible=False
 
 
     def setText(self,text):
@@ -1182,7 +1387,6 @@ class TextBox():
                                  self.textcolor,
                                  (self.rect.x+self.margin.x+text_width,self.rect.y+self.margin.y,2,self.rect.height-2*self.margin.y-1),
                                  0)
-
 
     prevClick=0
     def handleMouseUp(self,pos,button):
@@ -1231,6 +1435,44 @@ class TextBox():
 
     def handleMouseMove(self,pos):
         return
+
+
+    def handleToolTips(self,pos):
+        """ Returns label control with tooltip if hovered long enough. """
+        # if user did not set a tooltip nothing to do
+        if self.toolTipLabel==None: return None
+
+        #Check if mouse above control, if not exit
+        gpos=GPoint.fromTuple(pos)
+        if not gpos.inGRect(self.rect):
+            self.firstHoverTime=0
+            self.firstHoverPos=GPoint(0,0)
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if first time hovering, if so set timer
+        if self.firstHoverTime==0:
+            self.firstHoverPos=gpos
+            self.firstHoverTime=time.time()
+
+        #Check if moved since hovering, if so reset counter and exit
+        dif=self.firstHoverPos-gpos
+        if math.sqrt(dif.x*dif.x+dif.y*dif.y)>5:
+            self.firstHoverPos=GPoint(0,0)
+            self.firstHoverTime=0
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if hovered enough time and return tooltip
+        timeHovered=time.time()-self.firstHoverTime
+        if timeHovered>1.5 and not self.toolTipLabel.text=="" :
+            self.toolTipLabel.visible=True
+            self.toolTipLabel.rect.x = gpos.x
+            self.toolTipLabel.rect.y = gpos.y
+            #check if tooltip overflow right edge of pyscreen
+            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+                self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
+            return self.toolTipLabel
 
 
     def handleKeyDown(self,key,unicode):

@@ -19,13 +19,17 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
-#todo: default save directory should nog be samples....
-#todo: load resin settings from pulldown list?
-#todo: undo not yet working correct
+#todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
+#todo: check on save if layerheighs are consecutive and printer does not midprint go down
+#todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
+#todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
+#todo: The exposure time, off times in layerdefs are ignored by Photon printer, however layerheight not (so first two are just placeholders for future firmware.)
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
+#todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
+#todo: drag GUI-scrollbar is not implementend
 #todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
 
 
@@ -74,6 +78,10 @@ scrollLayerVMargin=30
 scrollLayerRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin,scrollLayerWidth,2560/4-scrollLayerVMargin*2)
 layerCursorActive=True
 layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWidth,4)
+
+# Resin settings
+resins=None
+resincombo=None
 
 ########################################################################################################################
 ##  Message boxes
@@ -135,6 +143,7 @@ def layerDown(delta:int=1):
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
     return
 
 
@@ -153,6 +162,7 @@ def layerUp(delta=1):
     dispimg = layerimg
     # print("refreshLayerSettings()")
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
     return
 
 
@@ -279,9 +289,13 @@ def undo():
     # Insert layer
     try:
         photonfile.undo()
+        if layerNr >= photonfile.nrLayers():
+            layerNr = photonfile.nrLayers() - 1
+            setLayerSliderFromLayerNr()
         print("Undo")
         # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
+        refreshHeaderSettings()  # number layers could have changed
         # Update current layer image with new bitmap retrieved from photonfile
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
@@ -329,6 +343,7 @@ def deleteLayer():
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
         refreshLayerSettings()
+        refreshHeaderSettings() # number layers changed
     else:
         print ("User canceled deleting a layer.")
 
@@ -357,10 +372,11 @@ def duplicateLayer():
     if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to duplicate layers."): return
 
     # Insert layer
-    photonfile.insertLayerBefore(layerNr)
+    photonfile.insertLayerBefore(layerNr,False)
     print("Layer "+str(layerNr)+ " inserted.")
     # Update layer settings with new layer
     refreshLayerSettings()
+    refreshHeaderSettings()  # number layers changed
     # Update current layer image with new bitmap retrieved from photonfile
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
@@ -383,6 +399,7 @@ def pasteLayer():
         print("Layer "+str(layerNr)+ " inserted.")
         # Refresh data from layer in sidebar (data length is possible changed)
         refreshLayerSettings()
+        refreshHeaderSettings()  # number layers changed
         # Update current layer image with new bitmap retrieved from photonfile
         layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
         dispimg = layerimg
@@ -561,28 +578,30 @@ def createMenu():
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
 
+
 def createLayerOperations():
+    """ Create the layer modification buttons pointing to Edit menu layer options """
     global controls
     global menubar
     viewport_yoffset = 8
-    iconsize=40
-    icondist=48
+    iconsize=(46,59)
+    icondist=iconsize[0]+16
     controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
-                           pos=(20+0*icondist,2560/4-iconsize-viewport_yoffset),
-                           resizeto=(iconsize,iconsize),
-                           borderhovercolor=(0,0,0),func_on_click=deleteLayer))
+                           pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
+                           borderhovercolor=(0,0,0),toolTip="Cut (and store in clipboard)",
+                           func_on_click=deleteLayer))
     controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
-                           pos=(20+1*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
-                           borderhovercolor=(0, 0, 0), func_on_click=copyLayer))
+                           pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           borderhovercolor=(0, 0, 0),toolTip="Copy (to clipboard)",
+                           func_on_click=copyLayer))
     controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
-                           pos=(20+2*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
-                           borderhovercolor=(0, 0, 0), func_on_click=pasteLayer))
+                           pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           borderhovercolor=(0, 0, 0), toolTip="Paste (from clipboard)",
+                           func_on_click=pasteLayer))
     controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
-                           pos=(20+3*icondist, 2560 / 4 - iconsize - viewport_yoffset),
-                           resizeto=(iconsize, iconsize),
-                           borderhovercolor=(0, 0, 0), func_on_click=duplicateLayer))
+                           pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           borderhovercolor=(0, 0, 0), toolTip="Duplicate (current layer)",
+                           func_on_click=duplicateLayer))
 
 
 def createLayernavigation():
@@ -590,15 +609,18 @@ def createLayernavigation():
     global layerLabel
     global menubar
     global controls
+    global layerNr
 
     # Add two imageboxes to control as layer nav buttons
     viewport_yoffset=menubar.height+8
-    controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
-    controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
     layerLabel.font.set_bold(True)
     controls.append(layerLabel)
 
+    layerNr=0
+    setLayerSliderFromLayerNr()
 
 def createSidebar():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
@@ -620,6 +642,9 @@ def createSidebar():
     global firstPreviewTextbox
     global firstLayerTextbox
 
+    global resins
+    global resincombo
+
     # The controls are placed below the menubar
     viewport_yoffset=menubar.height+8
 
@@ -633,11 +658,11 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row, (bTitle, bNr, bType, bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
     # Add all input boxes for the settings we want to add
     firstHeaderTextbox=len(controls)
-    for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row,  (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
         controls.append(TextBox(screen, text="", \
@@ -646,6 +671,7 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0,0,0),\
                                 inputType=tbType, \
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
@@ -658,7 +684,7 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
     # We also need navigation buttons for previewNr
     row = 0
@@ -667,7 +693,7 @@ def createSidebar():
     firstPreviewTextbox = len(controls)
     controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth-40, settingsrowheight)))
     # Add all input boxes for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
@@ -676,6 +702,7 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
                                 inputType=tbType, \
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
@@ -687,13 +714,13 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,9):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,9):
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,120,16)))
     row=8
     # Add all input boxes for the settings we want to add
     firstLayerTextbox = len(controls)
     controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight)))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
@@ -702,9 +729,90 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
                                 inputType=tbType,\
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
+
+    # Add Resin Presets Chooser
+    # First read settings from file
+    # columns are Brand,Type,Layer,NormalExpTime,OffTime,BottomExp,BottomLayers
+    ifile = open("resources/resins.txt", "r")
+    lines = ifile.readlines()
+    resins = [tuple(line.strip().split(",")) for line in lines]
+    resinnames=[]
+    for resin in resins:
+        resinnames.append(resin[0])
+
+    # Start with the title of this settingsgroup
+    row=16
+    titlebox = Label(screen, text="Resin Presets", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
+    titlebox.font.set_bold(True)
+    controls.append(titlebox)
+
+    # Make combobox (add last, so always on top)
+    row=row+1
+    resincombo=Combobox(screen,
+                             rect=GRect(settingsleft + settingslabelmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth+settingslabelwidth, settingsrowheight),\
+                             items=resinnames,
+                             defitemnr=0,
+                             )
+
+    # Add apply button
+    row=row+1+0.4 # combo is larger than normal
+    controls.append( Button(screen,
+                            rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth,settingsrowheight*1.6), \
+                            text="Apply", func_on_click=ApplyResinSettings
+                             ))
+
+    # Add combobox to controls
+    controls.append(resincombo)
+
+
+def ApplyResinSettings():
+    """ Applies the selected resin settings.
+    """
+    global resins
+    global resincombo
+    global photonfile
+
+    # Check if photonfile is loaded
+    if photonfile==None: return
+
+    # Check if user didn't select title (first item)
+    resinname=resincombo.text
+    if resinname=="Brand": return
+
+    # columns are Brand,Type,Layer Height,NormalExpTime,OffTime,BottomExp,BottomLayers
+    for (sBrand,sType,sLayerHeight,sNormalExpTime,sOffTime,sBottomExp,sBottomLayers)  in resins:
+        if sBrand == resinname:
+            # Convert all strings to floats/int
+            rLayerHeight=float(sLayerHeight)
+            rNormalExpTime = float(sNormalExpTime)
+            rOffTime=float(sOffTime)
+            rBottomExp=float(sBottomExp)
+            rBottomLayers=int(sBottomLayers)
+            #print (sBrand, rLayerHeight,rNormalExpTime, rOffTime, rBottomExp, rBottomLayers)
+
+            # Set Header/General settings
+            photonfile.Header["Layer height (mm)"]=PhotonFile.float_to_bytes(rLayerHeight)
+            photonfile.Header["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+            photonfile.Header["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+            photonfile.Header["Exp. bottom (s)"] = PhotonFile.float_to_bytes(rBottomExp)
+            photonfile.Header["# Bottom Layers"] = PhotonFile.int_to_bytes(rBottomLayers)
+
+            # Set settings of each layer
+            cLayerHeight=0
+            for layerNr, layerDef in enumerate(photonfile.LayerDefs):
+                layerDef["Layer height (mm)"]=PhotonFile.float_to_bytes(cLayerHeight)
+                cLayerHeight=cLayerHeight+rLayerHeight
+                if layerNr<rBottomLayers:
+                    layerDef["Exp. time (s)"]=PhotonFile.float_to_bytes(rBottomExp)
+                else:
+                    layerDef["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+                layerDef["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+            refreshHeaderSettings()
+            refreshLayerSettings()
 
 
 ########################################################################################################################
@@ -813,7 +921,7 @@ def saveGeneralSettings2PhotonFile():
     if photonfile==None:return
 
     # Check for each general setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
         if bEditable:
             textBox=controls[row]
             #print (row,bTitle,textBox.text)
@@ -832,7 +940,7 @@ def savePreviewSettings2PhotonFile():
     if photonfile==None:return
 
     # Check for each preview setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         if bEditable:
             textBox=controls[row]
             print (row,bTitle,textBox.text)
@@ -851,7 +959,7 @@ def saveLayerSettings2PhotonFile():
     if photonfile == None: return
 
     # Check for each layer setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
+    for row, (bTitle, bNr, bType, bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
         if bEditable:
             textBox=controls[row]
             #print (row,bTitle,textBox.text)
@@ -867,7 +975,7 @@ def refreshHeaderSettings():
     if photonfile==None:return
 
     # Travers all general settings and update values in textboxes
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
         nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
         if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
@@ -885,7 +993,7 @@ def refreshPreviewSettings():
     # Travers all preview settings and update values in textboxes
     row = firstPreviewTextbox
     controls[row].setText(str(prevNr)+"/2") # Update preview counter
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
@@ -905,7 +1013,7 @@ def refreshLayerSettings():
     row=firstLayerTextbox
     controls[row].setText(str(layerNr)+ " / "+str(photonfile.nrLayers())) # Update layer counter
     #print (layerNr)
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
         #print("reading: ", bTitle,"=",nr)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
@@ -936,6 +1044,7 @@ def openPhotonFile(filename):
     refreshHeaderSettings()
     refreshPreviewSettings()
     refreshLayerSettings()
+    setLayerSliderFromLayerNr()
 
 
 
@@ -971,7 +1080,28 @@ def redrawWindow():
         pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
         pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
 
-imgPrevLoadTime=0
+
+def setLayerSliderFromLayerNr():
+    """ Calculates correct position of layerscroll indicator from layerNr.
+        (Used after layer navigation buttons are used.
+    """
+    global photonfile
+    global scrollLayerRect
+    global layerCursorRect
+    global layerNr
+
+    if not photonfile==None:
+        if photonfile.nrLayers()>1:
+            relY = layerNr / int(photonfile.nrLayers() - 1)
+        else: relY=0
+    else: relY=0
+    scrnY=relY * (2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin
+    layerCursorRect = scrollLayerRect.copy()
+    layerCursorRect.y = scrnY - 2
+    layerCursorRect.height = 4
+
+
+imgPrevLoadTime=0 # keeps time since last img load and used to prevent to many image load
 def handleLayerSlider(checkRect=True):
     """ Checks if layerslider is used (dragged by mouse) and updates layer image and settings"""
 
@@ -999,9 +1129,11 @@ def handleLayerSlider(checkRect=True):
         if checkOk:
             # Calc position of layerCursor based on Y of mouse cursor and from this the selected layer number
             relY = (mousePoint.y - scrollLayerVMargin) / (2560 / 4 - scrollLayerVMargin * 2)
-            layerNr = int((photonfile.nrLayers() - 1) * relY)
+            if relY<0: relY=0
+            if relY>1: relY=1
+            layerNr = round((photonfile.nrLayers() - 1) * relY)
             layerCursorRect = scrollLayerRect.copy()
-            layerCursorRect.y = mousePoint.y - 2
+            layerCursorRect.y = (relY*(2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin) - 2
             layerCursorRect.height = 4
             # Get image of new layer, display and update layer settings
             secSincePrevLoad = time.time()-imgPrevLoadTime
@@ -1036,6 +1168,7 @@ def main():
     global mouseDrag
     global running
     global photonfile
+    lastpos=(0,0) # stores last position for tooltip
 
     # Initialize the pygame module and create the window
     createWindow()
@@ -1044,12 +1177,22 @@ def main():
     while running:
         # Redraw the window (in background) and tell pygame to show it (bring to foreground)
         redrawWindow()
+        # Check for tooltips to draw
+        for ctrl in controls:
+            hasToolTip = getattr(ctrl, "handleToolTips", False)
+            if hasToolTip:
+                ret = ctrl.handleToolTips(lastpos)
+                if not ret==None :
+                    ret.redraw()
+
         pygame.display.flip()
+
 
         # Event handling, gets all event from the eventqueue
         for event in pygame.event.get():
 
             pos = pygame.mouse.get_pos()
+            lastpos=pos
 
             if event.type == pygame.QUIT:
                 print("Window was closed. Exit!")
@@ -1080,12 +1223,12 @@ def main():
                     if not isNumlockOn:
                         maxLayer = photonfile.nrLayers()
                         page=int(maxLayer/10)
-                        if event.key == pygame.K_KP8: layerUp()
-                        if event.key == pygame.K_KP9: layerUp(page)
-                        if event.key == pygame.K_KP2: layerDown()
-                        if event.key == pygame.K_KP3: layerDown(page)
-                    if event.key == pygame.K_UP: layerUp()
-                    if event.key == pygame.K_DOWN: layerDown()
+                        if event.key == pygame.K_KP8: layerDown()
+                        if event.key == pygame.K_KP9: layerDown(page)
+                        if event.key == pygame.K_KP2: layerUp()
+                        if event.key == pygame.K_KP3: layerUp(page)
+                    if event.key == pygame.K_UP: layerDown()
+                    if event.key == pygame.K_DOWN: layerUp()
 
                 #We use tab to navigate the textboxes in controls
                 if event.key == pygame.K_TAB:
