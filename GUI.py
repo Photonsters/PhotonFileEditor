@@ -1276,7 +1276,7 @@ class TextBox():
         #And setup tooltip
         # We need to figure out the correct width correct width of tooltip
         if not toolTip=="":
-            self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 12 * 20, 20),
+            self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 1024, 20),
                                       text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
                                       textcolor=defHighEditorForeground, autowrap=True)
             max_width=0
