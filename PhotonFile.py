@@ -75,43 +75,43 @@ class PhotonFile:
     #     - For each layer meta-info                                ( pfStruct_LayerDefs,   LayerDefs)
     #     - For each layer raw image data                           ( pfStruct_LayerData,   LayerData)
     pfStruct_Header = [
-        ("Header", 8, tpByte, False),
-        ("Bed X (mm)", 4, tpFloat, True),
-        ("Bed Y (mm)", 4, tpFloat, True),
-        ("Bed Z (mm)", 4, tpFloat, True),
-        ("padding0", 3 * 4, tpByte, False), # 3 ints
-        ("Layer height (mm)", 4, tpFloat, True),
-        ("Exp. time (s)", 4, tpFloat, True),
-        ("Exp. bottom (s)", 4, tpFloat, True),
-        ("Off time (s)", 4, tpFloat, True),
-        ("# Bottom Layers", 4, tpInt, True),
-        ("Resolution X", 4, tpInt, True),
-        ("Resolution Y", 4, tpInt, True),
-        ("Preview 0 (addr)", 4, tpInt, False),  # start of preview 0
-        ("Layer Defs (addr)", 4, tpInt, False),  # start of layerDefs
-        (nrLayersString, 4, tpInt, False),
-        ("Preview 1 (addr)", 4, tpInt, False),  # start of preview 1
-        ("unknown6", 4, tpInt, False),
-        ("Proj.type-Cast/Mirror", 4, tpInt, False),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
-        ("padding1", 6 * 4, tpByte, False)  # 6 ints
+        ("Header",              8, tpByte,  False, ""),
+        ("Bed X (mm)",          4, tpFloat, True,  "Short side of the print bed."),
+        ("Bed Y (mm)",          4, tpFloat, True,  "Long side of the print bed."),
+        ("Bed Z (mm)",          4, tpFloat, True,  "Maximum height the printer can print."),
+        ("padding0",        3 * 4, tpByte,  False, ""), # 3 ints
+        ("Layer height (mm)",   4, tpFloat, True,  "Default layer height."),
+        ("Exp. time (s)",       4, tpFloat, True,  "Default exposure time."),
+        ("Exp. bottom (s)",     4, tpFloat, True,  "Exposure time for bottom layers."),
+        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers."),
+        ("# Bottom Layers",     4, tpInt,   True,  "Number of bottom layers.\n (These have different exposure time.)"),
+        ("Resolution X",        4, tpInt,   True,  "X-Resolution of the screen through \n which the layer image is projected."),
+        ("Resolution Y",        4, tpInt,   True,  "Y-Resolution of the screen through \n which the layer image is projected." ),
+        ("Preview 0 (addr)",    4, tpInt,   False, "Address where the metadata \n of the High Res preview image can be found."),  # start of preview 0
+        ("Layer Defs (addr)",   4, tpInt,   False, "Address where the metadata \n for the layer images can be found."),  # start of layerDefs
+        (nrLayersString,        4, tpInt,   False, "Number of layers this file has."),
+        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata \n of the Low Res preview image can be found."),  # start of preview 1
+        ("unknown6",            4, tpInt,   False, ""),
+        ("Proj.type-Cast/Mirror", 4, tpInt, False, "LightCuring/Projection type:\n 1=LCD_X_MIRROR \n 0=CAST"),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
+        ("padding1",        6 * 4, tpByte,  False, "")  # 6 ints
     ]
 
     pfStruct_Previews = [
-        ("Resolution X", 4, tpInt, False),
-        ("Resolution Y", 4, tpInt, False),
-        ("Image Address", 4, tpInt, False),  # start of rawData0
-        ("Data Length", 4, tpInt, False),  # size of rawData0
-        ("padding", 4 * 4, tpByte, False),  # 4 ints
-        ("Image Data", -1, tpByte, False),
+        ("Resolution X",        4, tpInt,   False, "X-Resolution of preview pictures."),
+        ("Resolution Y",        4, tpInt,   False, "Y-Resolution of preview pictures."),
+        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),  # start of rawData0
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  # size of rawData0
+        ("padding",         4 * 4, tpByte,  False, ""),  # 4 ints
+        ("Image Data",         -1, tpByte,  False, "The raw image."),
     ]
 
     pfStruct_LayerDef = [
-        ("Layer height (mm)", 4, tpFloat, True),
-        ("Exp. time (s)", 4, tpFloat, True),
-        ("Off time (s)", 4, tpFloat, True),
-        ("Image Address", 4, tpInt, False),#dataStartPos -> Image Address
-        ("Data Length", 4, tpInt, False),  #size of rawData+lastByte(1)
-        ("padding", 4 * 4, tpByte, False) # 4 ints
+        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer should be printed."),
+        ("Exp. time (s)",       4, tpFloat, True,  "Exposure time for this layer."),
+        ("Off time (s)",        4, tpFloat, True,  "Off time for this layer."),
+        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),#dataStartPos -> Image Address
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  #size of rawData+lastByte(1)
+        ("padding",         4 * 4, tpByte,  False, "") # 4 ints
     ]
 
     # pfStruct_LayerData =
@@ -304,12 +304,12 @@ class PhotonFile:
             binary_file.seek(0)
 
             # Read HEADER / General settings
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
                 self.Header[bTitle] = binary_file.read(bNr)
 
             # Read PREVIEWS settings and raw image data
             for previewNr in (0,1):
-                for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                     # if rawData0 or rawData1 the number bytes to read is given bij dataSize0 and dataSize1
                     if bTitle == "Image Data": bNr = dataSize
                     self.Previews[previewNr][bTitle] = binary_file.read(bNr)
@@ -324,7 +324,7 @@ class PhotonFile:
             # print("Reading layer meta-info")
             for lNr in range(0, nLayers):
                 # print("  layer: ", lNr)
-                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
                     self.LayerDefs[lNr][bTitle] = binary_file.read(bNr)
 
             # Read LAYERRAWDATA image data
@@ -356,12 +356,12 @@ class PhotonFile:
             binary_file.seek(0)
 
             # Write HEADER / General settings
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+            for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
                 binary_file.write(self.Header[bTitle])
 
             # Write PREVIEWS settings and raw image data
             for previewNr in (0, 1):
-                for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                     #print ("Save: ",bTitle)
                     binary_file.write(self.Previews[previewNr][bTitle])
 
@@ -370,7 +370,7 @@ class PhotonFile:
             for lNr in range(0, nLayers):
                 #print("  layer: ", lNr)
                 #print("    def: ", self.LayerDefs[lNr])
-                for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+                for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
                     binary_file.write(self.LayerDefs[lNr][bTitle])
 
             # Read LAYERRAWDATA image data
@@ -891,14 +891,14 @@ class PhotonFile:
 
         # Calculate the start position of raw imagedata of the FIRST layer
         rawDataStartPos = 0
-        for bTitle, bNr, bType, bEditable in self.pfStruct_Header:
+        for bTitle, bNr, bType, bEditable,bHint in self.pfStruct_Header:
             rawDataStartPos = rawDataStartPos + bNr
         for previewNr in (0,1):
-            for bTitle, bNr, bType, bEditable in self.pfStruct_Previews:
+            for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                 if bTitle == "Image Data": bNr = dataSize
                 rawDataStartPos = rawDataStartPos + bNr
                 if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
-        for bTitle, bNr, bType, bEditable in self.pfStruct_LayerDef:
+        for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
             rawDataStartPos = rawDataStartPos + bNr * nLayers
 
         # For each image file, get encoded raw image data and store in Photon File object, copying layer settings from Header/General settings.

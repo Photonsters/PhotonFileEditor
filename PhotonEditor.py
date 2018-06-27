@@ -649,11 +649,11 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row, (bTitle, bNr, bType, bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
     # Add all input boxes for the settings we want to add
     firstHeaderTextbox=len(controls)
-    for row,  (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
+    for row,  (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
         controls.append(TextBox(screen, text="", \
@@ -662,6 +662,7 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0,0,0),\
                                 inputType=tbType, \
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
@@ -674,7 +675,7 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
     # We also need navigation buttons for previewNr
     row = 0
@@ -683,7 +684,7 @@ def createSidebar():
     firstPreviewTextbox = len(controls)
     controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth-40, settingsrowheight)))
     # Add all input boxes for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, 1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
@@ -692,6 +693,7 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
                                 inputType=tbType, \
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
@@ -703,13 +705,13 @@ def createSidebar():
     titlebox.font.set_bold(True)
     controls.append(titlebox)
     # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,9):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,9):
         controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,120,16)))
     row=8
     # Add all input boxes for the settings we want to add
     firstLayerTextbox = len(controls)
     controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight)))
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
         controls.append(TextBox(screen, text="", \
@@ -718,6 +720,7 @@ def createSidebar():
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
                                 inputType=tbType,\
+                                toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
@@ -851,7 +854,7 @@ def saveGeneralSettings2PhotonFile():
     if photonfile==None:return
 
     # Check for each general setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
         if bEditable:
             textBox=controls[row]
             #print (row,bTitle,textBox.text)
@@ -870,7 +873,7 @@ def savePreviewSettings2PhotonFile():
     if photonfile==None:return
 
     # Check for each preview setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         if bEditable:
             textBox=controls[row]
             print (row,bTitle,textBox.text)
@@ -889,7 +892,7 @@ def saveLayerSettings2PhotonFile():
     if photonfile == None: return
 
     # Check for each layer setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType, bEditable) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
+    for row, (bTitle, bNr, bType, bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
         if bEditable:
             textBox=controls[row]
             #print (row,bTitle,textBox.text)
@@ -905,7 +908,7 @@ def refreshHeaderSettings():
     if photonfile==None:return
 
     # Travers all general settings and update values in textboxes
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
         nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
         if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
         controls[row].setText(str(nr))
@@ -923,7 +926,7 @@ def refreshPreviewSettings():
     # Travers all preview settings and update values in textboxes
     row = firstPreviewTextbox
     controls[row].setText(str(prevNr)+"/2") # Update preview counter
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
         nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controls[row].setText(str(nr))
@@ -943,7 +946,7 @@ def refreshLayerSettings():
     row=firstLayerTextbox
     controls[row].setText(str(layerNr)+ " / "+str(photonfile.nrLayers())) # Update layer counter
     #print (layerNr)
-    for row, (bTitle, bNr, bType,bEditable) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
         #print("reading: ", bTitle,"=",nr)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
@@ -1098,6 +1101,7 @@ def main():
     global mouseDrag
     global running
     global photonfile
+    lastpos=(0,0) # stores last position for tooltip
 
     # Initialize the pygame module and create the window
     createWindow()
@@ -1106,12 +1110,22 @@ def main():
     while running:
         # Redraw the window (in background) and tell pygame to show it (bring to foreground)
         redrawWindow()
+        # Check for tooltips to draw
+        for ctrl in controls:
+            hasToolTip = getattr(ctrl, "handleToolTips", False)
+            if hasToolTip:
+                ret = ctrl.handleToolTips(lastpos)
+                if not ret==None :
+                    ret.redraw()
+
         pygame.display.flip()
+
 
         # Event handling, gets all event from the eventqueue
         for event in pygame.event.get():
 
             pos = pygame.mouse.get_pos()
+            lastpos=pos
 
             if event.type == pygame.QUIT:
                 print("Window was closed. Exit!")

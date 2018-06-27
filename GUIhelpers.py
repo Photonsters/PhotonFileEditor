@@ -60,7 +60,7 @@ class GPoint():
         except:
             #print ("error - compare types")
             return type(self)==type(other)
-    def __len__(self, other): return (math.sqrt(self.x^2 + self.y^2))
+    def __len__(self): return (math.sqrt(self.x^2 + self.y^2))
 
 
 ########################################################################################################################

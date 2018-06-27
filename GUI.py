@@ -1227,6 +1227,11 @@ class TextBox():
     visible=True
     allSelected=False
 
+    #Tooltip vars
+    toolTipLabel=None
+    firstHoverTime = 0
+    firstHoverPos=GPoint(0,0)
+
     # We need constants which dictate what the allowes userinput is
     TEXT = 0
     INT=1
@@ -1238,7 +1243,9 @@ class TextBox():
                  bordercolor=defBorder, backcolor=defEditorBackground, textcolor=defEditorForeground,
                  borderwidth=1, drawBorder=True,
                  text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
-                 inputType=TEXT, onEnter=None, linkedData=None):
+                 inputType=TEXT,
+                 toolTip="",
+                 onEnter=None, linkedData=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect = rect
@@ -1266,6 +1273,18 @@ class TextBox():
         text_width, text_height = self.font.size("M[].j")
         if self.rect.height<(text_height+2*self.margin.y): self.rect.height=text_height+2*self.margin.y
 
+        #And setup tooltip
+        # We need to figure out the correct width correct width of tooltip
+        if not toolTip=="":
+            self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 12 * 20, 20),
+                                      text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
+                                      textcolor=defHighEditorForeground, autowrap=True)
+            max_width=0
+            for line in toolTip.split("\n"):
+                text_width, text_height = self.toolTipLabel.font.size(line)  # needed for self.autoheight
+                if text_width>max_width: max_width=text_width
+            self.toolTipLabel.rect.width=max_width+self.toolTipLabel.margin.x+self.toolTipLabel.margin.width
+            self.toolTipLabel.visible=False
 
     def setText(self,text):
         """ Truncates text if larger than allowed maximum length given by user. """
@@ -1305,7 +1324,6 @@ class TextBox():
                                  self.textcolor,
                                  (self.rect.x+self.margin.x+text_width,self.rect.y+self.margin.y,2,self.rect.height-2*self.margin.y-1),
                                  0)
-
 
     prevClick=0
     def handleMouseUp(self,pos,button):
@@ -1354,6 +1372,45 @@ class TextBox():
 
     def handleMouseMove(self,pos):
         return
+
+
+    def handleToolTips(self,pos):
+        """ Returns label control with tooltip if hovered long enough. """
+        # if user did not set a tooltip nothing to do
+        if self.toolTipLabel==None: return None
+
+        #Check if mouse above control, if not exit
+        gpos=GPoint.fromTuple(pos)
+        if not gpos.inGRect(self.rect):
+            self.firstHoverTime=0
+            self.firstHoverPos=GPoint(0,0)
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if first time hovering, if so set timer
+        if self.firstHoverTime==0:
+            self.firstHoverPos=gpos
+            self.firstHoverTime=time.time()
+
+        #Check if moved since hovering, if so reset counter and exit
+        dif=self.firstHoverPos-gpos
+        if math.sqrt(dif.x*dif.x+dif.y*dif.y)>5:
+            self.firstHoverPos=GPoint(0,0)
+            self.firstHoverTime=0
+            self.toolTipLabel.visible = False
+            return None
+
+        #Check if hovered enough time and return tooltip
+        timeHovered=time.time()-self.firstHoverTime
+        if timeHovered>1.5 and not self.toolTipLabel.text=="" :
+            self.toolTipLabel.visible=True
+            self.toolTipLabel.rect.x = gpos.x
+            self.toolTipLabel.rect.y = gpos.y
+            #check if tooltip overflow right edge of pyscreen
+            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+                self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
+            return self.toolTipLabel
+
 
 
     def handleKeyDown(self,key,unicode):
