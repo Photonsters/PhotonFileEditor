@@ -1059,9 +1059,11 @@ def handleLayerSlider(checkRect=True):
         if checkOk:
             # Calc position of layerCursor based on Y of mouse cursor and from this the selected layer number
             relY = (mousePoint.y - scrollLayerVMargin) / (2560 / 4 - scrollLayerVMargin * 2)
+            if relY<0: relY=0
+            if relY>1: relY=1
             layerNr = int((photonfile.nrLayers() - 1) * relY)
             layerCursorRect = scrollLayerRect.copy()
-            layerCursorRect.y = mousePoint.y - 2
+            layerCursorRect.y = (relY*(2560 / 4 - scrollLayerVMargin * 2)+scrollLayerVMargin) - 2
             layerCursorRect.height = 4
             # Get image of new layer, display and update layer settings
             secSincePrevLoad = time.time()-imgPrevLoadTime
