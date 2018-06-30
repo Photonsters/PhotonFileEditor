@@ -164,7 +164,13 @@ class FileDialog():
             return
 
         # Read dirs and files
-        direntries = os.listdir(self.startdir)
+        try:
+          direntries = os.listdir(self.startdir)
+        except Exception as err:
+            print("User has no access to " + self.startdir)
+            print (err)
+            self.dirsandfiles = dirs
+            return
 
         # Extract dirs
         for entry in direntries:
