@@ -2,7 +2,7 @@
 Main program and initializes window, adds controls, contains redraw loop and retrieves user-input
 """
 
-__version__ = "alpha"
+__version__ = "Alpha (build 30-6-2018)"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
@@ -19,6 +19,7 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: PhotonFile.replacePreview should be recoded
 #todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
@@ -408,6 +409,58 @@ def pasteLayer():
         errMessageBox(str(err))
 
 def replaceBitmap():
+    """ Checks which image is active, preview or layer and calls replacePreviewBitmap or replaceLayerBitmap """
+    global dispimg
+    global previmg
+    global layerimg
+    if dispimg == previmg[0]: replacePreviewBitmap()
+    if dispimg == previmg[1]: replacePreviewBitmap()
+    if dispimg == layerimg: replaceLayerBitmap()
+
+def replacePreviewBitmap():
+    """ Replace bitmap of current preview with new bitmap from disk selected by the user """
+    """ Replace bitmap of current layer with new bitmap from disk selected by the user """
+
+    global filename
+    global dispimg
+    global previmg
+    global prevNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
+
+    # Ask user for filename
+    dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
+    retfilename=dialog.getFile()
+
+    # Check if user pressed Cancel
+    if not retfilename==None:
+        filename = retfilename
+        print ("Returned: ",filename)
+        # since import can take a while (although faster with numpy library available) show a be-patient message
+        popup = PopupDialog(screen, pos=(140, 140),
+                            title="Please wait...",
+                            message="Photon File Editor is importing your image.")
+        popup.show()
+
+        photonfile.replacePreview(prevNr, filename)
+        try:
+            # Ask PhotonFile object to replace bitmap
+            photonfile.replacePreview(prevNr,filename)
+            # Refresh data from layer in sidebar (data length is possible changed)
+            refreshPreviewSettings()
+            refreshLayerSettings()#data positions could be shifted to larger/smaller preview image
+            # Update current layer image with new bitmap retrieved from photonfile
+            previmg = photonfile.getPreviewImage(prevNr, layerForecolor, layerBackcolor)
+            dispimg = previmg
+        except Exception as err:
+            print (err)
+            errMessageBox(str(err))
+    else:
+        print ("User Canceled")
+    return
+
+def replaceLayerBitmap():
     """ Replace bitmap of current layer with new bitmap from disk selected by the user """
 
     global filename
@@ -428,7 +481,7 @@ def replaceBitmap():
         # since import can take a while (although faster with numpy library available) show a be-patient message
         popup = PopupDialog(screen, pos=(140, 140),
                             title="Please wait...",
-                            message="Photon File Editor is importing your images.")
+                            message="Photon File Editor is importing your image.")
         popup.show()
         try:
             # Ask PhotonFile object to replace bitmap
@@ -525,7 +578,7 @@ def about():
     dialog = MessageDialog(screen, pos=(140, 140),width=400,
                            title="About Photon File Editor",
                            #message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
-                           message="Version Alpha \n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
+                           message="Version: "+ __version__ +"\n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
                            center=False,
                            parentRedraw=redrawWindow)
     dialog.show()
@@ -537,14 +590,19 @@ def showSlices():
 
 def showPrev0():
     """ Let user switch (from slice image view) to preview image """
+    global prevNr
     global dispimg
-    dispimg = previmg[0]
+    prevNr = 0
+    dispimg = previmg[prevNr ]
+    refreshPreviewSettings()
 
 def showPrev1():
     """ Let user switch (from slice image view) to preview image """
+    global prevNr
     global dispimg
-    dispimg = previmg[1]
-
+    prevNr = 1
+    dispimg = previmg[prevNr ]
+    refreshPreviewSettings()
 
 
 def createMenu():
@@ -863,6 +921,35 @@ def createWindow():
     previmg[1] = dispimg
     layerimg = dispimg
 
+    #display Nag screen on image
+    disclaimerString= "" \
+    "Disclaimer:\n" \
+    "_______________________________\n" \
+    "\n" \
+    "Use this at your own risk!\n" \
+    "\n" \
+    "Backup your photon files before using \n" \
+    "them in the software! Verify and dry \n" \
+    "test your files before doing a produc-\n" \
+    "tion run! \n" \
+    "\n" \
+    "By using this software you accept the \n" \
+    "licence available in the Github reposi- \n" \
+    "tory of this project. This means you \n"\
+    "accept all risks and you can hold no-\n" \
+    "one liable for any damage!"
+
+    fontDisclaimer = pygame.font.SysFont(defFontName, defFontSize-2)
+    for nr,line in enumerate(disclaimerString.split("\n")):
+        if nr==0:
+            #fontDisclaimer.set_underline(True)
+            fontDisclaimer.set_bold(True)
+        if nr==1:
+            fontDisclaimer.set_underline(False)
+            fontDisclaimer.set_bold(False)
+        textsurface = fontDisclaimer.render(line, True, (255,255,255))
+        dispimg.blit(textsurface, (18,200+nr*defFontSize))
+
     # Create the menu and setup the menu methods which handle the users actions
     createMenu()
 
@@ -990,6 +1077,7 @@ def refreshPreviewSettings():
     # If no photonfile nothing to save, so exit
     if photonfile == None: return
 
+    print ("prevNr: ",prevNr)
     # Travers all preview settings and update values in textboxes
     row = firstPreviewTextbox
     controls[row].setText(str(prevNr)+"/2") # Update preview counter
@@ -1231,7 +1319,7 @@ def main():
                     if event.key == pygame.K_DOWN: layerUp()
 
                 #We use tab to navigate the textboxes in controls
-                if event.key == pygame.K_TAB:
+                if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
                     # Check shift state, without we move to next, with to previous control
                     isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
                     dir=1 if not isLShift else -1
