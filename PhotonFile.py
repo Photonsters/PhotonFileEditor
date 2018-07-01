@@ -482,6 +482,7 @@ class PhotonFile:
         # bitDepth = imgsurf.get_bitsize()
         # bytePerPixel = imgsurf.get_bytesize()
         (width, height) = imgsurf.get_size()
+        print ("Size:", width, height)
 
         # Count number of pixels with same color up until 0x7D/125 repetitions
         rleData = bytearray()
@@ -492,41 +493,47 @@ class PhotonFile:
         prevColor = None
         for y in range(height):
             for x in range(width):
+                #print (x,y)
                 # print (imgsurf.get_at((x, y)))
                 color = imgsurf.get_at((x, y)) # (r, g, b, a)
                 if prevColor == None: prevColor = color
                 isLastPixel = (x == (width - 1) and y == (height - 1))
-                if color == prevColor and nrOfColor < 0xFFF0 and not isLastPixel:
+                if color == prevColor and nrOfColor < 0x0FFF and not isLastPixel:
                     nrOfColor = nrOfColor + 1
                 else:
                     # print (color,nrOfColor,nrOfColor<<1)
                     R=prevColor[0]
                     G=prevColor[1]
                     B=prevColor[2]
-                    if nrOfColor>1: X=1
-                    else: X=0
+                    if nrOfColor>1:
+                        X=1
+                    else:
+                        X=0
                     # build 2 or 4 bytes (depending on X
-                    # The color (R,G,B) of a pixel spans 2 bytes (little endian) and each color component is 5 bits: RRRRR GGG GG X BBBBB
+                    # The color (R,G,B) of a pixel spans 2 bytes (little endian) and
+                    # each color component is 5 bits: RRRRR GGG GG X BBBBB
                     R = int(R / 255 * 31)
                     G = int(G / 255 * 31)
                     B = int(B / 255 * 31)
                     encValue0=R<<3 | G>>2
                     encValue1=(((G & 0b00000011)<<6) | X<<5 | B)
                     if X==1:
+                        nrOfColor=nrOfColor-1 # write on less than nr of pixels
                         encValue2=nrOfColor>>8
                         encValue3=nrOfColor & 0b000000011111111
 
                     # save bytes
-                    rleData.append(encValue0)
                     rleData.append(encValue1)
+                    rleData.append(encValue0)
                     if X==1:
-                        rleData.append(encValue2)
                         rleData.append(encValue3)
+                        rleData.append(encValue2)
 
                     # search next color
                     prevColor = color
                     nrOfColor = 1
-            return bytes(rleData)
+        print ("len",len(rleData))
+        return (width,height,bytes(rleData))
 
 
     ########################################################################################################################
@@ -1016,36 +1023,46 @@ class PhotonFile:
     def replacePreview(self, previewNr,filePath, saveToHistory=True):
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
 
-        print("  ", previewNr, "/", filePath)
-        return
+        print("Replace Preview", previewNr, " - ", filePath)
 
         # Store all data to history
-        if saveToHistory: self.saveToHistory("replace",previewNr)
+        if saveToHistory: self.saveToHistory("replace prev",previewNr)
 
         # Get/encode raw data
-        rawData = PhotonFile.encodedBitmap_Bytes(filePath)
-
-        # Last byte is stored seperately
-        rawDataTrunc = rawData[:-1]
-        rawDataLastByte = rawData[-1:]
+        (width,height,rawData) = PhotonFile.encodedPreviewBitmap_Bytes_nonumpy(filePath)
+        if len(rawData)==0:
+            raise Exception ("Could not import Preview image.")
+            return
 
         # Get change in image rawData size so we can correct starting addresses of higher layer images
-        oldLength=self.bytes_to_int(self.LayerDefs[layerNr]["Data Length"]) #"Data Length" = len(rawData)+len(EndOfLayer)
+        oldLength=self.bytes_to_int(self.Previews[previewNr]["Data Length"]) #"Data Length" = len(rawData)+len(EndOfLayer)
         newLength=len(rawData)
         deltaLength=newLength-oldLength
         #print ("old, new, delta:",oldLength,newLength,deltaLength)
 
         # Update image settings and raw data of layer to be replaced
-        self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
-        self.LayerData[layerNr]["Raw"] = rawDataTrunc
-        self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+        self.Previews[previewNr]["Resolution X"]= self.int_to_bytes(width)
+        self.Previews[previewNr]["Resolution Y"]= self.int_to_bytes(height)
+
+        self.Previews[previewNr]["Data Length"] = self.int_to_bytes(len(rawData))
+        self.Previews[previewNr]["Image Data"] = rawData
+
+        # Update Header info about "Preview 1 (addr)"
+        if previewNr==0: # then the "Preview 1 (addr)" shifts
+            curAddr=self.bytes_to_int(self.Header["Preview 1 (addr)"])
+            newAddr = curAddr + deltaLength
+            self.Header["Preview 1 (addr)"]=self.int_to_bytes(newAddr)
+
+        #Always Header info about layerdefs shifts
+        curAddr = self.bytes_to_int(self.Header["Layer Defs (addr)"])
+        newAddr = curAddr + deltaLength
+        self.Header["Layer Defs (addr)"] = self.int_to_bytes(newAddr)
 
         # Update start addresses of RawData of all following images
         nLayers=self.nrLayers()
-        for rLayerNr in range(layerNr+1,nLayers):
+        for rLayerNr in range(0,nLayers):
             curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
             newAddr=curAddr+deltaLength
-            #print ("layer, cur, new: ",rLayerNr,curAddr,newAddr)
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
 
