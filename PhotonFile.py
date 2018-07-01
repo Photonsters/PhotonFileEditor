@@ -1026,7 +1026,8 @@ class PhotonFile:
         print("Replace Preview", previewNr, " - ", filePath)
 
         # Store all data to history
-        if saveToHistory: self.saveToHistory("replace prev",previewNr)
+        # *** not yet implemented for preview images ***
+        # if saveToHistory: self.saveToHistory("replace prev",previewNr)
 
         # Get/encode raw data
         (width,height,rawData) = PhotonFile.encodedPreviewBitmap_Bytes_nonumpy(filePath)

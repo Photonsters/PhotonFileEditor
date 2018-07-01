@@ -19,7 +19,7 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
-#todo: PhotonFile.replacePreview should be recoded
+#todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
@@ -413,9 +413,15 @@ def replaceBitmap():
     global dispimg
     global previmg
     global layerimg
-    if dispimg == previmg[0]: replacePreviewBitmap()
-    if dispimg == previmg[1]: replacePreviewBitmap()
-    if dispimg == layerimg: replaceLayerBitmap()
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
+
+    if dispimg == previmg[0]:
+        replacePreviewBitmap()
+    elif dispimg == previmg[1]:
+        replacePreviewBitmap()
+    elif dispimg == layerimg: replaceLayerBitmap()
 
 def replacePreviewBitmap():
     """ Replace bitmap of current preview with new bitmap from disk selected by the user """
@@ -443,16 +449,17 @@ def replacePreviewBitmap():
                             message="Photon File Editor is importing your image.")
         popup.show()
 
-        photonfile.replacePreview(prevNr, filename)
+        #photonfile.replacePreview(prevNr, filename)
         try:
             # Ask PhotonFile object to replace bitmap
             photonfile.replacePreview(prevNr,filename)
             # Refresh data from layer in sidebar (data length is possible changed)
+            refreshHeaderSettings()
             refreshPreviewSettings()
             refreshLayerSettings()#data positions could be shifted to larger/smaller preview image
             # Update current layer image with new bitmap retrieved from photonfile
-            previmg = photonfile.getPreviewImage(prevNr, layerForecolor, layerBackcolor)
-            dispimg = previmg
+            previmg[prevNr] = photonfile.getPreviewBitmap(prevNr)
+            dispimg = previmg[prevNr]
         except Exception as err:
             print (err)
             errMessageBox(str(err))
