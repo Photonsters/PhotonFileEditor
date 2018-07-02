@@ -19,6 +19,9 @@ from MessageDialog import *
 from PopupDialog import *
 
 #TODO LIST
+#todo: check on import op preview if required size
+#todo: check if imported previmg load in PhotonSlicer
+#todo: add numpy and opengl library install needs to disclaimer
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down

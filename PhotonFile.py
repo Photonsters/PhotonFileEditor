@@ -469,7 +469,7 @@ class PhotonFile:
             return PhotonFile.encodedBitmap_Bytes_nonumpy(filename)
 
 
-    def encodedPreviewBitmap_Bytes_nonumpy(filename):
+    def encodedPreviewBitmap_Bytes_nonumpy(filename,checkSizeForNr=0):
         """ Converts image data from file on disk to RLE encoded byte string.
             Processes pixels one at a time (pygame.get_at) - Slow
             Encoding scheme:
@@ -477,12 +477,17 @@ class PhotonFile:
                 If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
         """
 
-        # Load image - sizes tend to vary so check on size is not possible (encountered: 360 x 265 and 360x246 or 360x182 and 360x169)
         imgsurf = pygame.image.load(filename)
         # bitDepth = imgsurf.get_bitsize()
         # bytePerPixel = imgsurf.get_bytesize()
         (width, height) = imgsurf.get_size()
         print ("Size:", width, height)
+
+        #Preview images tend to have different sizes. Check on size is thus not possible.
+        #if checkSizeForNr==0 and not (width, height) == (360,186):
+        #    raise Exception("Your image dimensions are off and should be 360x186 for the 1st preview.")
+        #if checkSizeForNr==1 and not (width, height) == (198,101):
+        #    raise Exception("Your image dimensions are off and should be 198x101 for the 1st preview.")
 
         # Count number of pixels with same color up until 0x7D/125 repetitions
         rleData = bytearray()
@@ -672,7 +677,7 @@ class PhotonFile:
             return self.getBitmap_nonumpy(layerNr,forecolor,backcolor,scale)
 
 
-    def getPreviewBitmap(self, prevNr):
+    def getPreviewBitmap(self, prevNr, scaleToWidth=1440/4):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.
             Based on https://github.com/Reonarudo/pcb2photon/issues/2
             Encoding scheme:
@@ -687,7 +692,12 @@ class PhotonFile:
         w = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution X"])
         h = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution Y"])
         s = PhotonFile.bytes_to_int(self.Previews[prevNr]["Data Length"])
-        scale = ((1440 / 4) / w, (1440 / 4) / w)
+
+        if scaleToWidth==0:
+            scale=(1,1)
+        else:
+            scale = (scaleToWidth / w, scaleToWidth / w)
+
         memory = pygame.Surface((int(w), int(h)))
         if w == 0 or h == 0: return memory # if size is (0,0) we return empty surface
 
@@ -1009,7 +1019,7 @@ class PhotonFile:
 
         # Also save the preview images
         for i in range (0,2):
-            prevSurf=self.getPreviewBitmap(i)
+            prevSurf=self.getPreviewBitmap(i,0) # 0 is don't scale
             #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
             barefilename = (os.path.basename(self.filename))
             barefilename=barefilename.split(sep=".")[0]
