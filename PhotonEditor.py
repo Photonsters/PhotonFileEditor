@@ -18,8 +18,20 @@ from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
 
+#Following tests are done for initial message to user below the disclaimer
+try:
+    import numpy
+    numpyAvailable = True
+except ImportError:
+    numpyAvailable = False
+
+try:
+    import OpenGL #pyopengl
+    pyopenglAvailable = True
+except ImportError:
+    pyopenglAvailable = False
+
 #TODO LIST
-#todo: check on import op preview if required size
 #todo: check if imported previmg load in PhotonSlicer
 #todo: add numpy and opengl library install needs to disclaimer
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
@@ -947,18 +959,35 @@ def createWindow():
     "licence available in the Github reposi- \n" \
     "tory of this project. This means you \n"\
     "accept all risks and you can hold no-\n" \
-    "one liable for any damage!"
+    "one liable for any damage! \n\n\n"
+
+    #display warnings about numpy
+    libraryString=""
+    if not numpyAvailable or not pyopenglAvailable:
+        libraryString = "_______________________________\n\n"
+    if not numpyAvailable :
+        libraryString = libraryString + \
+       "> PhotonFileEditor works faster if you \n" \
+       "   install numpy!\n\n"
+    if not pyopenglAvailable :
+        libraryString = libraryString + \
+       "> If you install pyOpenGl the built-in\n" \
+       "   slicer and voxel viewer will become\n"\
+       "   available in the future!"
 
     fontDisclaimer = pygame.font.SysFont(defFontName, defFontSize-2)
     for nr,line in enumerate(disclaimerString.split("\n")):
         if nr==0:
-            #fontDisclaimer.set_underline(True)
             fontDisclaimer.set_bold(True)
         if nr==1:
-            fontDisclaimer.set_underline(False)
             fontDisclaimer.set_bold(False)
         textsurface = fontDisclaimer.render(line, True, (255,255,255))
-        dispimg.blit(textsurface, (18,200+nr*defFontSize))
+        dispimg.blit(textsurface, (18,180+nr*defFontSize))
+
+    for nr,line in enumerate(libraryString.split("\n")):
+        textsurface = fontDisclaimer.render(line, True, (255,255,255))
+        dispimg.blit(textsurface, (18,420+nr*defFontSize))
+
 
     # Create the menu and setup the menu methods which handle the users actions
     createMenu()
