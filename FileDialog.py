@@ -274,12 +274,14 @@ class FileDialog():
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
+            self.selFilename=""
         # Check if user selects a directory
         elif text.endswith("/"):
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
+            self.selFilename = ""
             print ("Nav to dir: ",self.selDirectory)
         # Else user selected a file
         else:

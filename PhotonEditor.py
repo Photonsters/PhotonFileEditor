@@ -17,6 +17,7 @@ from PhotonFile import *
 from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
+from ProgressDialog import *
 
 #Following tests are done for initial message to user below the disclaimer
 try:
@@ -538,14 +539,17 @@ def importBitmaps():
     # Check if user pressed Cancel
     if not directory == None:
         print("Returned: ", directory)
+        # Call redraw to remove filedialog
+        redrawWindow()
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-        popup = PopupDialog(screen, pos=(140, 140),
+        popup = ProgressDialog(screen, pos=(140, 140),
                             title="Please wait...",
                             message="Photon File Editor is importing your images.")
         popup.show()
         try:
             # Ask PhotonFile object to replace bitmaps
-            photonfile.replaceBitmaps(directory)
+            if not photonfile.replaceBitmaps(directory, popup):
+                print("User Canceled while importing.")
             # Refresh header settings which contains number of layers
             refreshHeaderSettings()
             # No preview data is changed
@@ -560,7 +564,7 @@ def importBitmaps():
             print (err)
             errMessageBox(str(err))
     else:
-        print("User Canceled")
+        print("User Canceled before importing.")
     return
 
 def exportBitmaps():
@@ -580,13 +584,14 @@ def exportBitmaps():
         os.mkdir(newdirname)
 
     # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-    popup=PopupDialog(screen, pos=(140, 140),
+    popup = ProgressDialog(screen, pos=(140, 140),
                            title="Please wait...",
                            message="Photon File Editor is exporting your images.")
     popup.show()
     try:
         # Ask PhotonFile object to replace bitmaps
-        photonfile.exportBitmaps(newdirname,"slice_")
+        if not photonfile.exportBitmaps(newdirname,"slice_",popup):
+            print("User Canceled while exporting.")
     except Exception as err:
         print(err)
         errMessageBox(str(err))

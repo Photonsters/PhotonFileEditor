@@ -917,7 +917,7 @@ class PhotonFile:
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
 
-    def replaceBitmaps(self, dirPath):
+    def replaceBitmaps(self, dirPath, progressDialog=None):
         """ Delete all images in PhotonFile object and add images in directory."""
 
         # Get all files, filter png-files and sort them alphabetically
@@ -1001,12 +1001,24 @@ class PhotonFile:
             curLayerHeight= curLayerHeight+deltaLayerHeight
             print("                New DataPos", rawDataStartPos)
 
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel:
+                    #  Reset total number of layers to last layer we processes
+                    self.Header["# Layers"] = self.int_to_bytes(layerNr+1)
+                    return False
+        return True
 
-    def exportBitmaps(self,dirPath,filepre):
+    def exportBitmaps(self,dirPath,filepre,progressDialog=None):
         """ Save all images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
 
+        nLayers=self.nrLayers()
+
         # Traverse all layers
-        for layerNr in range(0,self.nrLayers()):
+        for layerNr in range(0,nLayers):
             # Make filename
             nrStr="%04d" % layerNr
             filename=filepre+"_"+ nrStr+".png"
@@ -1016,6 +1028,14 @@ class PhotonFile:
             imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
             # Save layer image to disk
             pygame.image.save(imgSurf,fullfilename)
+
+            print ("Exported slice ",layerNr,"/",nLayers)
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr)+"/"+str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel: return False
 
         # Also save the preview images
         for i in range (0,2):
@@ -1028,7 +1048,7 @@ class PhotonFile:
             #   Save preview image to disk
             pygame.image.save(prevSurf, fullfilename)
 
-        return
+        return True
 
     def replacePreview(self, previewNr,filePath, saveToHistory=True):
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""

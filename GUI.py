@@ -378,6 +378,40 @@ class MenuList():
 ## Class ImgBox
 ########################################################################################################################
 
+
+class ProgressBar():
+    rect=GRect()
+    visible=True
+    drawBorder=False
+    forecolor=defBorderHover
+    progress=0
+
+    def __init__(self, pyscreen, rect=GRect(0,0,80,20),bordercolor=defBorder,forecolor=defBorderHover,drawBorder=True,progress=0):
+        """ Saves all values to internal variables. """
+        self.rect=rect
+        self.pyscreen = pyscreen
+        self.bordercolor = bordercolor
+        self.forecolor=forecolor
+        self.drawBorder=drawBorder
+        self.progress=progress
+
+    def redraw(self):
+        """ Redraws ImgBox. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Draw progress bar
+        progrect=self.rect.copy()
+        progrect.shrink(GRect(2,2,2,2))
+        progrect.width= progrect.width * self.progress / 100
+        pygame.draw.rect(self.pyscreen, self.forecolor, progrect.tuple(), 0)
+
+        # Drawborder
+        if self.drawBorder:
+            pygame.draw.rect(self.pyscreen,self.bordercolor, self.rect.tuple(), 1)
+
+
 class ImgBox():
     rect=GRect()
     img=None
