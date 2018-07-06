@@ -46,7 +46,7 @@ class MenuBar():
     height = -1
     spacing = 4
     minwidth=50
-    isVisible=True
+    visible=True
     textcolor=defMenuForeground
     backcolor=defMenuBackground
     highbackcolor=defHighMenuBackground
@@ -116,7 +116,7 @@ class MenuBar():
         """ Redraws MenuBar. """
 
         # If not visible, nothing to do
-        if not self.isVisible: return
+        if not self.visible: return
 
         # Draw menubar background and border.
         w, dummy = pygame.display.get_surface().get_size()
@@ -166,6 +166,9 @@ class MenuBar():
     def handleMouseDown(self, pos,button):
         """ Updates menu states if user clicked on menubar. """
 
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # If not clicked, nothing to do
         if not button == 1: return
 
@@ -180,13 +183,13 @@ class MenuBar():
                     if pos[0]>menu["left"] and pos[0]<(menu["left"]+menu["width"]):
                         self.activeMenu=menu
                         menulist=menu["menulist"]
-                        menulist.isVisible=True
+                        menulist.visible=True
                     else:
                         menulist = menu["menulist"]
-                        menulist.isVisible = False
+                        menulist.visible = False
                 return True
             else:
-                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
                 return
 
@@ -197,6 +200,9 @@ class MenuBar():
 
     def handleMouseUp(self, pos,button):
         """ Updates menu states if user clicked on menubar. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button == 1: return
         # Call upon menulists to handle mouse (if above menulists). """
         for menu in self.menus:
@@ -204,7 +210,7 @@ class MenuBar():
             if menu["menulist"].handleMouseUp(pos,button):
                 # We are handling this so clear queue for others
                 pygame.event.clear()
-                self.activeMenu["menulist"].isVisible = False
+                self.activeMenu["menulist"].visible = False
                 self.activeMenu = None
                 return True
 
@@ -213,12 +219,15 @@ class MenuBar():
             if self.activeMenu:
                 # We are handling this so clear queue for others
                 pygame.event.clear()
-                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
 
 
     def handleMouseMove(self, pos):
         """ Switch open menu if in menubar else call upon menulists to handle mouse (if above menulists). """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # Move activemenu if mouse is moving within menubar area and menu is active
         if pos[1] <= (self.height + self.margins.y + self.margins.height):
             if not self.activeMenu == None:
@@ -226,10 +235,10 @@ class MenuBar():
                     if pos[0] > menu["left"] and pos[0] < (menu["left"] + menu["width"]):
                         self.activeMenu = menu
                         menulist = menu["menulist"]
-                        menulist.isVisible = True
+                        menulist.visible = True
                     else:
                         menulist = menu["menulist"]
-                        menulist.isVisible = False
+                        menulist.visible = False
                 # We are handling this so clear queue for others
                 pygame.event.clear()
                 return True
@@ -240,6 +249,9 @@ class MenuBar():
 
 
     def handleKeyDown(self,key,unicode):
+        # If not visible nothing to do.
+        if not self.visible: return
+
         isAlt = (pygame.key.get_mods() & pygame.KMOD_ALT)
         if isAlt:
             for menu in self.menus:
@@ -251,10 +263,10 @@ class MenuBar():
                 if keyNr == scNr:
                     self.activeMenu=menu
                     menulist=menu["menulist"]
-                    menulist.isVisible=True
+                    menulist.visible=True
                 else:
                     menulist = menu["menulist"]
-                    menulist.isVisible = False
+                    menulist.visible = False
                 # We are handling this so clear queue for others
                 pygame.event.clear()
 
@@ -279,7 +291,7 @@ class MenuList():
     rowheight=0
     spacing=4
     activeItem=-1
-    isVisible=False
+    visible=False
     textcolor = defMenuForeground
     backcolor = defMenuBackground
     highbackcolor = defHighMenuBackground
@@ -322,7 +334,7 @@ class MenuList():
         """ Redraws MenuList. """
 
         # If not visible nothing to do
-        if not self.isVisible:
+        if not self.visible:
             self.activeItem=-1 # so on reopening we don have floating cursor
             return
 
@@ -344,7 +356,7 @@ class MenuList():
 
     def handleMouseMove(self, pos):
         """ Highlights menulist item if mouse hover above."""
-        if not self.isVisible: return
+        if not self.visible: return
 
         if pos[0] > self.pos.x and pos[0] < (self.pos.x+self.pos.width) and \
             pos[1] < (self.pos.y + self.pos.height):
@@ -361,7 +373,7 @@ class MenuList():
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked on menu item."""
         if not button == 1: return
-        if not self.isVisible: return
+        if not self.visible: return
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.pos):
             # We are handling this so clear queue for others
@@ -370,7 +382,7 @@ class MenuList():
                 if row == self.activeItem:
                     if not func_on_click==None:
                         func_on_click()
-                        self.isVisible=False
+                        self.visible=False
                         return True
 
 
@@ -385,6 +397,7 @@ class ProgressBar():
     drawBorder=False
     forecolor=defBorderHover
     progress=0
+    visible=True
 
     def __init__(self, pyscreen, rect=GRect(0,0,80,20),bordercolor=defBorder,forecolor=defBorderHover,drawBorder=True,progress=0):
         """ Saves all values to internal variables. """
@@ -506,6 +519,9 @@ class ImgBox():
 
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked."""
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button==1: return
         gpos = GPoint(pos[0], pos[1])
         if gpos.inGRect(self.rect):
@@ -523,6 +539,9 @@ class ImgBox():
 
     def handleToolTips(self,pos):
         """ Returns label control with tooltip if hovered long enough. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
 
@@ -661,6 +680,9 @@ class Button():
 
     def handleMouseMove(self, pos):
         """ Updates state of Button on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.hover
@@ -672,6 +694,9 @@ class Button():
 
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked."""
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
@@ -683,6 +708,9 @@ class Button():
 
     def handleMouseDown(self,pos,button):
         """ Updates state of Button on down. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
@@ -806,6 +834,9 @@ class ScrollBarV():
 
     def handleMouseMove(self, pos):
         """ Updates state of Scroll Area and Up and Down buttons on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             # We are handling this so clear queue for others
@@ -820,6 +851,8 @@ class ScrollBarV():
 
     def handleMouseUp(self, pos,button):
         """ Transmits MouseUp to up and down button. """
+        # If not visible nothing to do.
+        if not self.visible: return
 
         #If not left mousebutton then nothing to do
         if not button == 1: return
@@ -830,6 +863,8 @@ class ScrollBarV():
 
     def handleMouseDown(self,pos,button):
         """ Updates state of Scroll Area and Up and Down buttons on mousedown. """
+        # If not visible nothing to do.
+        if not self.visible: return
 
         #If not left mousebutton then nothing to do
         if not button == 1: return
@@ -918,7 +953,6 @@ class ListBox():
         """ Return items in ListBox """
         return self.items
 
-
     def scrollItems(self,curScroll):
         """ Sets first listitem to show ListBox to curScroll"""
         self.offset=curScroll
@@ -975,9 +1009,14 @@ class ListBox():
             print ("Error from ListBox.activeText()")
             return ""
 
+    def activeIndex(self):
+        return self.activeItem
 
     def handleMouseDown(self,pos,button):
         """ Handles scroll with mousewheel and mousedown on item in ListBox. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
 
         # Check if we clicked inside the area where the items are displayed
         gpos=GPoint.fromTuple(pos)
@@ -1012,6 +1051,9 @@ class ListBox():
         # Check if we clicked with left mouse button
         if not button == 1: return
 
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # Check if we clicked inside the area where the items are displayed
         gpos=GPoint.fromTuple(pos)
         innerRect=self.rect.copy()
@@ -1019,13 +1061,16 @@ class ListBox():
         if gpos.inGRect(innerRect):
             # We are handling this so clear queue for others
             pygame.event.clear()
-            if not self.func_on_click==None: self.func_on_click(self.activeText())
+            if not self.func_on_click==None: self.func_on_click(self.activeItem,self.activeText())
         else:
             # Else ask to check if clicked on scrollbarV
             self.scrollbarV.handleMouseUp(pos,button)
 
     def handleMouseMove(self,pos):
         """ Calls upon scrollbarV to handle MouseMove if needed """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         self.scrollbarV.handleMouseMove(pos)
         return
 
@@ -1114,12 +1159,13 @@ class Combobox():
         self.listbox.redraw()
 
 
-    def listClick(self,clickedtext):
-        print (clickedtext,self.listbox.activeText())
+    def listClick(self,clickeditem,clickedtext):
+        #print ("Combobox:",clickedtext,self.listbox.activeText())
+        self.text=clickedtext
+        self.index=clickeditem
         self.label.setText(clickedtext)
         self.listbox.visible=False
-        self.text=clickedtext
-        if not self.func_on_click==None: self.func_on_click(clickedtext)
+        if not self.func_on_click==None: self.func_on_click(self.index,self.text)
 
     def buttonClick(self):
         self.listbox.visible= not self.listbox.visible
@@ -1426,9 +1472,10 @@ class TextBox():
     def handleMouseUp(self,pos,button):
         """ Set cursor / edit of TextBox """
 
+        # If not visible nothing to do.
+        if not self.visible: return
         # If not left button nothing to do
         if not button == 1: return
-
         # If not left button nothing to do
         if not self.editable: return
 
@@ -1473,6 +1520,9 @@ class TextBox():
 
     def handleToolTips(self,pos):
         """ Returns label control with tooltip if hovered long enough. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
 
@@ -1511,6 +1561,9 @@ class TextBox():
 
     def handleKeyDown(self,key,unicode):
         """ Handles keypresses and determine which keys are valid for TextBox input type """
+
+        # If not visible nothing to do.
+        if not self.visible: return
 
         # If not editable nothing to do
         if not self.editable: return
