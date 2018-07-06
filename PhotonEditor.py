@@ -822,12 +822,12 @@ def createSidebar():
     # Add Resin Presets Chooser
     # First read settings from file
     # columns are Brand,Type,Layer,NormalExpTime,OffTime,BottomExp,BottomLayers
-    ifile = open("resources/resins.txt", "r")
+    ifile = open("resources/resins.csv", "r",encoding="Latin-1") #Latin-1 handles special characters
     lines = ifile.readlines()
-    resins = [tuple(line.strip().split(",")) for line in lines]
+    resins = [tuple(line.strip().split(";")) for line in lines]
     resinnames=[]
     for resin in resins:
-        resinnames.append(resin[0])
+        resinnames.append(resin[0]+ "-"+resin[1]+"-"+resin[2])
 
     # Start with the title of this settingsgroup
     row=16
@@ -847,14 +847,14 @@ def createSidebar():
     row=row+1+0.4 # combo is larger than normal
     controls.append( Button(screen,
                             rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth,settingsrowheight*1.6), \
-                            text="Apply", func_on_click=ApplyResinSettings
+                            text="Apply", func_on_click=applyResinSettings
                              ))
 
     # Add combobox to controls
     controls.append(resincombo)
 
 
-def ApplyResinSettings():
+def applyResinSettings():
     """ Applies the selected resin settings.
     """
     global resins
@@ -866,38 +866,54 @@ def ApplyResinSettings():
 
     # Check if user didn't select title (first item)
     resinname=resincombo.text
-    if resinname=="Brand": return
+    resinidx=resincombo.index
+    if resinname.startswith("Brand"): return
 
     # columns are Brand,Type,Layer Height,NormalExpTime,OffTime,BottomExp,BottomLayers
-    for (sBrand,sType,sLayerHeight,sNormalExpTime,sOffTime,sBottomExp,sBottomLayers)  in resins:
-        if sBrand == resinname:
-            # Convert all strings to floats/int
-            rLayerHeight=float(sLayerHeight)
-            rNormalExpTime = float(sNormalExpTime)
-            rOffTime=float(sOffTime)
-            rBottomExp=float(sBottomExp)
-            rBottomLayers=int(sBottomLayers)
-            #print (sBrand, rLayerHeight,rNormalExpTime, rOffTime, rBottomExp, rBottomLayers)
+    (sBrand,sType,sLayerHeight,sNormalExpTime,sOffTime,sBottomExp,sBottomLayers,sAuthor,sTemp,sComment1,sComment2)=resins[resinidx]
+    print ("Apply resinSettings: ",sBrand,sType,sLayerHeight)
+    # Convert all strings to floats/int
+    rLayerHeight=float(sLayerHeight.replace(",","."))
+    rNormalExpTime = float(sNormalExpTime.replace(",","."))
+    rOffTime=float(sOffTime.replace(",","."))
+    rBottomExp=float(sBottomExp.replace(",","."))
+    rBottomLayers=int(sBottomLayers)
+    #print (sBrand, rLayerHeight,rNormalExpTime, rOffTime, rBottomExp, rBottomLayers)
 
-            # Set Header/General settings
-            photonfile.Header["Layer height (mm)"]=PhotonFile.float_to_bytes(rLayerHeight)
-            photonfile.Header["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
-            photonfile.Header["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
-            photonfile.Header["Exp. bottom (s)"] = PhotonFile.float_to_bytes(rBottomExp)
-            photonfile.Header["# Bottom Layers"] = PhotonFile.int_to_bytes(rBottomLayers)
+    # Check if we apply settings with same layer height
+    fileHeight=PhotonFile.bytes_to_float(photonfile.Header["Layer height (mm)"])
+    fileHeight=(int(100*fileHeight))/100
+    if not fileHeight==rLayerHeight:
+        dialog = MessageDialog(screen, pos=(140, 140), width=450,
+                               title="Please confirm",
+                               message="The settings are meant for Layer Height "+str(rLayerHeight)+" mm.\n"+\
+                                       "Your file is sliced at a Layer Height of "+str(fileHeight)+" mm.",
+                               center=True,
+                               buttonChoice=MessageDialog.OKCANCEL,
+                               parentRedraw=redrawWindow)
+        ret = dialog.show()
+        # if user selected ok, the users want to overwrite file so set okUser to True
+        if not ret == "OK": return
 
-            # Set settings of each layer
-            cLayerHeight=0
-            for layerNr, layerDef in enumerate(photonfile.LayerDefs):
-                layerDef["Layer height (mm)"]=PhotonFile.float_to_bytes(cLayerHeight)
-                cLayerHeight=cLayerHeight+rLayerHeight
-                if layerNr<rBottomLayers:
-                    layerDef["Exp. time (s)"]=PhotonFile.float_to_bytes(rBottomExp)
-                else:
-                    layerDef["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
-                layerDef["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
-            refreshHeaderSettings()
-            refreshLayerSettings()
+    # Set Header/General settings
+    #photonfile.Header["Layer height (mm)"]=PhotonFile.float_to_bytes(rLayerHeight)
+    photonfile.Header["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+    photonfile.Header["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+    photonfile.Header["Exp. bottom (s)"] = PhotonFile.float_to_bytes(rBottomExp)
+    photonfile.Header["# Bottom Layers"] = PhotonFile.int_to_bytes(rBottomLayers)
+
+    # Set settings of each layer
+    cLayerHeight=0
+    for layerNr, layerDef in enumerate(photonfile.LayerDefs):
+        #layerDef["Layer height (mm)"]=PhotonFile.float_to_bytes(cLayerHeight)
+        #cLayerHeight=cLayerHeight+rLayerHeight
+        if layerNr<rBottomLayers:
+            layerDef["Exp. time (s)"]=PhotonFile.float_to_bytes(rBottomExp)
+        else:
+            layerDef["Exp. time (s)"] = PhotonFile.float_to_bytes(rNormalExpTime)
+        layerDef["Off time (s)"] = PhotonFile.float_to_bytes(rOffTime)
+    refreshHeaderSettings()
+    refreshLayerSettings()
 
 
 ########################################################################################################################
