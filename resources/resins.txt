@@ -1,6 +1,0 @@
-Brand,Type,Layer,NormalExpTime,OffTime,BottomExp,BottomLayers
-3D-Okay,Black,0.030,10,1,60,8
-Ameralabs,AMD 3 LED, 0.040,5,1,50,8
-Anycubic, Green, 0.070,12,1,55,8
-Formlabs, V4 Clear, 0.040,28,1.5,120,8
-Fun To Do, Catable, 0.030,10,2,60,5
