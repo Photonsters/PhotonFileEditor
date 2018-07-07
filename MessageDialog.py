@@ -56,7 +56,7 @@ class MessageDialog():
             self.btnLeft.rect=GRect.copy(self.btnRight.rect)
             self.btnLeft.rect.left=self.btnLeft.rect.left-self.margins.width - self.buttonWidth
 
-    def __init__(self, pyscreen,
+    def __init__(self, flipFunc,pyscreen,
                  pos, width=300,
                  center=True,
                  title="Message Dialog",message="Read this carefully... \n ...before entering Ok!",
@@ -69,6 +69,7 @@ class MessageDialog():
                  parentRedraw=None):
         """ Saves all values to internal variables and calculates some extra internal vars. """
         # Save variables
+        self.flipFunc=flipFunc
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         self.winrect=GRect(pos[0], pos[1], width, 160)
@@ -137,13 +138,13 @@ class MessageDialog():
         self.btnRight.redraw()
         if not self.buttonChoice==self.OK: self.btnLeft.redraw()
 
+        self.flipFunc()
 
     def waitforuser(self):
         """ Blocks all events to Main window and wait for user to click OK. """
 
         while self.waiting:
             self.redraw()
-            pygame.display.flip()
 
             for event in pygame.event.get():
                 pos = pygame.mouse.get_pos()

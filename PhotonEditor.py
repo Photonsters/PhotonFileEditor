@@ -18,6 +18,7 @@ from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
 from ProgressDialog import *
+from OGLEngine import *
 
 #Following tests are done for initial message to user below the disclaimer
 try:
@@ -59,7 +60,12 @@ except ImportError:
 photonfile=None
 
 # Regarding image data to display
+hasOpenGL=False
+fullScreenOpenGL=False
+framedScreenOpenGL=False
+window=None
 screen=None
+defTransparent=(1,1,1)
 layerimg=None
 previmg=[None,None]
 layerForecolor=(89,56,199) #I changed this to aproximate UV color what the machine shows X3msnake
@@ -67,6 +73,7 @@ layerBackcolor=(0,0,0)
 layerLabel=None #Scroll chevrons at top left
 layerNr = 0
 prevNr=0
+lastpos=(0,0)
 
 # Dimensional constants for settings
 settingscolwidth=250
@@ -105,7 +112,7 @@ resincombo=None
 ########################################################################################################################
 
 def infoMessageBox(title, message):
-    dialog = MessageDialog(screen, pos=(140, 140),
+    dialog = MessageDialog(flipFunc,screen, pos=(140, 140),
                            title=title,
                            message=message,
                            parentRedraw=redrawWindow)
@@ -113,7 +120,7 @@ def infoMessageBox(title, message):
 
 
 def errMessageBox(errormessage):
-    dialog = MessageDialog(screen, pos=(140, 140),
+    dialog = MessageDialog(flipFunc,screen, pos=(140, 140),
                            title="Error",
                            message=errormessage,
                            parentRedraw=redrawWindow)
@@ -229,7 +236,7 @@ def saveFile():
     retfilename=""
     while not okUser:
         # Get filename
-        dialog = FileDialog(screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
+        dialog = FileDialog(flipFunc,screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
         retfilename=dialog.newFile()
         # If user canceled saveFile on FileDialog, retfilename=None and we should continue and thus set okUser to true
         if retfilename == None:
@@ -239,7 +246,7 @@ def saveFile():
             okUser = not os.path.isfile(retfilename)
         # If fileexists or user canceled saveFile on FileDialog
         if not okUser:
-            dialog = MessageDialog(screen, pos=(140, 140), width=400,
+            dialog = MessageDialog(flipFunc,screen, pos=(140, 140), width=400,
                                    title="Please confirm",
                                    message="This file already exists. Do you want to continue?",
                                    center=True,
@@ -272,7 +279,7 @@ def loadFile():
     global filename
 
     # Ask user for filename
-    dialog = FileDialog(screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawWindow)
     retfilename=dialog.getFile()
 
     # Check if user pressed Cancel
@@ -333,7 +340,7 @@ def deleteLayer():
 
     # Check of nrLayers at least 2, there must remain 1
     if photonfile.nrLayers()==1:
-        dialog = MessageDialog(screen, pos=(140, 140),width=400,
+        dialog = MessageDialog(flipFunc,screen, pos=(140, 140),width=400,
                                title="No layers to delete!",
                                message="A .photon file must have at least 1 layer. \n\n You can however replace this layer with another bitmap or edit its settings.",
                                center = True,
@@ -342,7 +349,7 @@ def deleteLayer():
         return
 
     # Check if user is sure
-    dialog = MessageDialog(screen, pos=(140, 140),width=400,
+    dialog = MessageDialog(flipFunc,screen, pos=(140, 140),width=400,
                            title="Please confirm",
                            message="Deleting only one layer can be undone. Are you sure?",
                            center=True,
@@ -452,7 +459,7 @@ def replacePreviewBitmap():
     if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
 
     # Ask user for filename
-    dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
     retfilename=dialog.getFile()
 
     # Check if user pressed Cancel
@@ -460,7 +467,7 @@ def replacePreviewBitmap():
         filename = retfilename
         print ("Returned: ",filename)
         # since import can take a while (although faster with numpy library available) show a be-patient message
-        popup = PopupDialog(screen, pos=(140, 140),
+        popup = PopupDialog(flipFunc,screen, pos=(140, 140),
                             title="Please wait...",
                             message="Photon File Editor is importing your image.")
         popup.show()
@@ -494,7 +501,7 @@ def replaceLayerBitmap():
     if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
 
     # Ask user for filename
-    dialog = FileDialog(screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=".png",title="Load Image File", parentRedraw=redrawWindow)
     retfilename=dialog.getFile()
 
     # Check if user pressed Cancel
@@ -502,7 +509,7 @@ def replaceLayerBitmap():
         filename = retfilename
         print ("Returned: ",filename)
         # since import can take a while (although faster with numpy library available) show a be-patient message
-        popup = PopupDialog(screen, pos=(140, 140),
+        popup = PopupDialog(flipFunc,screen, pos=(140, 140),
                             title="Please wait...",
                             message="Photon File Editor is importing your image.")
         popup.show()
@@ -533,7 +540,7 @@ def importBitmaps():
     if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed as template to load the bitmaps in."):return
 
     # Ask user for filename
-    dialog = FileDialog(screen, (40, 40), ext=".png", title="Select directory with png files", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=".png", title="Select directory with png files", parentRedraw=redrawWindow)
     directory = dialog.getDirectory()
 
     # Check if user pressed Cancel
@@ -542,7 +549,7 @@ def importBitmaps():
         # Call redraw to remove filedialog
         redrawWindow()
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-        popup = ProgressDialog(screen, pos=(140, 140),
+        popup = ProgressDialog(flipFunc,screen, pos=(140, 140),
                             title="Please wait...",
                             message="Photon File Editor is importing your images.")
         popup.show()
@@ -567,6 +574,91 @@ def importBitmaps():
         print("User Canceled before importing.")
     return
 
+
+def exportLayerBitmap():
+    """ Exports current bitmap from a loaded photon file to a directory selected by the user """
+    global filename
+    global photonfile
+    global layerNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to export bitmaps from."):return
+
+    # Ask user for filename
+    barefilename = (os.path.basename(filename))
+    barenotextfilename=os.path.splitext(barefilename)[0]
+    dirname=(os.path.dirname(filename))
+    newdirname=os.path.join(dirname,barenotextfilename+".bitmaps" )
+    if not os.path.isdir(newdirname):
+        os.mkdir(newdirname)
+
+    # Since export can take a while (although faster with numpy library available) show a be-patient message
+    popup = PopupDialog(flipFunc,screen, pos=(140, 140),
+                        title="Please wait...",
+                        message="Photon File Editor is exporting your image.")
+    popup.show()
+    try:
+        # Ask PhotonFile object to replace bitmaps
+        if not photonfile.exportBitmap(newdirname,"slice_",layerNr):
+            print("User Canceled while exporting.")
+    except Exception as err:
+        print(err)
+        errMessageBox(str(err))
+    del popup
+
+    #print (barefilename,filename,newdirname)
+
+
+def exportPreviewBitmap():
+    """ Exports current preview bitmap from a loaded photon file to a directory selected by the user """
+    global filename
+    global photonfile
+    global prevNr
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to export bitmaps from."):return
+
+    # Ask user for filename
+    barefilename = (os.path.basename(filename))
+    barenotextfilename=os.path.splitext(barefilename)[0]
+    dirname=(os.path.dirname(filename))
+    newdirname=os.path.join(dirname,barenotextfilename+".bitmaps" )
+    if not os.path.isdir(newdirname):
+        os.mkdir(newdirname)
+
+    # Since export can take a while (although faster with numpy library available) show a be-patient message
+    popup = PopupDialog(flipFunc,screen, pos=(140, 140),
+                        title="Please wait...",
+                        message="Photon File Editor is exporting your (preview) image.")
+    popup.show()
+    try:
+        # Ask PhotonFile object to replace bitmaps
+        if not photonfile.exportPreviewBitmap(newdirname,prevNr):
+            print("User Canceled while exporting.")
+    except Exception as err:
+        print(err)
+        errMessageBox(str(err))
+    del popup
+
+    #print (barefilename,filename,newdirname)
+
+
+def exportBitmap():
+    """ Checks which image is active, preview or layer and calls exportPreviewBitmap or exportLayerBitmap """
+    global dispimg
+    global previmg
+    global layerimg
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!","A .photon file is needed to load the bitmap in."): return
+
+    if dispimg == previmg[0]:
+        exportPreviewBitmap()
+    elif dispimg == previmg[1]:
+        exportPreviewBitmap()
+    elif dispimg == layerimg: exportLayerBitmap()
+
+
 def exportBitmaps():
     """ Export all bitmaps from a loaded photon file to a directory selected by the user """
     global filename
@@ -584,7 +676,7 @@ def exportBitmaps():
         os.mkdir(newdirname)
 
     # Since import WILL take a while (although faster with numpy library available) show a be-patient message
-    popup = ProgressDialog(screen, pos=(140, 140),
+    popup = ProgressDialog(flipFunc,screen, pos=(140, 140),
                            title="Please wait...",
                            message="Photon File Editor is exporting your images.")
     popup.show()
@@ -602,7 +694,8 @@ def exportBitmaps():
 
 def about():
     """ Displays about box """
-    dialog = MessageDialog(screen, pos=(140, 140),width=400,
+    dialog = MessageDialog(flipFunc,screen,
+                           pos=(140, 140),width=400,
                            title="About Photon File Editor",
                            #message="Version Alpha \n \n Github: PhotonFileUtils \n\n o Nard Janssens (NardJ) \n o Vinicius Silva (X3msnake) \n o Robert Gowans (Rob2048) \n o Ivan Antalec (Antharon) \n o Leonardo Marques (Reonarudo) \n \n License: Free for non-commerical use.",
                            message="Version: "+ __version__ +"\n \n Github: PhotonFileUtils \n\n NardJ, X3msnake, Rob2048, \n Antharon, Reonarudo \n \n License: Free for non-commerical use.",
@@ -613,12 +706,16 @@ def about():
 def showSlices():
     """ Let user switch (from preview images) to slice view """
     global dispimg
+    global framedScreenOpenGL
+    framedScreenOpenGL=False
     dispimg=layerimg
 
 def showPrev0():
     """ Let user switch (from slice image view) to preview image """
     global prevNr
     global dispimg
+    global framedScreenOpenGL
+    framedScreenOpenGL=False
     prevNr = 0
     dispimg = previmg[prevNr ]
     refreshPreviewSettings()
@@ -627,10 +724,27 @@ def showPrev1():
     """ Let user switch (from slice image view) to preview image """
     global prevNr
     global dispimg
+    global framedScreenOpenGL
+    framedScreenOpenGL=False
     prevNr = 1
     dispimg = previmg[prevNr ]
     refreshPreviewSettings()
 
+def showFramed3D():
+    if not hasOpenGL: return
+    global framedScreenOpenGL
+    global dispimg
+    framedScreenOpenGL=True
+    #update window surface
+    redrawWindow(None)
+
+
+def showFull3D():
+    if not hasOpenGL: return
+    global fullScreenOpenGL
+    fullScreenOpenGL=True
+    #update window surface
+    redrawWindow(None)
 
 def createMenu():
     global menubar
@@ -645,21 +759,23 @@ def createMenu():
     menubar.addItem("File","Exit",exitFile)
     menubar.addMenu("Edit", "E")
     menubar.addItem("Edit", "Undo", undo)
-    menubar.addItem("Edit", "______________", None)
+    menubar.addItem("Edit", "----", None)
     menubar.addItem("Edit", "Cut Layer", deleteLayer)
     menubar.addItem("Edit", "Copy Layer", copyLayer)
     menubar.addItem("Edit", "Paste Layer", pasteLayer)
     menubar.addItem("Edit", "Duplicate Layer", duplicateLayer)
-    menubar.addItem("Edit", "______________", None)
+    menubar.addItem("Edit", "----", None)
+    menubar.addItem("Edit", "Export Bitmap", exportBitmap)
     menubar.addItem("Edit", "Replace Bitmap", replaceBitmap)
-    menubar.addItem("Edit", "______________", None)
+    menubar.addItem("Edit", "----", None)
     menubar.addItem("Edit", "Import Bitmaps", importBitmaps)
     menubar.addItem("Edit", "Export Bitmaps", exportBitmaps)
     menubar.addMenu("View", "V")
     menubar.addItem("View", "Slices", showSlices)
     menubar.addItem("View", "Preview 0", showPrev0)
     menubar.addItem("View", "Preview 1",showPrev1)
-    menubar.addItem("View", "..3D", doNothing)
+    menubar.addItem("View", "3D", showFramed3D)
+    menubar.addItem("View", "Full 3D", showFull3D)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
 
@@ -884,13 +1000,14 @@ def applyResinSettings():
     fileHeight=PhotonFile.bytes_to_float(photonfile.Header["Layer height (mm)"])
     fileHeight=(int(100*fileHeight))/100
     if not fileHeight==rLayerHeight:
-        dialog = MessageDialog(screen, pos=(140, 140), width=450,
+        dialog = MessageDialog(flipFunc,screen, pos=(140, 140), width=450,
                                title="Please confirm",
                                message="The settings are meant for Layer Height "+str(rLayerHeight)+" mm.\n"+\
                                        "Your file is sliced at a Layer Height of "+str(fileHeight)+" mm.",
                                center=True,
                                buttonChoice=MessageDialog.OKCANCEL,
                                parentRedraw=redrawWindow)
+        print ("window",window)
         ret = dialog.show()
         # if user selected ok, the users want to overwrite file so set okUser to True
         if not ret == "OK": return
@@ -922,6 +1039,7 @@ def applyResinSettings():
 
 def createWindow():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
+    global window
     global screen
     global dispimg
     global layerimg
@@ -938,6 +1056,7 @@ def createWindow():
     global firstLayerTextbox
     global layerLabel
     global filename
+    global hasOpenGL
 
     # For debugging we display current script-path and last modified date, so we know which version we are testing/editing
     scriptPath=os.path.join(os.getcwd(), "PhotonEditor.py")
@@ -946,20 +1065,32 @@ def createWindow():
     print ("  "+ scriptPath)
     print("  " + str(scriptDateTime))
 
-    # Init pygame, fonts and set window frame properties
+    # Init pygame, fonts
     pygame.init()
     pygame.font.init()
+    # Set window frame properties
     pygame.display.set_caption("Photon File Editor")
     logo = pygame.image.load("PhotonEditor32x32.png")
     pygame.display.set_icon(logo)
+    if not hasOpenGL:
+        # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
+        window = pygame.display.set_mode((windowwidth, windowheight))
 
-    # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
-    screen = pygame.display.set_mode((windowwidth, windowheight))
     scale = (0.25, 0.25)
+
+    # Creat a surface
+    if not hasOpenGL:
+        screen = pygame.Surface((windowwidth,windowheight))
+    else:
+        screen = pygame.Surface((1024, 1024))
+        screen.set_colorkey(defTransparent)
+
+    print ("Window Size:", windowwidth,windowheight)
+
 
     # Initialize the surfaces for layer/preview images we want to fill from photonfile and draw on screen
     dispimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
-    dispimg.fill((0,0,0))
+    dispimg.fill(defTransparent) # first we fill with transparent
     previmg[0]=dispimg
     previmg[1] = dispimg
     layerimg = dispimg
@@ -1178,6 +1309,7 @@ def openPhotonFile(filename):
     global layerimg
     global previmg
     global layerNr
+    global framedScreenOpenGL
 
     # Ask PhotonFile to read the file
     photonfile = PhotonFile(filename)
@@ -1193,18 +1325,25 @@ def openPhotonFile(filename):
     refreshPreviewSettings()
     refreshLayerSettings()
     setLayerSliderFromLayerNr()
-
+    framedScreenOpenGL = False
 
 
 ########################################################################################################################
 ##  Drawing/Event-Polling Loop
 ########################################################################################################################
 
-def redrawWindow():
+def redrawWindow(tooltip=None):
     """ Redraws the menubar, settings and displayed layer/preview image """
+    global hasOpenGL
+    global screen
+    global dispimg
 
     # Clear window surface
-    screen.fill(defFormBackground)
+    if not fullScreenOpenGL:
+        screen.fill(defFormBackground)
+    else:
+        screen.fill(defTransparent)
+        return
 
     # Draw layer/preview images
     w, h = dispimg.get_size()
@@ -1215,6 +1354,12 @@ def redrawWindow():
             screen.blit(dispimg, (dw, dh))
     else:#also if we have no photonfile we still need to draw to cover up menu/filedialog etc
         screen.blit(dispimg, (dw, dh))
+
+    if framedScreenOpenGL:
+        scale = (0.25, 0.25)
+        dispimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+        dispimg.fill((defTransparent))
+        pygame.draw.rect(screen,defTransparent,(0,0,int(1440 * scale[0]), int(2560 * scale[1])),0)
 
     # Redraw all side bar
     for ctrl in controls:
@@ -1227,6 +1372,9 @@ def redrawWindow():
     if layerCursorActive and not photonfile==None and dispimg==layerimg:
         pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
         pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
+
+    # Redraw tooltip
+    if not tooltip==None: tooltip.redraw()
 
 
 def setLayerSliderFromLayerNr():
@@ -1307,108 +1455,162 @@ def activeControlIdx():
 
 # Define a variable to control the main loop
 running = True
+gl=None
 
-def main():
+def init():
+    global gl
+    # Initialize the pygame module and create the window
+    createWindow()
+    # Init lastpos mouse hovered
+    lastpos=(0,0) # stores last position for tooltip
+    if not hasOpenGL:
+        loop()
+        quit()
+    else:
+        gl=GL((windowwidth,windowheight))
+        loop()
+        #gl.userLoop(screen, poll)
+
+
+#import test.py
+
+
+def loop():
+    # Main loop
+    while running:
+        poll()
+        flipFunc()
+    pygame.quit()
+
+
+def poll(event=None):
     """ Entrypoint and controls the rest """
-
     global controls
     global menubar
     global mouseDrag
     global running
     global photonfile
-    lastpos=(0,0) # stores last position for tooltip
+    global window
+    global screen
+    global lastpos
+    global fullScreenOpenGL
+    global framedScreenOpenGL
 
-    # Initialize the pygame module and create the window
-    createWindow()
+    event = pygame.event.wait()
 
-    # Main loop
-    while running:
-        # Redraw the window (in background) and tell pygame to show it (bring to foreground)
-        redrawWindow()
-        # Check for tooltips to draw
-        for ctrl in controls:
-            hasToolTip = getattr(ctrl, "handleToolTips", False)
-            if hasToolTip:
-                ret = ctrl.handleToolTips(lastpos)
-                if not ret==None :
-                    ret.redraw()
+    #Check if fullscreen OpenGL
+    if fullScreenOpenGL:
+        if event.type == pygame.KEYDOWN:
+            if event.key==pygame.K_ESCAPE:
+                fullScreenOpenGL = False
+        else:
+            gl.poll(True, event)
+        return
 
-        pygame.display.flip()
+    # Event handling, gets all event from the eventqueue
+    #for event in pygame.event.get():
+    #if not hasOpenGL: event = pygame.event.wait()
+
+    if hasOpenGL:
+        gl.poll(framedScreenOpenGL,event)
+
+    pos = pygame.mouse.get_pos()
+    lastpos=pos
+    if event.type == pygame.QUIT:
+        print("Window was closed. Exit!")
+        running = False  # change the value to False, to exit the main loop
+
+    if event.type == pygame.MOUSEBUTTONUP:
+        mouseDrag=False
+        if not menubar.handleMouseUp(pos,event.button):
+            for ctrl in controls:
+                ctrl.handleMouseUp(pos,event.button)
+
+    if event.type == pygame.MOUSEBUTTONDOWN:
+        mouseDrag=handleLayerSlider()
+        if not menubar.handleMouseDown(pos,event.button):
+            for ctrl in controls:
+                ctrl.handleMouseDown(pos,event.button)
+
+    if event.type == pygame.MOUSEMOTION:
+        if mouseDrag: handleLayerSlider(False)
+        if not menubar.handleMouseMove(pos):
+            for ctrl in controls:
+                ctrl.handleMouseMove(pos)
 
 
-        # Event handling, gets all event from the eventqueue
-        for event in pygame.event.get():
+    if event.type == pygame.KEYDOWN :
+        #If numlock on then we use it to navigate layers
+        if not photonfile==None:
+            isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
+            if not isNumlockOn:
+                maxLayer = photonfile.nrLayers()
+                page=int(maxLayer/10)
+                if event.key == pygame.K_KP8: layerDown()
+                if event.key == pygame.K_KP9: layerDown(page)
+                if event.key == pygame.K_KP2: layerUp()
+                if event.key == pygame.K_KP3: layerUp(page)
+            if event.key == pygame.K_UP: layerDown()
+            if event.key == pygame.K_DOWN: layerUp()
 
-            pos = pygame.mouse.get_pos()
-            lastpos=pos
+        #We use tab to navigate the textboxes in controls
+        if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
+            # Check shift state, without we move to next, with to previous control
+            isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
+            dir=1 if not isLShift else -1
+            # Get control with active cursor
+            prevActive=activeControlIdx()
+            # Check because maybe there is none active
+            if not prevActive==None:
+                # Remove cursor from found control
+                controls[prevActive].cursorActive=False
+                # Make first editable textbox we find in direction of dir
+                fnd=False
+                idx=prevActive+dir
+                while not fnd:
+                    if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
+                        controls[idx].cursorActive = True
+                        fnd=True
+                    idx=idx+dir
+                    if idx>=len(controls): idx=0
+                    if idx<0: idx=len(controls)-1
 
-            if event.type == pygame.QUIT:
-                print("Window was closed. Exit!")
-                running = False  # change the value to False, to exit the main loop
+        if event.key == pygame.K_ESCAPE :
+            print ("Escape key pressed down. Exit!")
+            running = False
+        else:
+            if not menubar.handleKeyDown(event.key,event.unicode):
+                for ctrl in controls:
+                    ctrl.handleKeyDown(event.key,event.unicode)
 
-            if event.type == pygame.MOUSEBUTTONUP:
-                mouseDrag=False
-                if not menubar.handleMouseUp(pos,event.button):
-                    for ctrl in controls:
-                        ctrl.handleMouseUp(pos,event.button)
+    # Check for tooltips to draw
+    tooltip=None
+    for ctrl in controls:
+        hasToolTip = getattr(ctrl, "handleToolTips", False)
+        if hasToolTip:
+            ret = ctrl.handleToolTips(lastpos)
+            if not ret==None: tooltip=ret
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouseDrag=handleLayerSlider()
-                if not menubar.handleMouseDown(pos,event.button):
-                    for ctrl in controls:
-                        ctrl.handleMouseDown(pos,event.button)
 
-            if event.type == pygame.MOUSEMOTION:
-                if mouseDrag: handleLayerSlider(False)
-                if not menubar.handleMouseMove(pos):
-                    for ctrl in controls:
-                        ctrl.handleMouseMove(pos)
+    # Redraw the window (in background) and tell pygame to show it (bring to foreground)
+    redrawWindow(tooltip)
 
-            if event.type == pygame.KEYDOWN :
-                #If numlock on then we use it to navigate layers
-                if not photonfile==None:
-                    isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
-                    if not isNumlockOn:
-                        maxLayer = photonfile.nrLayers()
-                        page=int(maxLayer/10)
-                        if event.key == pygame.K_KP8: layerDown()
-                        if event.key == pygame.K_KP9: layerDown(page)
-                        if event.key == pygame.K_KP2: layerUp()
-                        if event.key == pygame.K_KP3: layerUp(page)
-                    if event.key == pygame.K_UP: layerDown()
-                    if event.key == pygame.K_DOWN: layerUp()
+def flipSDL():
+    window.blit(screen, (0, 0))
+    pygame.display.flip()
 
-                #We use tab to navigate the textboxes in controls
-                if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
-                    # Check shift state, without we move to next, with to previous control
-                    isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
-                    dir=1 if not isLShift else -1
-                    # Get control with active cursor
-                    prevActive=activeControlIdx()
-                    # Check because maybe there is none active
-                    if not prevActive==None:
-                        # Remove cursor from found control
-                        controls[prevActive].cursorActive=False
-                        # Make first editable textbox we find in direction of dir
-                        fnd=False
-                        idx=prevActive+dir
-                        while not fnd:
-                            if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
-                                controls[idx].cursorActive = True
-                                fnd=True
-                            idx=idx+dir
-                            if idx>=len(controls): idx=0
-                            if idx<0: idx=len(controls)-1
+def flipOGL():
+    gl.redraw(screen, framedScreenOpenGL or fullScreenOpenGL)
+    pygame.display.flip()
 
-                if event.key == pygame.K_ESCAPE :
-                  print ("Escape key pressed down. Exit!")
-                  running = False
-                else:
-                    if not menubar.handleKeyDown(event.key,event.unicode):
-                        for ctrl in controls:
-                            ctrl.handleKeyDown(event.key,event.unicode)
+#################################################################################
+# MAIN
+#################################################################################
 
-    pygame.quit()
-
-main()
-
+hasOpenGL=True
+flipFunc=None
+if hasOpenGL:
+    flipFunc=flipOGL
+else:
+    flipFunc=flipSDL
+init()

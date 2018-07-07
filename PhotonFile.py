@@ -1012,6 +1012,42 @@ class PhotonFile:
                     return False
         return True
 
+
+    def exportBitmap(self,dirPath,filepre,layerNr):
+        """ Saves specified images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
+
+        # Make filename
+        nrStr="%04d" % layerNr
+        filename=filepre+"_"+ nrStr+".png"
+        #print ("filename: ",filename)
+        fullfilename=os.path.join(dirPath,filename)
+        # Retrieve decode pygame image surface
+        imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
+        # Save layer image to disk
+        pygame.image.save(imgSurf,fullfilename)
+
+        print ("Exported slice ",layerNr)
+        # Check if user canceled
+
+        return
+
+
+    def exportPreviewBitmap(self, dirPath, previewNr):
+        """ Saves specified preview image in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
+
+        #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
+        barefilename = (os.path.basename(self.filename))
+        barefilename=barefilename.split(sep=".")[0]
+        filename = "_"+barefilename + "_preview_"+str(previewNr)+".png"
+        fullfilename = os.path.join(dirPath, filename)
+
+        #  Get the preview images
+        prevSurf = self.getPreviewBitmap(previewNr, 0)  # 0 is don't scale
+        #  Save preview image to disk
+        pygame.image.save(prevSurf, fullfilename)
+        return
+
+
     def exportBitmaps(self,dirPath,filepre,progressDialog=None):
         """ Save all images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
 

@@ -119,7 +119,7 @@ class MenuBar():
         if not self.visible: return
 
         # Draw menubar background and border.
-        w, dummy = pygame.display.get_surface().get_size()
+        w, dummy = self.pyscreen.get_size()
         h=self.height+self.margins.y+self.margins.height
         pygame.draw.rect(self.pyscreen, self.backcolor, (0,0,w,h), 0)
         pygame.draw.rect(self.pyscreen, self.bordercolor , (0, h, w, 1),1)
@@ -345,13 +345,19 @@ class MenuList():
         # Draw item text
         for row,(text,func_on_click) in enumerate(self.items):
             rowtop=self.pos.y+self.margins.y+row*(self.rowheight+self.spacing)
-            if row==self.activeItem:
-                pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.pos.x+self.margins.x, rowtop-int(self.spacing/2), self.pos.width-self.margins.x-self.margins.width, self.rowheight), 0)
-                localtextcolor = defHighMenuForeground
+            if not text.startswith("---"):
+                if row==self.activeItem:
+                    pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.pos.x+self.margins.x, rowtop-int(self.spacing/2), self.pos.width-self.margins.x-self.margins.width, self.rowheight), 0)
+                    localtextcolor = defHighMenuForeground
+                else:
+                    localtextcolor = defMenuForeground
+                textsurface = self.font.render(text,True, localtextcolor)
+                self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
             else:
-                localtextcolor = defMenuForeground
-            textsurface = self.font.render(text,True, localtextcolor)
-            self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
+                pygame.draw.line(self.pyscreen,defMenuForeground,
+                                 (self.pos.x, rowtop-int(self.spacing/2)+int(self.rowheight/2)),
+                                 (self.pos.x+self.pos.width, rowtop-int(self.spacing/2)+int(self.rowheight/2) )
+                                )
 
 
     def handleMouseMove(self, pos):

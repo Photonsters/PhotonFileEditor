@@ -63,9 +63,10 @@ class FileDialog():
         self.tbFilename.rect =GRect(self.winrect.x+self.margins.x,self.footerTop+self.margins.x,self.winrect.width-4*self.margins.x-2*self.buttonWidth,self.buttonHeight)
 
 
-    def __init__(self, pyscreen, pos, height=300,startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
+    def __init__(self, flipFunc,pyscreen, pos, height=300,startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
         """ Saves all values to internal variables and calculates some extra internal vars. """
         # Save variables
+        self.flipFunc = flipFunc
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         if startdir==None: self.startdir=os.getcwd()
@@ -217,14 +218,13 @@ class FileDialog():
         self.btnCancel.redraw()
         self.btnOK.redraw()
         self.tbFilename.redraw()
-
+        self.flipFunc()
 
     def waitforuser(self):
         """ Blocks all events to Main window and wait for user to click OK. """
 
         while self.waiting:
             self.redraw()
-            pygame.display.flip()
 
             for event in pygame.event.get():
                 pos = pygame.mouse.get_pos()
@@ -260,7 +260,7 @@ class FileDialog():
                         self.tbFilename.handleKeyDown(event.key, event.unicode)
 
 
-    def handleListboxSelect(self,text):
+    def handleListboxSelect(self,index,text):
         """ If Listbox item selected and directory, we read new directory of if not put filename in textbox. """
 
         #print ("[handleListboxSelect]")

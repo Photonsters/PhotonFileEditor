@@ -63,8 +63,9 @@ class ProgressDialog():
                                    self.footerTop + self.margins.x, self.buttonWidth, self.buttonHeight)
 
 
-    def __init__(self, pyscreen, pos, width=300,title="Progress Dialog",message="Wait or... \n ...press Cancel!", dfontname=defFontName, dfontsize=defFontSize):
+    def __init__(self, flipFunc,pyscreen, pos, width=300,title="Progress Dialog",message="Wait or... \n ...press Cancel!", dfontname=defFontName, dfontsize=defFontSize):
         """ Saves all values to internal variables and calculates some extra internal vars. """
+        self.flipFunc=flipFunc
         self.pyscreen = pyscreen
         #self.parentRedraw=parentRedraw
         self.winrect=GRect(pos[0], pos[1], width, 160)
@@ -133,11 +134,10 @@ class ProgressDialog():
         self.progbar.redraw()
         self.proglabel.redraw()
         self.btnCancel.redraw()
-        pygame.display.flip()
+        self.flipFunc()
 
     def handleEvents(self):
         self.redraw()
-        pygame.display.flip()
 
         for event in pygame.event.get():
             pos = pygame.mouse.get_pos()
