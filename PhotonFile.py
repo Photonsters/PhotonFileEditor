@@ -1119,6 +1119,10 @@ class PhotonFile:
             curAddr=self.bytes_to_int(self.Header["Preview 1 (addr)"])
             newAddr = curAddr + deltaLength
             self.Header["Preview 1 (addr)"]=self.int_to_bytes(newAddr)
+        # Update Preview[1] info about "Preview 1 (addr)"
+            curAddr=self.bytes_to_int(self.Previews[1]["Image Address"])
+            newAddr = curAddr + deltaLength
+            self.Previews[1]["Image Address"]=self.int_to_bytes(newAddr)
 
         #Always Header info about layerdefs shifts
         curAddr = self.bytes_to_int(self.Header["Layer Defs (addr)"])
