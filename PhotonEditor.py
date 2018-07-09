@@ -34,12 +34,11 @@ except ImportError:
     pyopenglAvailable = False
 
 #TODO LIST
+#todo: Make Plugins
+#todo: OpenGL - why do we need it...
 #todo: check if imported previmg load in PhotonSlicer
-#todo: add numpy and opengl library install needs to disclaimer
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
-#todo: file dialog edit box not always working correctly, cursor mismatch and text overflow not handled
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
-#todo: replace preview images (Menu item Replace Bitmap should act on (layer/preview) images shown.)
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
@@ -734,9 +733,14 @@ def showFramed3D():
     if not hasOpenGL: return
     global framedScreenOpenGL
     global dispimg
+    global photonfile
+    global gl
+    layerimg = photonfile.getBitmap(layerNr, (255,255,255), (0,0,0),(1,1))
+    gl.store_voxels(layerimg,2*layerNr/photonfile.nrLayers()-1)
     framedScreenOpenGL=True
     #update window surface
-    redrawWindow(None)
+    #gl.store_voxels(photonfile,3)
+    #redrawWindow(None)
 
 
 def showFull3D():
@@ -745,6 +749,20 @@ def showFull3D():
     fullScreenOpenGL=True
     #update window surface
     redrawWindow(None)
+
+def readPlugins():
+    """ Returns content plugin directory. """
+    # Read directory
+    direntries=os.listdir("plugins/")
+    # Extract files and apply filter
+    files = []
+    for entry in direntries:
+        if entry.endswith(".plugin"): files.append(entry)
+        files.sort(key=str.lower)
+    return files
+
+def openPlugin(filename):
+    print ("plugin", filename)
 
 def createMenu():
     global menubar
@@ -776,6 +794,10 @@ def createMenu():
     menubar.addItem("View", "Preview 1",showPrev1)
     menubar.addItem("View", "3D", showFramed3D)
     menubar.addItem("View", "Full 3D", showFull3D)
+    menubar.addMenu("Plugins ", "P")
+    for plugin in readPlugins():
+        name=plugin.split(".plugin")[0]
+        menubar.addItem("Plugins ", name,openPlugin,plugin)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
 

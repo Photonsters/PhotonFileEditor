@@ -102,14 +102,14 @@ class MenuBar():
         self.menus.append(menudata)
 
 
-    def addItem(self, menutitle, menuitem, func_on_click):
+    def addItem(self, menutitle, menuitem, func_on_click,arg=None):
         """ Adds new item to menulist. """
 
         # Find menu in menus, retrieve menulist and add item
         for menu in self.menus:
             if menu["title"]==menutitle:
                 menulist=menu["menulist"]
-                menulist.addItem(menuitem,func_on_click)
+                menulist.addItem(menuitem,func_on_click,arg)
 
 
     def redraw(self):
@@ -318,10 +318,10 @@ class MenuList():
         self.rowheight = height
 
 
-    def addItem(self,menuitem,func_on_click):
+    def addItem(self,menuitem,func_on_click,arg):
         """ Add menulist item and adjust menulist height and width (if needed) """
         #Add item
-        itemdata = (menuitem,func_on_click)
+        itemdata = (menuitem,func_on_click,arg)
         self.items.append(itemdata)
 
         # Adjust height and width only if needed
@@ -343,7 +343,7 @@ class MenuList():
         pygame.draw.rect(self.pyscreen, self.bordercolor, (self.pos.tuple()), 1)
 
         # Draw item text
-        for row,(text,func_on_click) in enumerate(self.items):
+        for row,(text,func_on_click,arg) in enumerate(self.items):
             rowtop=self.pos.y+self.margins.y+row*(self.rowheight+self.spacing)
             if not text.startswith("---"):
                 if row==self.activeItem:
@@ -384,10 +384,13 @@ class MenuList():
         if gpos.inGRect(self.pos):
             # We are handling this so clear queue for others
             pygame.event.clear()
-            for row, (item, func_on_click) in enumerate(self.items):
+            for row, (item, func_on_click,arg) in enumerate(self.items):
                 if row == self.activeItem:
                     if not func_on_click==None:
-                        func_on_click()
+                        if arg==None:
+                            func_on_click()
+                        else:
+                            func_on_click(arg)
                         self.visible=False
                         return True
 

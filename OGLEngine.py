@@ -4,7 +4,7 @@ from OpenGL.GL import *
 import pygame
 from pygame.locals import *
 from Helpers3D import *
-#from PhotonEditor import window
+from PhotonFile import *
 
 
 def gluPerspective( fovY, aspect, zNear, zFar ):
@@ -45,7 +45,7 @@ class GL():
     scDisplay=2
 
 
-    def drawSquare(self,pos,axis,width,height,type,color=(255,255,255)):
+    def drawSquare(self,pos,axis,width,height,type):
         if axis==0:
             pos0=pos
             pos1=  (pos[0], pos[1] + width, pos[2])
@@ -64,7 +64,6 @@ class GL():
             pos2 = (pos[0] + width, pos[1]+height, pos[2])
             pos3 = (pos[0], pos[1] + height, pos[2])
 
-        glColor3fv(color)
         if type==GL_TRIANGLES:
             glBegin(GL_TRIANGLES)
             glVertex3fv(pos0)
@@ -89,7 +88,6 @@ class GL():
             glEnd()
 
     def drawBox(self, pos, dim,type,color=(255,255,255)):
-        glColor3fv(color)
         self.drawSquare((pos[0],pos[1],pos[2]), 0, dim[1],dim[2],type)
         self.drawSquare((pos[0]+dim[0], pos[1], pos[2]), 0, dim[1], dim[2],type)
 
@@ -99,14 +97,64 @@ class GL():
         self.drawSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],type)
         self.drawSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],type)
 
+    voxelIdx=-1
+    def store_voxels(self,img,y):
+        # y=0-1
+        self.voxelIdx= glGenLists(1)
+        #print ("layerNr",layerNr)
+        #img = photonfile.getBitmap(layerNr,(0,0,0),(255,255,255),(1,1))
+        pixarray=pygame.surfarray.pixels2d(img)
+        glNewList(self.voxelIdx, GL_COMPILE)
+        #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
+        #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
+        #glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,20.0)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
+
+        #nrLayers=photonfile.nrLayers()
+        #print (img.get_width(),img.get_height())
+        glColor3f(0,128,0)
+        self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
+        maxf=60/720
+        """
+        for row in range (1000,1050):#2560
+            for col in range (0,1440):
+                x=col-720   # x=0-1
+                z=row-1280  # z=0-1
+                x=x*maxf
+                z=z*maxf
+                y=y*maxf
+                #y=2*layerNr/nrLayers-1
+                #print ("col,row",col,row)
+                rgb=pixarray[col,row]
+                if rgb>0:self.drawBox((x,y,z),(maxf*5,maxf*5,maxf*5),GL_TRIANGLES)
+                #print (col,row,rgb)
+            #print("======")
+            print (row)
+        """
+        glEndList()
+
+        return self.voxelIdx
+
+    def draw_voxels(self):
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
+
+        glColor3f(0,128,0)
+        self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
+        #glCallList(self.voxelIdx)
+
     def draw_buildarea(self):
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0));
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0));
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
 
-        self.drawBox((-67.5/2,0,-120/2),(67.5,150,120),GL_LINES,(1, 1, 1))
+        glColor3f(1,1,1)
+        self.drawBox((-67.5/2,0,-120/2),(67.5,150,120),GL_LINES)
 
-        self.drawSquare((-67.5/2,0,-120/2),1,67.5,120,GL_TRIANGLES,(1,1,1))
+        self.drawSquare((-67.5/2,0,-120/2),1,67.5,120,GL_TRIANGLES)
 
         glBegin(GL_LINES)
         glColor3f(0.3, 0.3, 0.3)
@@ -121,7 +169,8 @@ class GL():
         glEnd()
 
         #mark sliceheight
-        self.drawSquare((-67.5 / 2, self.sliceheight, -120 / 2), 1, 67.5, 120, GL_LINES, (1, 0, 0))
+        glColor3f(1, 0, 0)
+        self.drawSquare((-67.5 / 2, self.sliceheight, -120 / 2), 1, 67.5, 120, GL_LINES)
 
 
 
@@ -177,9 +226,9 @@ class GL():
 
         glNewList(displayListIdx, GL_COMPILE)
 
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2));
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0));
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,50.0);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,50.0)
 
         #first color back face of triangles
         glEnable(GL_CULL_FACE)
@@ -398,12 +447,14 @@ class GL():
             self.draw_buildarea()
 
             #Draw slice
+
             #self.draw_slice()
 
             #apply model angle and translation)
             glRotatef(self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
             glTranslatef(self.model_trans[0],self.model_trans[1],self.model_trans[2])
             #if self.drawmodel: self.draw_model()
+            if not self.voxelIdx==-1:self.draw_voxels()
             glTranslatef(-self.model_trans[0],-self.model_trans[1],-self.model_trans[2])
             glRotatef(-self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
 
