@@ -517,15 +517,17 @@ class PhotonFile:
                     # build 2 or 4 bytes (depending on X
                     # The color (R,G,B) of a pixel spans 2 bytes (little endian) and
                     # each color component is 5 bits: RRRRR GGG GG X BBBBB
-                    R = int(R / 255 * 31)
-                    G = int(G / 255 * 31)
-                    B = int(B / 255 * 31)
+                    R = round(R / 255 * 31)
+                    G = round(G / 255 * 31)
+                    B = round(B / 255 * 31)
                     encValue0=R<<3 | G>>2
                     encValue1=(((G & 0b00000011)<<6) | X<<5 | B)
                     if X==1:
-                        nrOfColor=nrOfColor-1 # write on less than nr of pixels
+                        nrOfColor=nrOfColor-1 # write one less than nr of pixels
                         encValue2=nrOfColor>>8
                         encValue3=nrOfColor & 0b000000011111111
+                        #seems like nr bytes pixels have 0011 as start
+                        encValue2=encValue2 | 0b00110000
 
                     # save bytes
                     rleData.append(encValue1)
@@ -537,7 +539,7 @@ class PhotonFile:
                     # search next color
                     prevColor = color
                     nrOfColor = 1
-        print ("len",len(rleData))
+        #print ("len",len(rleData))
         return (width,height,bytes(rleData))
 
 
@@ -712,9 +714,9 @@ class PhotonFile:
             b12 = bA[idx + 1] << 8 | bA[idx + 0]
             idx += 2
             # Retrieve colr components and make pygame color tuple
-            red = math.floor(((b12 >> 11) & 0x1F) / 31 * 255)
-            green = math.floor(((b12 >> 6) & 0x1F) / 31 * 255)
-            blue = math.floor(((b12 >> 0) & 0x1F) / 31 * 255)
+            red = round(((b12 >> 11) & 0x1F) / 31 * 255)
+            green = round(((b12 >> 6) & 0x1F) / 31 * 255)
+            blue = round(((b12 >> 0) & 0x1F) / 31 * 255)
             col = (red, green, blue)
 
             # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
