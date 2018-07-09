@@ -8,6 +8,7 @@ __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonar
 import os
 import datetime
 import time
+import subprocess
 
 import pygame
 from pygame.locals import *
@@ -740,8 +741,8 @@ def showFramed3D():
     global dispimg
     global photonfile
     global gl
-    #layerimg = photonfile.getBitmap(layerNr, (255,255,255), (0,0,0),(1,1))
-    #gl.store_voxels(layerimg,2*layerNr/photonfile.nrLayers()-1)
+    layerimg = photonfile.getBitmap(layerNr, (255,255,255), (0,0,0),(1,1))
+    gl.store_voxels(layerimg,2*layerNr/photonfile.nrLayers()-1)
     framedScreenOpenGL=True
     #update window surface
     #gl.store_voxels(photonfile,3)
@@ -795,7 +796,17 @@ def readPlugins():
     return files
 
 def openPlugin(filename):
-    print ("plugin", filename)
+    filepath="plugins/"+filename
+    ifile = open(filepath, "r", encoding="Latin-1")  # Latin-1 handles special characters
+    lines = ifile.readlines()
+    print ("plugin:", filename)
+    print ("   cmd:", lines[0])
+    cmdPath="plugins/"+lines[0].replace("/", "\\")
+    #cmdPath = os.path.join(os.getcwd(), lines[0])
+    #print("  cmd2:", cmdPath)
+    #subprocess.run(cmdPath)
+    os.system("open "+cmdPath)      # for MacOS/X
+    os.system("start " + cmdPath)   # for Windows
 
 def createMenu():
     global menubar

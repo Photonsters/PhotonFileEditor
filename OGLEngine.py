@@ -104,36 +104,41 @@ class GL():
         #print ("layerNr",layerNr)
         #img = photonfile.getBitmap(layerNr,(0,0,0),(255,255,255),(1,1))
         pixarray=pygame.surfarray.pixels2d(img)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
         glNewList(self.voxelIdx, GL_COMPILE)
         #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
         #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
         #glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,20.0)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
 
         #nrLayers=photonfile.nrLayers()
         #print (img.get_width(),img.get_height())
-        glColor3f(0,128,0)
-        self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
-        maxf=60/720
-        """
-        for row in range (1000,1050):#2560
+        #glColor3f(0,128,0)
+        #self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
+        maxf=60/720/2
+        count=0
+        for row in range (500,2000):#2560
             for col in range (0,1440):
+                rgb=pixarray[col,row]
+
                 x=col-720   # x=0-1
                 z=row-1280  # z=0-1
                 x=x*maxf
                 z=z*maxf
                 y=y*maxf
+                y=10
                 #y=2*layerNr/nrLayers-1
                 #print ("col,row",col,row)
-                rgb=pixarray[col,row]
-                if rgb>0:self.drawBox((x,y,z),(maxf*5,maxf*5,maxf*5),GL_TRIANGLES)
+                #if rgb > 0: self.drawBox   ((x, y, z), (maxf*5,maxf*5,maxf*5),GL_TRIANGLES)
+                if rgb > 0: self.drawSquare((x, y, z), 1,maxf * 5, maxf * 5, GL_TRIANGLES)
+                count=count+1
+                #print (x,y,z)
                 #print (col,row,rgb)
             #print("======")
-            print (row)
-        """
+            #print (row)
         glEndList()
+        print ("nrSquares:",count)
 
         return self.voxelIdx
 
@@ -143,8 +148,8 @@ class GL():
         glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
 
         glColor3f(0,128,0)
-        self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
-        #glCallList(self.voxelIdx)
+        #self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
+        glCallList(self.voxelIdx)
 
     def draw_buildarea(self):
         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
