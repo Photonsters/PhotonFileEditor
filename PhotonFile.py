@@ -678,6 +678,36 @@ class PhotonFile:
         else:
             return self.getBitmap_nonumpy(layerNr,forecolor,backcolor,scale)
 
+    def volume(self,progressDialog=None):
+        nLayers=self.nrLayers()
+        nrPixels=0
+        #numpyAvailable=False
+        for layerNr in range(0,nLayers):
+            img=self.getBitmap(layerNr,forecolor=(255,255,255),backcolor=(0,0,0),scale=(1,1))
+            pixarray = pygame.surfarray.pixels2d(img)
+            pixelsInLayer=0
+
+            if numpyAvailable:
+                pixelsInLayer=((pixarray>0).sum())
+            else:
+                for row in pixarray:
+                    for color in row:
+                        if color>0:pixelsInLayer+=1
+
+            nrPixels=nrPixels+pixelsInLayer
+
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr)+"/"+str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel: return False
+
+        #pixel is 0.047mm x 0.047mm x layer height
+        pixVolume=0.047*0.047*self.bytes_to_float(self.Header["Layer height (mm)"])
+        volume=pixVolume*nrPixels
+        return volume
+
 
     def getPreviewBitmap(self, prevNr, scaleToWidth=1440/4):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.

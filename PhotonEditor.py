@@ -761,6 +761,28 @@ def showFull3D():
     #update window surface
     redrawWindow(None)
 
+def calcVolume():
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    global photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!", "A .photon file is needed to calculate the volume."): return
+
+    # Since calculation can take a while (although faster with numpy library available) show a be-patient message
+    popup = ProgressDialog(flipFunc,screen, pos=(140, 140),
+                           title="Please wait...",
+                           message="Calculating volume.")
+    popup.show()
+    try:
+        volume = photonfile.volume(popup)
+        volmm=str(math.ceil(volume))+" mm3"
+        volml=str(math.ceil(volume/1000))+" ml"
+        message="The volume of your model is \n"+volmm+" / "+volml+ "\n\n Add 10% margin to be sure!"
+        infoMessageBox("Volume of model", message)
+    except Exception as err:
+        print(err)
+        errMessageBox(str(err))
+    del popup
+
+
 def readPlugins():
     """ Returns content plugin directory. """
     # Read directory
@@ -805,6 +827,8 @@ def createMenu():
     menubar.addItem("View", "Preview 1",showPrev1)
     menubar.addItem("View", "3D", showFramed3D)
     menubar.addItem("View", "Full 3D", showFull3D)
+    menubar.addItem("View", "Volume", calcVolume)
+
     menubar.addMenu("Plugins ", "P")
     for plugin in readPlugins():
         name=plugin.split(".plugin")[0]
