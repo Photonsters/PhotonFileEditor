@@ -98,7 +98,7 @@ class ProgressDialog():
     def setProgress(self, progProc):
         self.progbar.progress=progProc
         self.proglabel.setText(str(int(progProc))+"%")
-        print (self.proglabel.text)
+        #print (self.proglabel.text)
 
     def setProgressLabel(self, progText):
         self.proglabel.setText( progText)

@@ -704,6 +704,7 @@ class PhotonFile:
                 if progressDialog.cancel: return False
 
         #pixel is 0.047mm x 0.047mm x layer height
+        print (nrPixels)
         pixVolume=0.047*0.047*self.bytes_to_float(self.Header["Layer height (mm)"])
         volume=pixVolume*nrPixels
         return volume
