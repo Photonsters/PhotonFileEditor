@@ -30,7 +30,7 @@ except ImportError:
 try:
     import OpenGL #pyopengl
     pyopenglAvailable = True
-except ImportError:
+except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
@@ -59,7 +59,6 @@ except ImportError:
 photonfile=None
 
 # Regarding image data to display
-hasOpenGL=False
 fullScreenOpenGL=False
 framedScreenOpenGL=False
 window=None
@@ -730,7 +729,13 @@ def showPrev1():
     refreshPreviewSettings()
 
 def showFramed3D():
-    if not hasOpenGL: return
+    if not pyopenglAvailable:
+        dialog = MessageDialog(flipFunc, screen, pos=(140, 140),
+                               title="PyOpenGL not installed",
+                               message="This menu item will become \n available after intalling \n pyOpenGL",
+                               parentRedraw=redrawWindow)
+        dialog.show()
+        return
     global framedScreenOpenGL
     global dispimg
     global photonfile
@@ -744,7 +749,13 @@ def showFramed3D():
 
 
 def showFull3D():
-    if not hasOpenGL: return
+    if not pyopenglAvailable:
+        dialog = MessageDialog(flipFunc, screen, pos=(140, 140),
+                               title="PyOpenGL not installed",
+                               message="This menu item will become \n available after intalling \n pyOpenGL",
+                               parentRedraw=redrawWindow)
+        dialog.show()
+        return
     global fullScreenOpenGL
     fullScreenOpenGL=True
     #update window surface
@@ -1078,7 +1089,7 @@ def createWindow():
     global firstLayerTextbox
     global layerLabel
     global filename
-    global hasOpenGL
+    global pyopenglAvailable
 
     # For debugging we display current script-path and last modified date, so we know which version we are testing/editing
     scriptPath=os.path.join(os.getcwd(), "PhotonEditor.py")
@@ -1094,14 +1105,14 @@ def createWindow():
     pygame.display.set_caption("Photon File Editor")
     logo = pygame.image.load("PhotonEditor32x32.png")
     pygame.display.set_icon(logo)
-    if not hasOpenGL:
+    if not pyopenglAvailable:
         # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
         window = pygame.display.set_mode((windowwidth, windowheight))
 
     scale = (0.25, 0.25)
 
     # Creat a surface
-    if not hasOpenGL:
+    if not pyopenglAvailable:
         screen = pygame.Surface((windowwidth,windowheight))
     else:
         screen = pygame.Surface((1024, 1024))
@@ -1356,7 +1367,7 @@ def openPhotonFile(filename):
 
 def redrawWindow(tooltip=None):
     """ Redraws the menubar, settings and displayed layer/preview image """
-    global hasOpenGL
+    global pyopenglAvailable
     global screen
     global dispimg
 
@@ -1485,7 +1496,7 @@ def init():
     createWindow()
     # Init lastpos mouse hovered
     lastpos=(0,0) # stores last position for tooltip
-    if not hasOpenGL:
+    if not pyopenglAvailable:
         loop()
         quit()
     else:
@@ -1533,7 +1544,7 @@ def poll(event=None):
     #for event in pygame.event.get():
     #if not hasOpenGL: event = pygame.event.wait()
 
-    if hasOpenGL:
+    if pyopenglAvailable:
         gl.poll(framedScreenOpenGL,event)
 
     pos = pygame.mouse.get_pos()
@@ -1629,9 +1640,8 @@ def flipOGL():
 # MAIN
 #################################################################################
 
-hasOpenGL=True
 flipFunc=None
-if hasOpenGL:
+if pyopenglAvailable:
     flipFunc=flipOGL
 else:
     flipFunc=flipSDL
