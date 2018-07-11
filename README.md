@@ -1,6 +1,6 @@
-# PhotonFileUtils
+# PhotonFileEditor
 
-Currently the PhotonFileEditor is being developed. The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer. The current version is alpha. This means that you may encounter bugs. __Some bugs can potentially harm your printer__, imagine for instance a buggy photonfile which tells your printer to move down instead of up after printing a layer!
+The PhotonFileEditor is a utility to display, make and edit files for the Anycubic Photon printer. The current version is beta. This means that you may encounter bugs. __Some bugs can potentially harm your printer__, imagine for instance a buggy photonfile which tells your printer to move down instead of up after printing a layer!
  
  ---
   
