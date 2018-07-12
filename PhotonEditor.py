@@ -791,22 +791,29 @@ def readPlugins():
     # Extract files and apply filter
     files = []
     for entry in direntries:
-        if entry.endswith(".plugin"): files.append(entry)
+        #if entry.endswith(".plugin"): files.append(entry)
+        if entry.endswith(".py"): files.append(entry)
         files.sort(key=str.lower)
     return files
+
+import importlib
 
 def openPlugin(filename):
     filepath="plugins/"+filename
     ifile = open(filepath, "r", encoding="Latin-1")  # Latin-1 handles special characters
     lines = ifile.readlines()
     print ("plugin:", filename)
-    print ("   cmd:", lines[0])
-    cmdPath="plugins/"+lines[0].replace("/", "\\")
-    #cmdPath = os.path.join(os.getcwd(), lines[0])
-    #print("  cmd2:", cmdPath)
-    #subprocess.run(cmdPath)
-    os.system("open "+cmdPath)      # for MacOS/X
-    os.system("start " + cmdPath)   # for Windows
+
+    global ret
+    exec(open("plugins/"+filename).read(),globals())
+    print (ret)
+
+    #import plugins.Layer_Viewer
+    #i=plugins.Layer_Viewer.start()
+
+    #module = __import__("plugins.Layer_Viewer")
+    #my_class = getattr(module, "start")
+    #instance = my_class()
 
 def createMenu():
     global menubar
@@ -842,7 +849,7 @@ def createMenu():
 
     menubar.addMenu("Plugins ", "P")
     for plugin in readPlugins():
-        name=plugin.split(".plugin")[0]
+        name=plugin.split(".py")[0]
         menubar.addItem("Plugins ", name,openPlugin,plugin)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
