@@ -276,7 +276,7 @@ class Triangle3D:
         p3=  self.__cloud[self.__points[0]]
         p2 = self.__cloud[self.__points[1]]
         p1 = self.__cloud[self.__points[2]]
-        print ("p123: ",p1,p2,p3)
+        #print ("p123: ",p1,p2,p3)
         a = Vector.fromPoint3D(p2 - p1)
         b = Vector.fromPoint3D(p3 - p2)
         c = Vector.crossproduct(a, b)

@@ -142,6 +142,7 @@ class GL():
 
         return self.voxelIdx
 
+
     def draw_voxels(self):
         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
@@ -222,14 +223,57 @@ class GL():
         glEnd()
         glLineWidth(1)
 
+    def make_model(self):
+        frad=1/180*math.pi
+        stepi = 10
+        stepj = 10
+        r=20
+        for j in range(0,180,stepj):
+            jrad1 = j * frad
+            jrad2 = (j+stepj) * frad
+            for i in range (0,360,stepi):
+                irad1 = i * frad
+                irad2 = (i+stepi) * frad
+                y1 = -cos(jrad1) * r
+                y2 = -cos(jrad2) * r
+                r1 = sin(jrad1) * r
+                r2 = sin(jrad2) * r
 
+                x1 = sin(irad1) * r1
+                z1 = cos(irad1) * r1
+                x2 = sin(irad2) * r1
+                z2 = cos(irad2) * r1
+
+                x3 = sin(irad2) * r2
+                z3 = cos(irad2) * r2
+                x4 = sin(irad1) * r2
+                z4 = cos(irad1) * r2
+
+                p1=Point3D ((x1,y1,z1))
+                p2=Point3D ((x2,y1,z2))
+                p3=Point3D ((x3,y2,z3))
+                p4=Point3D ((x4,y2,z4))
+                nr1 = len(self.points)
+                self.points.append(p1)
+                nr2 = len(self.points)
+                self.points.append(p2)
+                nr3 = len(self.points)
+                self.points.append(p3)
+                nr4 = len(self.points)
+                self.points.append(p4)
+                tri1 = Triangle3D(self.points, nr1, nr2, nr3)
+                tri2 = Triangle3D(self.points, nr1, nr3, nr4)
+                self.model.append(tri1)
+                self.model.append(tri2)
+
+    modelListIdx=-1
     def store_model(self,points,model,colorFront=(0.1,0.3,1),colorBack=(1,0.3,0.3)):
         # create one display list
-        displayListIdx = glGenLists(1)
+        self.modelListIdx = glGenLists(1)
 
-        print ("self.displayListIdx",displayListIdx)
+        print ("self.displayListIdx",self.modelListIdx)
 
-        glNewList(displayListIdx, GL_COMPILE)
+        glNewList(self.modelListIdx, GL_COMPILE)
 
         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
@@ -263,16 +307,18 @@ class GL():
 
         glEndList()
 
-        return displayListIdx
+        return self.modelListIdx
 
     def draw_model(self):
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
         if len(self.model)>0:
             glCallList(self.modelListIdx)
 
-        if not self.innerpoints==None:
-            glCallList(self.innerwallListIdx)
+        #if not self.innerpoints==None:
+        #    glCallList(self.innerwallListIdx)
 
-        self.draw_pointnormals()
+        #self.draw_pointnormals()
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
     def setModel(self,points,model):
         self.points=points
@@ -294,7 +340,8 @@ class GL():
         #(860,640)
 
         pygame.display.set_mode(self.display_size, DOUBLEBUF | OPENGL | OPENGLBLIT)
-        #self.store_model()
+        self.make_model()
+        self.store_model(self.points,self.model)
 
         print("Detected OpenGL Drivers:")
         print("",glGetString(GL_VENDOR).decode('ascii'))
@@ -458,8 +505,8 @@ class GL():
             #apply model angle and translation)
             glRotatef(self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
             glTranslatef(self.model_trans[0],self.model_trans[1],self.model_trans[2])
-            #if self.drawmodel: self.draw_model()
-            if not self.voxelIdx==-1:self.draw_voxels()
+            if self.drawmodel: self.draw_model()
+            #if not self.voxelIdx==-1:self.draw_voxels()
             glTranslatef(-self.model_trans[0],-self.model_trans[1],-self.model_trans[2])
             glRotatef(-self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
 

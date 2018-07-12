@@ -741,8 +741,8 @@ def showFramed3D():
     global dispimg
     global photonfile
     global gl
-    layerimg = photonfile.getBitmap(layerNr, (255,255,255), (0,0,0),(1,1))
-    gl.store_voxels(layerimg,2*layerNr/photonfile.nrLayers()-1)
+    #layerimg = photonfile.getBitmap(layerNr, (255,255,255), (0,0,0),(1,1))
+    #gl.store_voxels(layerimg,2*layerNr/photonfile.nrLayers()-1)
     framedScreenOpenGL=True
     #update window surface
     #gl.store_voxels(photonfile,3)
