@@ -309,8 +309,8 @@ class GL():
 
         return self.modelListIdx
 
-    def draw_model(self):
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+    def draw_model(self,type=GL_FILL): #or GL_LINE
+        glPolygonMode(GL_FRONT_AND_BACK, type)
         if len(self.model)>0:
             glCallList(self.modelListIdx)
 
@@ -384,6 +384,9 @@ class GL():
         if pollModel:
             matrix = (GLfloat * 16)()
 
+            #if not event.type == pygame.MOUSEMOTION:
+            #    print (event, event.type)
+
             #event=pygame.event.wait() # uses a lot less resources than continously looping with evet.get!
             isLCtrl = (pygame.key.get_mods() & pygame.KMOD_LCTRL)
             isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
@@ -443,6 +446,7 @@ class GL():
                             glRotatef(+rot, yaxis[0], yaxis[1], yaxis[2])
 
             if event.type == pygame.MOUSEBUTTONDOWN:
+                print ("Mousedown", pygame.time.get_ticks() )
                 span=10*pan
                 if event.button == 4:
                     glTranslatef(-span* zaxis[0], -span * zaxis[1], -span * zaxis[2])
@@ -453,10 +457,21 @@ class GL():
                 else:
                     self.mousedownpos = pos = pygame.mouse.get_pos()
                     self.mousedownbutton=event.button
+                    #print ("click button: ",self.mousedownbutton)
 
 
             if event.type == pygame.MOUSEBUTTONUP:
+                print ("Mouseup\n")
                 self.mousedownpos=None
+                pygame.event.clear()
+
+            # On linux the mouseup is sometimes missed. So extra check
+            if not self.mousedownpos==None:
+                #print ("buttons: ",pygame.mouse.get_pressed(), self.mousedownbutton)
+                if not pygame.mouse.get_pressed()[self.mousedownbutton-1]:
+                    self.mousedownpos=None
+                    print("Mouse Correct")
+                    #print ("POST")
 
             if event.type == pygame.MOUSEMOTION and not self.mousedownpos==None:
                 newpos=pygame.mouse.get_pos()

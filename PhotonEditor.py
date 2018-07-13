@@ -20,6 +20,8 @@ from MessageDialog import *
 from PopupDialog import *
 from ProgressDialog import *
 from OGLEngine import *
+from Slicer import *
+from STLFile import *
 
 #Following tests are done for initial message to user below the disclaimer
 try:
@@ -35,7 +37,6 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
-#todo: Make Plugins
 #todo: OpenGL - why do we need it...
 #todo: check if imported previmg load in PhotonSlicer
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
@@ -758,6 +759,9 @@ def showFull3D():
         dialog.show()
         return
     global fullScreenOpenGL
+
+    sl = Slicer(gl)
+
     fullScreenOpenGL=True
     #update window surface
     redrawWindow(None)
@@ -796,24 +800,14 @@ def readPlugins():
         files.sort(key=str.lower)
     return files
 
-import importlib
 
 def openPlugin(filename):
+    # BEWARE: IT IS NORMAL THIS DOES NOT RUN IN PYCHARM!!!
     filepath="plugins/"+filename
     ifile = open(filepath, "r", encoding="Latin-1")  # Latin-1 handles special characters
-    lines = ifile.readlines()
-    print ("plugin:", filename)
+    lines = ifile.read()
+    exec(lines)
 
-    global ret
-    exec(open("plugins/"+filename).read(),globals())
-    print (ret)
-
-    #import plugins.Layer_Viewer
-    #i=plugins.Layer_Viewer.start()
-
-    #module = __import__("plugins.Layer_Viewer")
-    #my_class = getattr(module, "start")
-    #instance = my_class()
 
 def createMenu():
     global menubar
@@ -1571,92 +1565,94 @@ def poll(event=None):
     global fullScreenOpenGL
     global framedScreenOpenGL
 
-    event = pygame.event.wait()
+    tooltip=None
+    for event in pygame.event.get():
+    #event = pygame.event.wait()
 
-    #Check if fullscreen OpenGL
-    if fullScreenOpenGL:
-        if event.type == pygame.KEYDOWN:
-            if event.key==pygame.K_ESCAPE:
-                fullScreenOpenGL = False
-        else:
+        #Check if fullscreen OpenGL
+        if fullScreenOpenGL:
+            if event.type == pygame.KEYDOWN:
+                if event.key==pygame.K_ESCAPE:
+                    fullScreenOpenGL = False
+                    return
             gl.poll(True, event)
-        return
+            return
 
-    # Event handling, gets all event from the eventqueue
-    #for event in pygame.event.get():
-    #if not hasOpenGL: event = pygame.event.wait()
+        # Event handling, gets all event from the eventqueue
+        #for event in pygame.event.get():
+        #if not hasOpenGL: event = pygame.event.wait()
 
-    if pyopenglAvailable:
-        gl.poll(framedScreenOpenGL,event)
+        if pyopenglAvailable:
+            gl.poll(framedScreenOpenGL,event)
 
-    pos = pygame.mouse.get_pos()
-    lastpos=pos
-    if event.type == pygame.QUIT:
-        print("Window was closed. Exit!")
-        running = False  # change the value to False, to exit the main loop
+        pos = pygame.mouse.get_pos()
+        lastpos=pos
+        if event.type == pygame.QUIT:
+            print("Window was closed. Exit!")
+            running = False  # change the value to False, to exit the main loop
 
-    if event.type == pygame.MOUSEBUTTONUP:
-        mouseDrag=False
-        if not menubar.handleMouseUp(pos,event.button):
-            for ctrl in controls:
-                ctrl.handleMouseUp(pos,event.button)
-
-    if event.type == pygame.MOUSEBUTTONDOWN:
-        mouseDrag=handleLayerSlider()
-        if not menubar.handleMouseDown(pos,event.button):
-            for ctrl in controls:
-                ctrl.handleMouseDown(pos,event.button)
-
-    if event.type == pygame.MOUSEMOTION:
-        if mouseDrag: handleLayerSlider(False)
-        if not menubar.handleMouseMove(pos):
-            for ctrl in controls:
-                ctrl.handleMouseMove(pos)
-
-
-    if event.type == pygame.KEYDOWN :
-        #If numlock on then we use it to navigate layers
-        if not photonfile==None:
-            isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
-            if not isNumlockOn:
-                maxLayer = photonfile.nrLayers()
-                page=int(maxLayer/10)
-                if event.key == pygame.K_KP8: layerDown()
-                if event.key == pygame.K_KP9: layerDown(page)
-                if event.key == pygame.K_KP2: layerUp()
-                if event.key == pygame.K_KP3: layerUp(page)
-            if event.key == pygame.K_UP: layerDown()
-            if event.key == pygame.K_DOWN: layerUp()
-
-        #We use tab to navigate the textboxes in controls
-        if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
-            # Check shift state, without we move to next, with to previous control
-            isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
-            dir=1 if not isLShift else -1
-            # Get control with active cursor
-            prevActive=activeControlIdx()
-            # Check because maybe there is none active
-            if not prevActive==None:
-                # Remove cursor from found control
-                controls[prevActive].cursorActive=False
-                # Make first editable textbox we find in direction of dir
-                fnd=False
-                idx=prevActive+dir
-                while not fnd:
-                    if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
-                        controls[idx].cursorActive = True
-                        fnd=True
-                    idx=idx+dir
-                    if idx>=len(controls): idx=0
-                    if idx<0: idx=len(controls)-1
-
-        if event.key == pygame.K_ESCAPE :
-            print ("Escape key pressed down. Exit!")
-            running = False
-        else:
-            if not menubar.handleKeyDown(event.key,event.unicode):
+        if event.type == pygame.MOUSEBUTTONUP:
+            mouseDrag=False
+            if not menubar.handleMouseUp(pos,event.button):
                 for ctrl in controls:
-                    ctrl.handleKeyDown(event.key,event.unicode)
+                    ctrl.handleMouseUp(pos,event.button)
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouseDrag=handleLayerSlider()
+            if not menubar.handleMouseDown(pos,event.button):
+                for ctrl in controls:
+                    ctrl.handleMouseDown(pos,event.button)
+
+        if event.type == pygame.MOUSEMOTION:
+            if mouseDrag: handleLayerSlider(False)
+            if not menubar.handleMouseMove(pos):
+                for ctrl in controls:
+                    ctrl.handleMouseMove(pos)
+
+
+        if event.type == pygame.KEYDOWN :
+            #If numlock on then we use it to navigate layers
+            if not photonfile==None:
+                isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
+                if not isNumlockOn:
+                    maxLayer = photonfile.nrLayers()
+                    page=int(maxLayer/10)
+                    if event.key == pygame.K_KP8: layerDown()
+                    if event.key == pygame.K_KP9: layerDown(page)
+                    if event.key == pygame.K_KP2: layerUp()
+                    if event.key == pygame.K_KP3: layerUp(page)
+                if event.key == pygame.K_UP: layerDown()
+                if event.key == pygame.K_DOWN: layerUp()
+
+            #We use tab to navigate the textboxes in controls
+            if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
+                # Check shift state, without we move to next, with to previous control
+                isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
+                dir=1 if not isLShift else -1
+                # Get control with active cursor
+                prevActive=activeControlIdx()
+                # Check because maybe there is none active
+                if not prevActive==None:
+                    # Remove cursor from found control
+                    controls[prevActive].cursorActive=False
+                    # Make first editable textbox we find in direction of dir
+                    fnd=False
+                    idx=prevActive+dir
+                    while not fnd:
+                        if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
+                            controls[idx].cursorActive = True
+                            fnd=True
+                        idx=idx+dir
+                        if idx>=len(controls): idx=0
+                        if idx<0: idx=len(controls)-1
+
+            if event.key == pygame.K_ESCAPE :
+                print ("Escape key pressed down. Exit!")
+                running = False
+            else:
+                if not menubar.handleKeyDown(event.key,event.unicode):
+                    for ctrl in controls:
+                        ctrl.handleKeyDown(event.key,event.unicode)
 
     # Check for tooltips to draw
     tooltip=None

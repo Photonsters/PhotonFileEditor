@@ -80,6 +80,11 @@ class Vector:
         if self.nrDims == 3: return (self.x,self.y,self.z)
         if self.nrDims == 2: return (self.x, self.y)
 
+    def toInt(self):
+        self.x = int(self.x)
+        self.y = int(self.y)
+        self.z = int(self.z)
+
     def toInverted(self):
         return Vector((-self.x,-self.y,-self.z))
 
@@ -121,6 +126,11 @@ class Vector:
         self.x=self.x * scale
         self.y=self.y * scale
         self.z=self.z * scale
+
+    def scale3D(self, scale):
+        self.x=self.x * scale.x
+        self.y=self.y * scale.y
+        self.z=self.z * scale.z
 
     def crossproduct(self,other):
         r = Vector((0, 0, 0))
@@ -184,7 +194,8 @@ class Point3D:
     def equals(self,other):
         return (self.x==other.x and self.y==other.y and self.z==other.z)
 
-
+    def strN(self):
+        return str(self)+ " "+str(self.n)
 
     def __str__(self):
         return    ( "( "+
@@ -276,7 +287,7 @@ class Triangle3D:
         p3=  self.__cloud[self.__points[0]]
         p2 = self.__cloud[self.__points[1]]
         p1 = self.__cloud[self.__points[2]]
-        #print ("p123: ",p1,p2,p3)
+        print ("p123: ",p1,p2,p3)
         a = Vector.fromPoint3D(p2 - p1)
         b = Vector.fromPoint3D(p3 - p2)
         c = Vector.crossproduct(a, b)
@@ -286,8 +297,14 @@ class Triangle3D:
     def pindex(self,idx):
         return self.__points[idx]
 
+    def remap(self, newcloud,indexoffset):
+        self.__cloud=newcloud
+        for idx in range(0,3) :
+            self.__points[idx]+=indexoffset
+
     def coord(self,idx,cloud=None):
         if cloud==None:
+            print ("idx",idx,self.__points,self.__cloud)
             return self.__cloud[self.__points[idx]]
         else:
             return cloud[self.__points[idx]]
@@ -298,9 +315,14 @@ class Triangle3D:
         return False
 
     def toTuples(self):
-        return (self.__points[0].toTuple(),
-                self.__points[1].toTuple(),
-                self.__points[2].toTuple())
+        return (self.coord(0).toTuple(),
+                self.coord(1).toTuple(),
+                self.coord(2).toTuple())
+
+    def toNTuples(self):
+        return (self.coord(0).n.toTuple(),
+                self.coord(1).n.toTuple(),
+                self.coord(2).n.toTuple())
 
     def toArray(self):
         return [self.__points[0].toTuple(),
@@ -312,7 +334,7 @@ class Triangle3D:
     RET_ABOVE=1      # Return above line
     RET_BELOW=2      # Return below line
 
-    def splitOnPlaneY(self,height,ret_side, ret_onplane):
+    def splitOnPlaneY(self,height,ret_side, ret_onplane,cloud=None):
 
         # Triangles could be oriented in several ways relative to the layer bottom and top:
         #             (1)        (2)             (3)                     (4)             (5)
@@ -327,10 +349,18 @@ class Triangle3D:
         #                         * *        *****   *                         *        *
         #                        *****
 
+        #normals
+        p0n = self.coord(0,cloud).n
+        p1n = self.coord(1,cloud).n
+        p2n = self.coord(2,cloud).n
+        p0nt = p0n.toTuple()
+        p1nt = p1n.toTuple()
+        p2nt = p2n.toTuple()
 
-        p0 = self.coord(0)
-        p1 = self.coord(1)
-        p2 = self.coord(2)
+        #coordinates
+        p0 = self.coord(0,cloud)
+        p1 = self.coord(1,cloud)
+        p2 = self.coord(2,cloud)
         p0t = p0.toTuple()
         p1t = p1.toTuple()
         p2t = p2.toTuple()
@@ -353,38 +383,46 @@ class Triangle3D:
         nrBelow = int(d0bl) + int(d1bl) + int(d2bl)
         nrOnline= int(d0eq) + int(d1eq) + int(d2eq)
 
+        print ("SPLITTING TRI ", p0t,p1t,p2t)
+
         # (1) Check Above
         if nrAbove==3:
-            if ret_side==self.RET_ABOVE: return self.toTuples()
+            print ("All points above")
+            if ret_side==self.RET_ABOVE: return [(self.toTuples(),self.toNTuples())]
             else: return []
 
         # (2) Check Below
         if nrBelow==3:
-            if ret_side==self.RET_BELOW :return self.toTuples()
+            print("All points below")
+            if ret_side==self.RET_BELOW :return [(self.toTuples(),self.toNTuples())]
             else:return []
 
         # (3) Three, Two or One points on line
         if nrOnline==3:
+            print("All points on line")
             if ret_onplane:
-                return self.toTuples()
+                return [(self.toTuples(),self.toNTuples())]
 
         if nrOnline==2:
+            print("Two points on line")
             if ret_side==self.RET_ABOVE:
-                if d0ab or d1ab or d2ab:return self.toTuples()
+                if d0ab or d1ab or d2ab:return [(self.toTuples(),self.toNTuples())]
                 else: return []
             if ret_side==self.RET_BELOW:
-                if d0bl or d1bl or d2bl:return self.toTuples()
+                if d0bl or d1bl or d2bl:return [(self.toTuples(),self.toNTuples())]
                 else:return []
+            print ("error, we should have found 1 point above/below!")
 
         #if 1 point on line and two other points on same side
         if nrOnline==1:
+            print("One point on line")
             if ret_side==self.RET_ABOVE:
-                if nrAbove==2: return self.toTuples()
+                if nrAbove==2: return [(self.toTuples(),self.toNTuples())]
                 else: return []
             if ret_side==self.RET_BELOW:
-                if nrBelow==2: return self.toTuples()
+                if nrBelow==2: return [(self.toTuples(),self.toNTuples())]
                 else: return []
-
+            print("error, we should have found 1 point above/below!")
 
         # (4,5) S0,S1,S2 is splitpoint for each line p0-p1, p1-p2, p2-p3
         # If we reached this stage, we are not above plane, not below plane, and not with 1/2/3 points on plane
@@ -395,7 +433,8 @@ class Triangle3D:
         else:            s12 = (p1.y - height) / (p1.y - p2.y)
         if (p2.y==p0.y): s20=-1
         else:            s20 = (p2.y - height) / (p2.y - p0.y)
-        #        print("s01 s12 s20", signif(s01), signif(s12), signif (s20))
+
+        print("s01 s12 s20", signif(s01), signif(s12), signif (s20))
 
         p01 = [p0.x + s01 * (p1.x - p0.x),
                height,
@@ -407,45 +446,58 @@ class Triangle3D:
                height,
                p2.z + s20 * (p0.z - p2.z)]
 
+        p01n = p0n * s01 + p1n * (1 - s01)
+        p12n = p1n * s12 + p2n * (1 - s12)
+        p20n = p2n * s20 + p0n * (1 - s20)
+        p01n = p01n.toTuple()
+        p12n = p12n.toTuple()
+        p20n = p20n.toTuple()
+
         # (4) two intersections
-        print ("4")
+        print("splitting tri with two intersections")
+
         if (nrAbove==2 and nrBelow==1) or (nrAbove==1 and nrBelow==2):
+            print("nrAbove, ret_ABOVE", nrAbove, ret_side==self.RET_ABOVE)
             if s01 < 0 or s01 > 1:   # so interesection on s12 and s20
-                t1=(p12,p2t,p20)
-                t2=(p1t,p20,p0t)
-                t3=(p1t,p12,p20)
-                print (0)
-                return (t1,t2,t3)
+                t1=((p12,p2t,p20),(p12n,p2nt,p20n))
+                t2=((p1t,p20,p0t),(p1nt,p20n,p0nt))
+                t3=((p1t,p12,p20),(p1nt,p12n,p20n))
+                if nrAbove == 1 and ret_side==self.RET_BELOW: return [t2,t3]
+                if nrAbove == 2 and ret_side == self.RET_BELOW: return [t1]
+                if nrAbove == 1 and ret_side==self.RET_ABOVE: return [t1]
+                if nrAbove == 2 and ret_side == self.RET_ABOVE: return [t2,t3]
             elif s20 < 0 or s20 > 1: # so interesection on s12 and s01
-                t1=(p01,p1t,p12)
-                t2=(p0t,p01,p2t)
-                t3=(p01,p12,p2t)
-                print(1)
-                return (t1,t2,t3)
+                t1=((p01,p1t,p12),(p01n,p1nt,p12n))
+                t2=((p0t,p01,p2t),(p0nt,p01n,p2nt))
+                t3=((p01,p12,p2t),(p01n,p12n,p2nt))
+                if nrAbove == 1 and ret_side==self.RET_BELOW: return [t2,t3]
+                if nrAbove == 2 and ret_side == self.RET_BELOW: return [t1]
+                if nrAbove == 1 and ret_side==self.RET_ABOVE: return [t1]
+                if nrAbove == 2 and ret_side == self.RET_ABOVE: return [t2,t3]
             elif s12 < 0 or s12 > 1: # so interesection on s01 and s20
-                t1=(p0t,p01,p20)
-                t2=(p01,p1t,p2t)
-                t3=(p01,p2t,p20)
-                print (t1)
-                print (t2)
-                print (t3)
-                print(2)
-                return (t1,t2,t3)
+                t1=((p0t,p01,p20),(p0nt,p01n,p20n))
+                t2=((p01,p1t,p2t),(p01n,p1nt,p2nt))
+                t3=((p01,p2t,p20),(p01n,p2nt,p20n))
+                if nrAbove == 1 and ret_side==self.RET_BELOW: return [t2,t3]
+                if nrAbove == 2 and ret_side == self.RET_BELOW: return [t1]
+                if nrAbove == 1 and ret_side==self.RET_ABOVE:return [t1]
+                if nrAbove == 2 and ret_side == self.RET_ABOVE: return [t2,t3]
 
         # (5) one intersections
+        print("splitting tri with ONE intersections")
         if nrOnline == 1 and nrAbove == 1 and nrBelow == 1:
             if p0[y]==height: # so intersection on s12
-                t1 = (p0t, p1t, p12)
-                t2 = (p0t, p12, p2t)
-                return (t1,t2)
+                t1 = ((p0t, p1t, p12),(p0nt, p1nt, p12n))
+                t2 = ((p0t, p12, p2t),(p0nt, p12n, p2nt))
+                return [t1,t2]
             if p1[y]==height: # so intersection on s20
-                t1 = (p1t, p2t, p20)
-                t2 = (p1t, p20, p0t)
-                return (t1,t2)
+                t1 = ((p1t, p2t, p20),(p1nt, p2nt, p20n))
+                t2 = ((p1t, p20, p0t),(p1nt, p20n, p0nt))
+                return [t1,t2]
             if p2[y]==height: # so intersection on s01
-                t1 = (p2t, p0t, p01)
-                t2 = (p2t, p01, p1t)
-                return (t1,t2)
+                t1 = ((p2t, p0t, p01),(p2nt, p0nt, p01n))
+                t2 = ((p2t, p01, p1t),(p2nt, p01n, p1nt))
+                return [t1,t2]
 
         # if we come here something in this method is wrong
         raise Exception ("Coding error in Triangle.splitOnPlaneY")
