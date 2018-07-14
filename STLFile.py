@@ -349,6 +349,7 @@ class STLFile:
         offset=Vector((67.5/2,0,120/2))
         scale=Vector((1440/67.5,1,2560/120))
         img = pygame.Surface((1440 , 2560 ))
+        img.fill((0,0,0,0))
         fillPoints=[]
         for tri in slice:
             #Draw/project (filled) triangles
@@ -390,9 +391,9 @@ class STLFile:
             p2.toInt()
             #print ("save: ",p0,p1,p2)
 
-            white=(255,255,255)
-            red=(255,0,0)
-            black=(0,0,0)
+            white=(255,255,255,0)
+            red=(255,0,0,0)
+            black=(0,0,0,0)
             w=1
             pygame.gfxdraw.filled_trigon(img,p0.x,p0.z,p1.x,p1.z,p2.x,p2.z,white)
             pygame.draw.line(img, white, (p0.x, p0.z), (p1.x, p1.z),w)
@@ -415,7 +416,7 @@ class STLFile:
             pygame.draw.line(img, red, fillPoint, fillPoint, 1)
 
 
-        #img=pygame.transform.rotate(img,90)
+        img=pygame.transform.rotate(img,0)
         try:
             pygame.image.save(img,filename)
             print ("Sliced: ",filename)

@@ -405,7 +405,7 @@ class PhotonFile:
         # Reduce repetitions of color to max 0x7D/125 and store in bytearray
         rleData = bytearray()
         for (nr, col) in zip(lengths,values):
-            color = (col>0)
+            color = (abs(col)>1)
             while nr > 0x7D:
                 encValue = (color << 7) | 0x7D
                 rleData.append(encValue)

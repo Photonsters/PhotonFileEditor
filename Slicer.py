@@ -79,6 +79,10 @@ class Slicer:
         None
 
     def slice(self):
+        #clear slice directory
+        path = os.path.join(os.getcwd(), "slicer"
+
+
         stl=self.stl
 
         print ("Start slice")
@@ -91,7 +95,7 @@ class Slicer:
         for height in range(modelBottomHeight,modelTopHeight,sliceHeight):
             sliceTop=sliceBottom+sliceHeight
             nrStr = "%04d" % sliceNr
-            filename=os.path.join(os.getcwd(),"slicer/slice_"+nrStr+".png")
+            filename=os.path.join(os.getcwd(),"slicer/slice__"+nrStr+".png")
             print ("Slice: ",sliceNr," from-to: ",sliceBottom,sliceTop," save as:",filename)
             points,slice=stl.takeSlice(sliceBottom,sliceTop)
             stl.slice2bmp(points, slice, filename)
