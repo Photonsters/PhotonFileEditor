@@ -330,9 +330,10 @@ class GL():
         self.innerwallListIdx=self.store_model(self.innerpoints,self.model,(0,1,1),(1,1,0))
 
 
-    def __init__(self,display_size):
+    def __init__(self,display_size,callback=None):
 
         self.display_size=display_size
+        self.callback=callback
         self.model_angle = 0  # 30
         self.model_rotaxis = (1, 0, 0)
         self.model_trans = (0, 0, 0)  # (0,5,0
@@ -429,7 +430,8 @@ class GL():
                         self.drawmodel=not self.drawmodel
                     if event.key == pygame.K_F5:
                         print ("saving")
-                        self.save_slice()
+                        if not self.callback==None:
+                            self.callback.slice()
                     if event.key == pygame.K_q:
                         self.initDraw()
 

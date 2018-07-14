@@ -28,8 +28,9 @@ Ter controle kunnen alle bitmaps geladen worden in een voxelviewer
 ########################################################################################################################
 
 class Slicer:
+    stl=None
 
-    def __init__(self,oglengine):
+    def __init__(self,oglengine,filename=None):
         cloud=[Point3D((0,0,0)),Point3D((0,0,3)),Point3D((0,3,0))]
         p0=0
         p1=1
@@ -45,17 +46,42 @@ class Slicer:
         #quit()
 
         aGL = oglengine
+        stl=self.stl
         stl=STLFile()
-        #stl.load_binary_stl('resources/SliceTester.stl', 1)
-        stl.load_binary_stl('SamplePhotonFiles/STLs/test_cube.stl', 1)
-        #stl.load_binary_stl('resources/HollowCube.stl', 1)
+        if filename==None:
+            #stl.load_binary_stl('resources/SliceTester.stl', 1)
+            filename='SamplePhotonFiles/STLs/test_cube.stl'
+            #stl.load_binary_stl('resources/HollowCube.stl', 1)
+            # self.load_stl('resources/Door-handle-ascii.stl',0.03)
+            # self.load_stl('resources/Door-handle.stl', 0.03)
+            # self.load_binary_stl('resources/3DBenchy.stl', 1)
+            # self.load_binary_stl('resources/test_cube.stl', 1)
 
+            # self.load_binary_stl('resources/OrientationCube.stl',1)
+            # self.load_text_stl('resources/test.stl', 0.03)
+            # self.load_binary_+-stl('resources/knight.stl', 0.3)
+
+        print ("load...")
+        stl.load_binary_stl(filename, 1)
+
+        print ("setModel...")
         aGL.setModel(stl.points, stl.model)
+
+        #print ("calc normals...")
         stl.calcPointNormals() # needed to stl.createInnerWall
         #return
 
-        #stl.createInnerWall(5)
+        self.stl=stl
+        print ("done...")
 
+    def hollow(self, wallthickness=5):
+        #stl.createInnerWall(wallthickness)
+        None
+
+    def slice(self):
+        stl=self.stl
+
+        print ("Start slice")
         modelBottomHeight=0
         modelTopHeight=20
         sliceHeight=3
@@ -86,14 +112,5 @@ class Slicer:
 
 
 
-
-        #self.load_stl('resources/Door-handle-ascii.stl',0.03)
-        #self.load_stl('resources/Door-handle.stl', 0.03)
-        #self.load_binary_stl('resources/3DBenchy.stl', 1)
-        #self.load_binary_stl('resources/test_cube.stl', 1)
-
-        #self.load_binary_stl('resources/OrientationCube.stl',1)
-        #self.load_text_stl('resources/test.stl', 0.03)
-        #self.load_binary_+-stl('resources/knight.stl', 0.3)
 
 

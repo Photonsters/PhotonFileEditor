@@ -70,6 +70,7 @@ class FileDialog():
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
         if startdir==None: self.startdir=os.getcwd()
+        if isinstance(ext,str): ext=(ext,) # forces it into a list
         self.ext=ext
         self.winrect=GRect(pos[0], pos[1], 350, height)
         self.title=title
@@ -185,7 +186,10 @@ class FileDialog():
         if self.showFilenames:
             if not self.ext == "*":
                 for entry in direntries:
-                    if entry.endswith(self.ext): files.append(entry)
+                    for ext in self.ext:
+                        if entry.lower().endswith(ext.lower()):
+                            files.append(entry)
+                            #print (ext,entry)
             files.sort(key=str.lower)
 
         # Make one list of dirs and files

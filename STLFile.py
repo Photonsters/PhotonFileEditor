@@ -2,6 +2,7 @@ import struct
 import pygame
 import pygame.gfxdraw
 from Helpers3D import *
+import numpy
 
 
 # load stl file detects if the file is a text file or binary file
@@ -68,12 +69,24 @@ class STLFile:
 
     # load binary stl file check wikipedia for the binary layout of the file
     # we use the struct library to read in and convert binary data into a format we can use
-    def load_binary_stl(self, filename, scale):
+    def appendFast(self,object,list,idx):
+        #print ("in list: ",len(list),id(list))
+        if idx>=len(list):
+            list=list+[None]*1000
+            print ("resized: ",len(list), id(list))
+        list[idx]=object
+        return list
+
+
+    def load_binary_stl(self, filename, scale=1):
         fp = open(filename, 'rb')
         h = fp.read(80)
 
         l = struct.unpack('I', fp.read(4))[0]
         count = 0
+
+        #self.points=[None]*1000
+        pidx=0
 
         while True:
             try:
@@ -104,49 +117,18 @@ class STLFile:
                     p3 = [p3[a], p3[b], p3[c]]
 
                     # scale model
-                    p1s = [i * scale for i in p1]
-                    p2s = [i * scale for i in p2]
-                    p3s = [i * scale for i in p3]
+                    if not scale==1:
+                        p1s = [i * scale for i in p1]
+                        p2s = [i * scale for i in p2]
+                        p3s = [i * scale for i in p3]
+                    else:
+                        p1s=p1
+                        p2s=p2
+                        p3s=p3
 
-                    # update max and min
-                    for c in range(0, 3):
-                        self.cmax[c] = max(self.cmax[c], p1s[c])
-                        self.cmax[c] = max(self.cmax[c], p2s[c])
-                        self.cmax[c] = max(self.cmax[c], p3s[c])
-                        self.cmin[c] = min(self.cmin[c], p1s[c])
-                        self.cmin[c] = min(self.cmin[c], p2s[c])
-                        self.cmin[c] = min(self.cmin[c], p3s[c])
-
-                #update point array
-                if count in self.testTris or self.testTris==[]:
-                    pp1=-1
-                    pp2=-1
-                    pp3=-1
-                    p13d = Point3D(p1s)
-                    p23d = Point3D(p2s)
-                    p33d = Point3D(p3s)
-                    for nr,point in enumerate(self.points):
-                        if point.equals(p13d):pp1=nr
-                        if point.equals(p23d):pp2=nr
-                        if point.equals(p33d):pp3=nr
-                    if pp1 == -1:
-                        self.points.append(p13d)
-                        pp1=len(self.points)-1
-                    if pp2 == -1:
-                        self.points.append(p23d)
-                        pp2 = len(self.points) - 1
-                    if pp3 == -1:
-                        self.points.append(p33d)
-                        pp3=len(self.points)-1
-
-                    #new_tri = (n, p1s, p2s, p3s)
-                    #new_tri = (n, pp1, pp2, pp3)
-
-                    #tri = Triangle3D(p1s, p2s, p3s, n)
-                    tri = Triangle3D(self.points,pp1, pp2, pp3)
-                    # print (count,str(tri))
-                    self.model.append(tri)
-
+                    self.points.append(p1s)
+                    self.points.append(p2s)
+                    self.points.append(p3s)
 
                 count += 1
                 fp.read(2)
@@ -157,6 +139,34 @@ class STLFile:
             except EOFError:
                 break
         fp.close()
+
+        # convert to numpy
+        npoints=numpy.array(self.points)
+
+        #find max and min of x, y and z
+        x = npoints[:, 0]
+        y = npoints[:, 1]
+        z = npoints[:, 2]
+        self.cmin = (x.min(), y.min(), z.min())
+        self.cmax = (x.max(), y.max(), z.max())
+
+        # Create list of unique points and a list indices which translates npoints to indices in list of unique points
+        upoints, indices=numpy.unique(npoints,axis=0,return_inverse=True)
+
+        # convert tuple coordinates to point3D instances
+        self.points=[]
+        for p in upoints:
+            self.points.append(Point3D(p))
+
+        # construct triangles
+        for i in range(0,len(indices),3):
+            p0 = indices[i+0]
+            p1 = indices[i+1]
+            p2 = indices[i+2]
+            tri = Triangle3D(self.points, p0, p1, p2)
+            self.model.append(tri)
+
+
         print("Loaded file.")
         print("  Nr points:", len(self.points))
         print("  Nr triangles:", len(self.model))
@@ -179,6 +189,8 @@ class STLFile:
         return self.points,self.model
 
     def calcPointNormals(self):
+        # First copy
+
         for nr,p in enumerate(self.points):
             sharedNormal = Vector((0,0,0))
             sharedNr=0
@@ -403,8 +415,9 @@ class STLFile:
             pygame.draw.line(img, red, fillPoint, fillPoint, 1)
 
 
-        img=pygame.transform.rotate(img,90)
+        #img=pygame.transform.rotate(img,90)
         try:
             pygame.image.save(img,filename)
+            print ("Sliced: ",filename)
         except Exception as err:
             print ("Error while writing slice image! \n",filename,err)

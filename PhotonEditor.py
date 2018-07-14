@@ -37,8 +37,12 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
+#todo: make slice images editable
+#       - zoom to quadrant to edit pixels of current layer,
+#       - show layer underneed transparent
+#       - make edit possible of current layer and all layers beneath
+#todo: if change Header setting like layer height, exp. time, off time, shouldn we propagate this to the layerdefs?
 #todo: OpenGL - why do we need it...
-#todo: check if imported previmg load in PhotonSlicer
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: button.png should be used in scrollbarv
@@ -59,6 +63,7 @@ except ImportError as err:
 
 # Class which holds all data from photon file
 photonfile=None
+slicer=None
 
 # Regarding image data to display
 fullScreenOpenGL=False
@@ -273,13 +278,67 @@ def saveFile():
     return
 
 
+class handleGLCallback:
+    """Provide handles for OGLEngine to call so all file operations and such are ultimately handled by PhotonEditor.
+    """
+
+    @staticmethod
+    def slice():
+        global slicer
+        global photonfile
+        global fullScreenOpenGL
+        global layerNr
+        global dispimg
+        global layerimg
+
+        # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+        if photonfile==None:
+            newFile()
+        #if not checkLoadedPhotonfile("No photon file loaded!", "There is no .photon file loaded to save."): return
+
+        # Write all values on the screen to the photonfile object
+        saveGeneralSettings2PhotonFile()
+        savePreviewSettings2PhotonFile()
+        saveLayerSettings2PhotonFile()
+
+        # Slice and save images
+        slicer.slice()
+
+        # Since import WILL take a while (although faster with numpy library available) show a be-patient message
+        popup = ProgressDialog(flipFunc, screen, pos=(140, 140),
+                               title="Please wait...",
+                               message="Photon File Editor is importing your images.")
+        popup.show()
+        try:
+            # Ask PhotonFile object to replace bitmaps
+            directory=os.path.join(os.getcwd(),"slicer")
+            if not photonfile.replaceBitmaps(directory, popup):
+                print("User Canceled while importing.")
+            # Refresh header settings which contains number of layers
+            refreshHeaderSettings()
+            # No preview data is changed
+            #
+            # Start again at layer 0 and refresh layer settings
+            layerNr = 0
+            refreshLayerSettings()
+            # Update current layer image with new bitmap retrieved from photonfile
+            layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+            # Exit 3D
+            fullScreenOpenGL=False
+            dispimg = layerimg
+
+        except Exception as err:
+            print(err)
+            errMessageBox(str(err))
+
+
 def loadFile():
     """ Asks for a filename and tells the PhotonFile object to load it . """
 
     global filename
 
     # Ask user for filename
-    dialog = FileDialog(flipFunc,screen, (40, 40), ext=".photon",title="Load Photon File", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow)
     retfilename=dialog.getFile()
 
     # Check if user pressed Cancel
@@ -287,10 +346,19 @@ def loadFile():
         filename = retfilename
         print ("Returned: ",filename)
         try:
-            # Open file and update window title to reflect new filename
-            openPhotonFile(filename)
-            barefilename = (os.path.basename(filename))
-            pygame.display.set_caption("Photon File Editor - " + barefilename)
+            if filename.endswith(".photon"):
+                # Open file and update window title to reflect new filename
+                openPhotonFile(filename)
+                barefilename = (os.path.basename(filename))
+                pygame.display.set_caption("Photon File Editor - " + barefilename)
+            elif filename.endswith(".stl"):
+                global fullScreenOpenGL
+                global slicer
+                slicer = Slicer(gl,filename)
+                fullScreenOpenGL = True
+                # update window surface
+                redrawWindow(None)
+
         except Exception as err:
             print (err)
             errMessageBox(str(err))
@@ -759,8 +827,9 @@ def showFull3D():
         dialog.show()
         return
     global fullScreenOpenGL
+    global slicer
 
-    sl = Slicer(gl)
+    slicer = Slicer(gl)
 
     fullScreenOpenGL=True
     #update window surface
@@ -1400,18 +1469,29 @@ def openPhotonFile(filename):
 ########################################################################################################################
 ##  Drawing/Event-Polling Loop
 ########################################################################################################################
+fontFullScreen=None
 
 def redrawWindow(tooltip=None):
     """ Redraws the menubar, settings and displayed layer/preview image """
     global pyopenglAvailable
     global screen
     global dispimg
+    global windowwidth
+    global windowheight
+    global fontFullScreen
 
     # Clear window surface
     if not fullScreenOpenGL:
         screen.fill(defFormBackground)
     else:
         screen.fill(defTransparent)
+        # Draw user guide
+        if fontFullScreen==None:
+            fontFullScreen =pygame.font.SysFont(defFontName, defFontSize - 2)
+
+        pygame.draw.rect(screen,defFormBackground,(0,windowheight-24,windowwidth,24),0)
+        text = "[b]Move[b]:\u2190\u2191\u2193\u2192, [mouse][left]  [b]|[b]  [b]Rotate[b]: [shift]\u2190\u2191\u2193\u2192, [mouse][right]  [b]|[b]  [b]Zoom[b]: [ctrl]\u2191\u2193, [mouse][scroll]  [b]|[b]  [b]Reset[b]: [Q]  [b]|[b]  [b]Slice[b]: [F5]"
+        drawTextMarkdown(text,fontFullScreen,defFormForeground,screen,(8,windowheight-20))
         return
 
     # Draw layer/preview images
@@ -1536,7 +1616,7 @@ def init():
         loop()
         quit()
     else:
-        gl=GL((windowwidth,windowheight))
+        gl=GL((windowwidth,windowheight),handleGLCallback)
         loop()
         #gl.userLoop(screen, poll)
 

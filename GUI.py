@@ -36,6 +36,36 @@ defBorder=(173,173,173)
 defBorderHover=defHighMenuBackground
 
 
+def drawTextMarkdown(markdown, font, color, surface, pos):
+    """ Takes string of e.g. format 'This [b]word[b] was bold and [i]this[i] italic.'
+        and returns right pos of drawn text
+    """
+    BOLD = chr(1)
+    ITALIC = chr(2)
+    UNDERLINE = chr(3)
+
+    markdown =markdown.replace("[b]",BOLD)
+    markdown =markdown.replace("[/b]", BOLD)
+    markdown =markdown.replace("[i]", ITALIC)
+    markdown =markdown.replace("[/i]", ITALIC)
+    markdown =markdown.replace("[u]", UNDERLINE)
+    markdown =markdown.replace("[/u]", UNDERLINE)
+
+    l=pos[0]
+    t=pos[1]
+    for char in markdown:
+        if char==BOLD:
+            font.set_bold(not font.get_bold())
+        elif char==ITALIC:
+            font.set_italic(not font.get_italic())
+        elif char==UNDERLINE:
+            font.set_underline(not font.get_underline())
+        else:
+            textsurface = font.render(char, True, color, )
+            surface.blit(textsurface, (l, t))
+            l += font.size(char)[0]
+    return (l,t)
+
 ########################################################################################################################
 ## Class MenuBar
 ########################################################################################################################
