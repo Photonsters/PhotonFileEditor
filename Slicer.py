@@ -80,7 +80,7 @@ class Slicer:
 
     def slice(self):
         #clear slice directory
-        path = os.path.join(os.getcwd(), "slicer"
+        path = os.path.join(os.getcwd(), "slicer")
 
 
         stl=self.stl
