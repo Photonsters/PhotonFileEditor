@@ -153,6 +153,7 @@ class STLFile:
         # Create list of unique points and a list indices which translates npoints to indices in list of unique points
         upoints, indices=numpy.unique(npoints,axis=0,return_inverse=True)
 
+
         # convert tuple coordinates to point3D instances
         self.points=[]
         for p in upoints:
@@ -165,6 +166,29 @@ class STLFile:
             p2 = indices[i+2]
             tri = Triangle3D(self.points, p0, p1, p2)
             self.model.append(tri)
+
+        # Make list of occurence of each upoint (needed to calculate point normals
+        print ("Calc normals")
+        for pointIdx in range(0,len(upoints)):
+            # make list of places in indices which point to this upoint
+            occurences=numpy.where(indices==pointIdx)[0]
+            # convert to triangle indexes (each triangle consists of three (u)points
+            occurences=occurences//3
+            # put all triangle normals in list, to filter later
+            normals=[]
+            for triIdx in occurences:
+                normals.append(self.model[triIdx].normal.toTuple())
+            normals=numpy.array(normals)
+            # remove duplicates (square is made up of 2 triangles, but only 1 normal should be used
+            normals=numpy.unique(normals,axis=0)
+            # calc total of all normals
+            normal=numpy.sum(normals,axis=0)
+            # normalize to length 1
+            normal=Vector(normal)
+            normal.normalize()
+            # store normal in point
+            self.points[pointIdx].n=normal
+
 
 
         print("Loaded file.")
@@ -188,19 +212,6 @@ class STLFile:
 
         return self.points,self.model
 
-    def calcPointNormals(self):
-        # First copy
-
-        for nr,p in enumerate(self.points):
-            sharedNormal = Vector((0,0,0))
-            sharedNr=0
-            for tri in self.model:
-                if tri.pindex(0)==nr or tri.pindex(1)==nr or tri.pindex(2)==nr:
-                    sharedNormal+=tri.normal
-                    sharedNr+=1
-            #sharedNormal=sharedNormal*(1/sharedNr)
-            sharedNormal.normalize()
-            p.n=sharedNormal
 
     def createInnerWall(self, wallThickness):
         setNrDecimals(1)

@@ -67,10 +67,6 @@ class Slicer:
         print ("setModel...")
         aGL.setModel(stl.points, stl.model)
 
-        #print ("calc normals...")
-        stl.calcPointNormals() # needed to stl.createInnerWall
-        #return
-
         self.stl=stl
         print ("done...")
 
@@ -79,10 +75,14 @@ class Slicer:
         None
 
     def slice(self):
-        #clear slice directory
-        path = os.path.join(os.getcwd(), "slicer")
+        # Clear slice directory
+        dir = os.path.join(os.getcwd(), "slicer")
 
+        filelist = [f for f in os.listdir(dir) if f.endswith(".png")]
+        for f in filelist:
+            os.remove(os.path.join(dir, f))
 
+        # Fill slice directory
         stl=self.stl
 
         print ("Start slice")

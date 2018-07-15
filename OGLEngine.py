@@ -207,6 +207,7 @@ class GL():
 
 
     def draw_pointnormals(self):
+        #print ("len:",len(self.points))
         # print("nr line segments found: ", len(self.polygonlines))
         glLineWidth(2)
         glBegin(GL_LINES)
@@ -303,6 +304,9 @@ class GL():
             glVertex3fv(tri.coord(2,points).toTuple())
         glEnd()
 
+        # Draw normals for debuggin
+        self.draw_pointnormals()
+
         glDisable(GL_CULL_FACE)
 
         glEndList()
@@ -341,8 +345,8 @@ class GL():
         #(860,640)
 
         pygame.display.set_mode(self.display_size, DOUBLEBUF | OPENGL | OPENGLBLIT)
-        self.make_model()
-        self.store_model(self.points,self.model)
+        #self.make_model()
+        #self.store_model(self.points,self.model)
 
         print("Detected OpenGL Drivers:")
         print("",glGetString(GL_VENDOR).decode('ascii'))

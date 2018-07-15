@@ -1425,7 +1425,7 @@ class TextBox():
                  text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
                  inputType=TEXT,
                  toolTip="",
-                 onEnter=None, linkedData=None):
+                 onEnter=None, onLostFocus=None,linkedData=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect = rect
@@ -1444,6 +1444,7 @@ class TextBox():
         self.inputType=inputType
         self.drawBorder=drawBorder
         self.onEnter=onEnter
+        self.onLostFocus = onLostFocus
         self.linkedData=linkedData
 
         # We truncate text if larger than allowed maximum length given by user
@@ -1545,9 +1546,19 @@ class TextBox():
                 if relx>(text_width+self.margin.x):
                     self.cursorChar=self.cursorChar+1
         else:
+            if self.cursorActive:
+                if not self.onLostFocus==None:
+                    self.onLostFocus(self, self.text,self.linkedData)
             self.cursorActive = False
             self.allSelected=False
 
+
+    def setFocus(self, focus):
+        if self.cursorActive:
+            if not focus:
+                if not self.onLostFocus == None:
+                    self.onLostFocus(self, self.text, self.linkedData)
+        self.cursorActive=focus
 
     def handleMouseDown(self,pos,button):
         return

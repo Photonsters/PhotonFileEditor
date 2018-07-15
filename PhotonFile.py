@@ -91,10 +91,11 @@ class PhotonFile:
         ("Image Data",         -1, tpByte,  False, "The raw image."),
     ]
 
+    # The exposure time and off times are ignored by Photon printer, layerheight not and is cumulative
     pfStruct_LayerDef = [
         ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer should be printed."),
-        ("Exp. time (s)",       4, tpFloat, True,  "Exposure time for this layer."),
-        ("Off time (s)",        4, tpFloat, True,  "Off time for this layer."),
+        ("Exp. time (s)",       4, tpFloat, False, "Exposure time for this layer.\n (Based on General Info.)"),
+        ("Off time (s)",        4, tpFloat, False, "Off time for this layer.\n (Based on General Info.)"),
         ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),#dataStartPos -> Image Address
         ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  #size of rawData+lastByte(1)
         ("padding",         4 * 4, tpByte,  False, "") # 4 ints

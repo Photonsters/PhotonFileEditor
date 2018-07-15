@@ -37,18 +37,17 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
+#todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
 #       - show layer underneed transparent
 #       - make edit possible of current layer and all layers beneath
-#todo: if change Header setting like layer height, exp. time, off time, shouldn we propagate this to the layerdefs?
 #todo: OpenGL - why do we need it...
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: button.png should be used in scrollbarv
 #todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
-#todo: The exposure time, off times in layerdefs are ignored by Photon printer, however layerheight not (so first two are just placeholders for future firmware.)
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
@@ -1012,6 +1011,7 @@ def createSidebar():
                                 inputType=tbType, \
                                 toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
+                                onLostFocus=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
 
@@ -1043,6 +1043,7 @@ def createSidebar():
                                 inputType=tbType, \
                                 toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
+                                onLostFocus=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
 
@@ -1070,6 +1071,7 @@ def createSidebar():
                                 inputType=tbType,\
                                 toolTip=bHint, \
                                 onEnter=updateTextBox2PhotonFile, \
+                                onLostFocus=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
                                 ))
 
@@ -1320,11 +1322,48 @@ def updateTextBox2PhotonFile(control, val,linkedData):
 
     # Save setting to photonfile
     if not bytes==None:
-        if pVarGroup=="Header":photonfile.Header[pTitle]=bytes
+        if pVarGroup=="Header":
+            propHeader2LayerDefs(pTitle, bytes)
+            photonfile.Header[pTitle]=bytes
         if pVarGroup=="Preview":photonfile.Previews[prevNr][pTitle]=bytes
         if pVarGroup=="LayerDef": photonfile.LayerDefs[layerNr][pTitle] = bytes
     #print ("Found. New Val: ",val,linkedData)
 
+
+def propHeader2LayerDefs(pTitle,newbytes):
+    """ Updates layerdef settings if exp. (bottom) time, off time or layer height is adjusted in General settings.
+    """
+    oldbytes=photonfile.Header[pTitle]
+    if oldbytes==newbytes: return
+
+    # Save exposure time and off time to layerdefs (should always be equal, and ignored in layerdefs by photon printer
+    nrBottomLayers =  PhotonFile.bytes_to_int(photonfile.Header["# Bottom Layers"])
+    if pTitle == "Layer height (mm)":
+        newHeight=PhotonFile.bytes_to_float(newbytes)
+
+    # First traverse the bottom layers
+    currHeight=0
+    for lNr in range(0,nrBottomLayers):
+        if pTitle == "Exp. bottom (s)":photonfile.LayerDefs[lNr]["Exp. time (s)"] = newbytes
+        if pTitle == "Off time (s)": photonfile.LayerDefs[lNr]["Off time (s)"]=newbytes
+        if pTitle == "Layer height (mm)":
+            photonfile.LayerDefs[lNr]["Layer height (mm)"]=PhotonFile.float_to_bytes(currHeight)
+            currHeight+=newHeight
+
+    # Next traverse the normal layers
+    for lNr in range(nrBottomLayers,photonfile.nrLayers()):
+        if pTitle == "Exp. time (s)": photonfile.LayerDefs[lNr]["Exp. time (s)"] = newbytes
+        if pTitle == "Off time (s)": photonfile.LayerDefs[lNr]["Off time (s)"] = newbytes
+        if pTitle == "Layer height (mm)":
+            photonfile.LayerDefs[lNr]["Layer height (mm)"]=PhotonFile.float_to_bytes(currHeight)
+            currHeight+=newHeight
+
+    #We need to upate data in displayer layer setting
+    if pTitle == "Exp. bottom (s)" or \
+            pTitle == "Exp. time (s)" or \
+            pTitle == "Off time (s)" or \
+            pTitle == "Layer height (mm)":
+        refreshLayerSettings()
 
 def saveGeneralSettings2PhotonFile():
     """ Saves all textboxes in the general settingsgroup """
@@ -1393,8 +1432,14 @@ def refreshHeaderSettings():
     # Travers all general settings and update values in textboxes
     for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
         nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
-        if bType==PhotonFile.tpFloat:nr=round(nr,4) #round floats to 4 decimals
-        controls[row].setText(str(nr))
+        if bType==PhotonFile.tpFloat:
+            nr=round(nr,3) #round floats to 3 decimals
+            snr=str(nr)
+            nrDec=len(snr)-snr.index('.')-1
+            if nrDec>3:snr=snr[:len(snr)-(nrDec-3)]
+        else:
+            snr = str(nr)
+        controls[row].setText(snr)
 
 
 def refreshPreviewSettings():
@@ -1433,8 +1478,14 @@ def refreshLayerSettings():
     for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
         #print("reading: ", bTitle,"=",nr)
-        if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
-        controls[row].setText(str(nr))
+        if bType==PhotonFile.tpFloat:
+            nr=round(nr,3) #round floats to 3 decimals
+            snr=str(nr)
+            nrDec=len(snr)-snr.index('.')-1
+            if nrDec>3:snr=snr[:len(snr)-(nrDec-3)]
+        else:
+            snr = str(nr)
+        controls[row].setText(snr)
 
     #finally we update layerLabel in between the up and down ^ on the top left of the screen
         layerLabel.setText(str(layerNr))
@@ -1714,13 +1765,15 @@ def poll(event=None):
                 # Check because maybe there is none active
                 if not prevActive==None:
                     # Remove cursor from found control
-                    controls[prevActive].cursorActive=False
+                    #controls[prevActive].cursorActive=False
+                    controls[prevActive].setFocus(False)
                     # Make first editable textbox we find in direction of dir
                     fnd=False
                     idx=prevActive+dir
                     while not fnd:
                         if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
-                            controls[idx].cursorActive = True
+                            #controls[idx].cursorActive = True
+                            controls[idx].setFocus(True)
                             fnd=True
                         idx=idx+dir
                         if idx>=len(controls): idx=0
