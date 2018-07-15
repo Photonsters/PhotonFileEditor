@@ -37,6 +37,9 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
+#todo: zoom/pan layerimg with mouse
+#todo: implement edit layerimg - disable overlay in edit mode - save image
+#todo: calc time to print
 #todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
@@ -69,6 +72,8 @@ fullScreenOpenGL=False
 framedScreenOpenGL=False
 window=None
 screen=None
+dispimg_offset=[0,0]
+dispimg_zoom=1
 defTransparent=(1,1,1)
 layerimg=None
 previmg=[None,None]
@@ -90,7 +95,8 @@ settingstextboxwidth=settingscolwidth-settingslabelmargin-settingslabelwidth-set
 settingswidth = settingscolwidth* 2  # 2 columns
 settingsleft = int(1440 / 4)
 windowwidth=int(1440 / 4) + settingswidth
-windowheight=int(2560 / 4)
+windowheight=int(2560 / 4)+18 # height of menubar
+layerRect=GRect(0,0,settingsleft,windowheight)
 
 # GUI controls
 menubar=None
@@ -950,7 +956,7 @@ def createLayernavigation():
     global layerNr
 
     # Add two imageboxes to control as layer nav buttons
-    viewport_yoffset=menubar.height+8
+    viewport_yoffset=menubar.getHeight()
     controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
     controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
@@ -984,7 +990,7 @@ def createSidebar():
     global resincombo
 
     # The controls are placed below the menubar
-    viewport_yoffset=menubar.height+8
+    viewport_yoffset=menubar.getHeight()
 
     # We need to translate the datatype of the photon settings to the datatypes an inputbox recognizes and enforces from the user
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
@@ -1197,6 +1203,7 @@ def createWindow():
     global layerLabel
     global filename
     global pyopenglAvailable
+    global layerRect
 
     # For debugging we display current script-path and last modified date, so we know which version we are testing/editing
     scriptPath=os.path.join(os.getcwd(), "PhotonEditor.py")
@@ -1283,6 +1290,10 @@ def createWindow():
 
     # Create the menu and setup the menu methods which handle the users actions
     createMenu()
+    global layerRect
+    layerRect.y=menubar.getHeight()
+    layerRect.height=windowheight-layerRect.y
+    print ("layerRect: ",layerRect)
 
     # Create sidebar to display the settings of the photonfile
     createSidebar()
@@ -1530,6 +1541,7 @@ def redrawWindow(tooltip=None):
     global windowwidth
     global windowheight
     global fontFullScreen
+    global dispimg_offset
 
     # Clear window surface
     if not fullScreenOpenGL:
@@ -1547,13 +1559,27 @@ def redrawWindow(tooltip=None):
 
     # Draw layer/preview images
     w, h = dispimg.get_size()
-    dw = (1440 / 4 - w) / 2
-    dh = (2560 / 4 - h) / 2
+    #dw = (1440 / 4 - w) / 2
+    #dh = (2560 / 4 - h) / 2
     if not photonfile==None:
         if not photonfile.isDrawing:
-            screen.blit(dispimg, (dw, dh))
+            #if we display layer image we need to apply zoom
+            global layerimg
+            global menubar
+            if dispimg==layerimg:
+                global dispimg_offset
+                global dispimg_zoom
+                scimg=pygame.transform.scale(dispimg,(int(dispimg_zoom/4*1440),int(dispimg_zoom/4*2560)))
+                screen.blit(scimg,
+                            dest=(0, menubar.getHeight()),
+                            area=Rect(dispimg_offset[0]*dispimg_zoom/4,dispimg_offset[1]*dispimg_zoom/4,1440/4,2560/4)
+                            ) #dest is pos to blit to, area is rect of source/dispimg to blit from
+            else:
+                screen.blit(dispimg,
+                            dest=(0, menubar.getHeight()+(2560/4-menubar.getHeight()-dispimg.get_height())/2),
+                            )  # dest is pos to blit to, area is rect of source/dispimg to blit from
     else:#also if we have no photonfile we still need to draw to cover up menu/filedialog etc
-        screen.blit(dispimg, (dw, dh))
+        screen.blit(dispimg, dest=(0, menubar.getHeight()))
 
     if framedScreenOpenGL:
         scale = (0.25, 0.25)
@@ -1695,6 +1721,12 @@ def poll(event=None):
     global lastpos
     global fullScreenOpenGL
     global framedScreenOpenGL
+    global dispimg_zoom
+    global dispimg_offset
+    global layerimg
+    global dispimg
+    global layerForecolor
+    global layerBackcolor
 
     tooltip=None
     for event in pygame.event.get():
@@ -1730,6 +1762,22 @@ def poll(event=None):
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouseDrag=handleLayerSlider()
+
+            if dispimg==layerimg:
+                gpos=GPoint.fromTuple(pos)
+                if gpos.inGRect(layerRect):
+                    pixCoord=[dispimg_offset[0] +  pos[0] * 4 / dispimg_zoom,
+                              dispimg_offset[1] + (pos[1]-menubar.getHeight()) * 4 / dispimg_zoom
+                             ]
+                    brushWidth=4
+                    pixRect=(pixCoord[0],pixCoord[1],brushWidth * 4 / dispimg_zoom,brushWidth * 4 / dispimg_zoom)
+                    print ("pixRect: ",pixRect,event.button)
+                    if event.button==1:
+                        pygame.draw.rect(layerimg, layerForecolor, pixRect, 0)
+                    elif event.button==3:
+                        pygame.draw.rect(layerimg, layerBackcolor, pixRect, 0)
+                dispimg=layerimg
+
             if not menubar.handleMouseDown(pos,event.button):
                 for ctrl in controls:
                     ctrl.handleMouseDown(pos,event.button)
@@ -1786,6 +1834,39 @@ def poll(event=None):
                 if not menubar.handleKeyDown(event.key,event.unicode):
                     for ctrl in controls:
                         ctrl.handleKeyDown(event.key,event.unicode)
+
+            #Handle zoom / pan of layer image
+            dzm=0.5
+            if event.key == pygame.K_KP_PLUS:
+                if dispimg_zoom < 4:
+                    cx=dispimg_offset[0]+1440/2/dispimg_zoom
+                    cy=dispimg_offset[1]+2560/2/dispimg_zoom
+                    dispimg_zoom+=dzm
+                    dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
+                    dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
+                    print ("zoom: ",dispimg_zoom)
+            if event.key == pygame.K_KP_MINUS:
+                if dispimg_zoom > 1:
+                    cx=dispimg_offset[0]+1440/2/dispimg_zoom
+                    cy=dispimg_offset[1]+2560/2/dispimg_zoom
+                    dispimg_zoom-=dzm
+                    dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
+                    dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
+                    print("zoom: ", dispimg_zoom)
+            x = dispimg_offset[0]
+            y = dispimg_offset[1]
+            dx = 0.125*1440
+            dy = 0.125*2560
+            if event.key == pygame.K_w:y-=dy
+            if event.key == pygame.K_s:y+=dy
+            if event.key == pygame.K_a:x-=dx
+            if event.key == pygame.K_d:x=+dx
+            #Check for boundaries
+            if x<0: x=0
+            if y<0: y=0
+            if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
+            if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
+            dispimg_offset = [x , y]
 
     # Check for tooltips to draw
     tooltip=None

@@ -97,6 +97,9 @@ class MenuBar():
             self.height = height + self.margins.y + self.margins.height
 
 
+    def getHeight(self):
+        return self.height + self.margins.y + self.margins.height
+
     def addMenu(self, menutitle,shortcutChar):
         """ Adds new menu in the menubar (with empty menulist)."""
 
@@ -426,9 +429,8 @@ class MenuList():
 
 
 ########################################################################################################################
-## Class ImgBox
+## Class ProgressBar
 ########################################################################################################################
-
 
 class ProgressBar():
     rect=GRect()
@@ -463,6 +465,10 @@ class ProgressBar():
         if self.drawBorder:
             pygame.draw.rect(self.pyscreen,self.bordercolor, self.rect.tuple(), 1)
 
+
+########################################################################################################################
+## Class ImgBox
+########################################################################################################################
 
 class ImgBox():
     rect=GRect()
