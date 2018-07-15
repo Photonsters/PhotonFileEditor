@@ -77,6 +77,11 @@ class STLFile:
         list[idx]=object
         return list
 
+    def clearModel(self):
+        self.points = []
+        self.model = []
+        self.cmin = []
+        self.cmax = []
 
     def load_binary_stl(self, filename, scale=1):
         fp = open(filename, 'rb')
@@ -85,9 +90,9 @@ class STLFile:
         l = struct.unpack('I', fp.read(4))[0]
         count = 0
 
-        #self.points=[None]*1000
         pidx=0
 
+        self.clearModel()
         while True:
             try:
                 p = fp.read(12)
@@ -360,7 +365,8 @@ class STLFile:
         offset=Vector((67.5/2,0,120/2))
         scale=Vector((1440/67.5,1,2560/120))
         img = pygame.Surface((1440 , 2560 ))
-        img.fill((0,0,0,0))
+        black = pygame.Color(0, 0, 0, 0)
+        img.fill(black)
         fillPoints=[]
         for tri in slice:
             #Draw/project (filled) triangles
@@ -402,9 +408,8 @@ class STLFile:
             p2.toInt()
             #print ("save: ",p0,p1,p2)
 
-            white=(255,255,255,0)
-            red=(255,0,0,0)
-            black=(0,0,0,0)
+            white=pygame.Color(255,255,0,255)
+
             w=1
             pygame.gfxdraw.filled_trigon(img,p0.x,p0.z,p1.x,p1.z,p2.x,p2.z,white)
             pygame.draw.line(img, white, (p0.x, p0.z), (p1.x, p1.z),w)
@@ -417,11 +422,9 @@ class STLFile:
 
         pixarray = pygame.surfarray.pixels2d(img)
 
-        def color2int(color):
-            return (color[0]*256+color[1])*256+color[2]
-
-        redi=color2int(red)
-        blacki=color2int(black)
+        red = pygame.Color(255, 0, 0, 255)
+        redi=int(red)
+        blacki=int(black)
         for fillPoint in fillPoints:
             self.fillBmp(pixarray,(fillPoint),blacki,redi)
             pygame.draw.line(img, red, fillPoint, fillPoint, 1)
