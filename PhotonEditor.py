@@ -83,6 +83,7 @@ layerLabel=None #Scroll chevrons at top left
 layerNr = 0
 prevNr=0
 lastpos=(0,0)
+editLayerMode=False
 
 # Dimensional constants for settings
 settingscolwidth=250
@@ -101,6 +102,7 @@ layerRect=GRect(0,0,settingsleft,windowheight)
 # GUI controls
 menubar=None
 controls=[]
+layercontrols = []
 firstHeaderTextbox=-1
 firstPreviewTextbox=-1
 firstLayerTextbox=-1
@@ -116,6 +118,9 @@ layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWi
 # Resin settings
 resins=None
 resincombo=None
+
+# Statusbar
+statusbar =None
 
 ########################################################################################################################
 ##  Message boxes
@@ -504,6 +509,23 @@ def pasteLayer():
         print(err)
         errMessageBox(str(err))
 
+def editLayer():
+    """ Hides all controls on top of layer image and activates editing
+    """
+    global editLayerMode
+    global layercontrols
+    global layerSlider_visible
+
+    editLayerMode=True
+
+    layerSlider_visible=False
+
+    for control in layercontrols:
+        control.visible=False
+
+    statusbar.setText(" [ESC] to exit edit mode | Use [+-/WASD/Mouse] ")
+
+
 def replaceBitmap():
     """ Checks which image is active, preview or layer and calls replacePreviewBitmap or replaceLayerBitmap """
     global dispimg
@@ -601,6 +623,20 @@ def replaceLayerBitmap():
         print ("User Canceled")
     return
 
+def storeLayerBitmap():
+    """ Stores (edited) display image to PhotonFile
+    """
+    global dispimg
+    global layerimg
+    global layerNr
+    global photonfile
+    # Ask PhotonFile object to replace bitmap
+    photonfile.replaceBitmap(layerNr, dispimg)
+    # Refresh data from layer in sidebar (data length is possible changed)
+    refreshLayerSettings()
+    # Show user the new bitmap (as check all is stored well)
+    layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
+    dispimg = layerimg
 
 def importBitmaps():
     """ Replace all bitmaps with all bitmap found in a directory selected by the user """
@@ -926,42 +962,52 @@ def createMenu():
 def createLayerOperations():
     """ Create the layer modification buttons pointing to Edit menu layer options """
     global controls
+    global layercontrols
     global menubar
     viewport_yoffset = 8
     iconsize=(46,59)
     icondist=iconsize[0]+16
-    controls.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
+    layercontrols.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
                            pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
                            borderhovercolor=(0,0,0),toolTip="Cut (and store in clipboard)",
                            func_on_click=deleteLayer))
-    controls.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
+    layercontrols.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
                            pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
                            borderhovercolor=(0, 0, 0),toolTip="Copy (to clipboard)",
                            func_on_click=copyLayer))
-    controls.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
+    layercontrols.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
                            pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
                            borderhovercolor=(0, 0, 0), toolTip="Paste (from clipboard)",
                            func_on_click=pasteLayer))
-    controls.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
+    layercontrols.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
                            pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
                            borderhovercolor=(0, 0, 0), toolTip="Duplicate (current layer)",
                            func_on_click=duplicateLayer))
-
+    layercontrols.append(ImgBox(screen, filename="resources/edit.png", filename_hover="resources/edit-hover.png",
+                           pos=(20+4*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           borderhovercolor=(0, 0, 0), toolTip="Edit mode",
+                           func_on_click=editLayer))
+    for layercontrol in layercontrols:
+        controls.append(layercontrol)
 
 def createLayernavigation():
     """ Create the layer navigation buttons (Up/Down) """
     global layerLabel
     global menubar
     global controls
+    global layercontrols
     global layerNr
 
     # Add two imageboxes to control as layer nav buttons
     viewport_yoffset=menubar.getHeight()
-    controls.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
-    controls.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
+    layercontrols.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    layercontrols.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
     layerLabel.font.set_bold(True)
-    controls.append(layerLabel)
+    layercontrols.append(layerLabel)
+
+    for control in layercontrols:
+      controls.append(control)
 
     layerNr=0
     setLayerSliderFromLayerNr()
@@ -988,6 +1034,8 @@ def createSidebar():
 
     global resins
     global resincombo
+
+    global statusbar
 
     # The controls are placed below the menubar
     viewport_yoffset=menubar.getHeight()
@@ -1020,6 +1068,11 @@ def createSidebar():
                                 onLostFocus=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
                                 ))
+
+    # Add statusbar
+    statusbar = Label(screen, text=" Status ready!",rect=GRect(settingsleft , windowheight-28,windowwidth-settingsleft+1, 28),drawBorder=True)
+    statusbar.font.set_bold(True)
+    controls.append(statusbar)
 
     # Add Preview data fields
     # Start with the title of this settingsgroup
@@ -1595,9 +1648,11 @@ def redrawWindow(tooltip=None):
     menubar.redraw()
 
     # Redraw (cursor of) layer slider
-    if layerCursorActive and not photonfile==None and dispimg==layerimg:
-        pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
-        pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
+    global layerSlider_visible
+    if layerSlider_visible:
+        if layerCursorActive and not photonfile==None and dispimg==layerimg:
+            pygame.draw.rect(screen, (0, 0, 150), scrollLayerRect.tuple(), 1)
+            pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
 
     # Redraw tooltip
     if not tooltip==None: tooltip.redraw()
@@ -1624,8 +1679,11 @@ def setLayerSliderFromLayerNr():
 
 
 imgPrevLoadTime=0 # keeps time since last img load and used to prevent to many image load
+layerSlider_visible=True
 def handleLayerSlider(checkRect=True):
     """ Checks if layerslider is used (dragged by mouse) and updates layer image and settings"""
+    global layerSlider_visible
+    if not layerSlider_visible: return
 
     global photonfile
     global dispimg
@@ -1727,6 +1785,9 @@ def poll(event=None):
     global dispimg
     global layerForecolor
     global layerBackcolor
+    global editLayerMode
+    global layercontrols
+    global layerSlider_visible
 
     tooltip=None
     for event in pygame.event.get():
@@ -1762,22 +1823,6 @@ def poll(event=None):
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouseDrag=handleLayerSlider()
-
-            if dispimg==layerimg:
-                gpos=GPoint.fromTuple(pos)
-                if gpos.inGRect(layerRect):
-                    pixCoord=[dispimg_offset[0] +  pos[0] * 4 / dispimg_zoom,
-                              dispimg_offset[1] + (pos[1]-menubar.getHeight()) * 4 / dispimg_zoom
-                             ]
-                    brushWidth=4
-                    pixRect=(pixCoord[0],pixCoord[1],brushWidth * 4 / dispimg_zoom,brushWidth * 4 / dispimg_zoom)
-                    print ("pixRect: ",pixRect,event.button)
-                    if event.button==1:
-                        pygame.draw.rect(layerimg, layerForecolor, pixRect, 0)
-                    elif event.button==3:
-                        pygame.draw.rect(layerimg, layerBackcolor, pixRect, 0)
-                dispimg=layerimg
-
             if not menubar.handleMouseDown(pos,event.button):
                 for ctrl in controls:
                     ctrl.handleMouseDown(pos,event.button)
@@ -1828,45 +1873,85 @@ def poll(event=None):
                         if idx<0: idx=len(controls)-1
 
             if event.key == pygame.K_ESCAPE :
-                print ("Escape key pressed down. Exit!")
-                running = False
+                if editLayerMode:
+                    print ("Exit edit mode.")
+                    # Store bitmap
+                    storeLayerBitmap()
+                    # Reset pan and zoom
+                    dispimg_offset=[0,0]
+                    dispimg_zoom=1
+                    # Change GUI elements for normal mode
+                    editLayerMode=False
+                    layerSlider_visible = True
+                    for control in layercontrols:
+                        control.visible = True
+                    statusbar.setText("")
+                else:
+                    print ("Escape key pressed down. Exit!")
+                    running = False
             else:
                 if not menubar.handleKeyDown(event.key,event.unicode):
                     for ctrl in controls:
                         ctrl.handleKeyDown(event.key,event.unicode)
 
-            #Handle zoom / pan of layer image
-            dzm=0.5
-            if event.key == pygame.K_KP_PLUS:
-                if dispimg_zoom < 4:
-                    cx=dispimg_offset[0]+1440/2/dispimg_zoom
-                    cy=dispimg_offset[1]+2560/2/dispimg_zoom
-                    dispimg_zoom+=dzm
-                    dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
-                    dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
-                    print ("zoom: ",dispimg_zoom)
-            if event.key == pygame.K_KP_MINUS:
-                if dispimg_zoom > 1:
-                    cx=dispimg_offset[0]+1440/2/dispimg_zoom
-                    cy=dispimg_offset[1]+2560/2/dispimg_zoom
-                    dispimg_zoom-=dzm
-                    dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
-                    dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
-                    print("zoom: ", dispimg_zoom)
-            x = dispimg_offset[0]
-            y = dispimg_offset[1]
-            dx = 0.125*1440
-            dy = 0.125*2560
-            if event.key == pygame.K_w:y-=dy
-            if event.key == pygame.K_s:y+=dy
-            if event.key == pygame.K_a:x-=dx
-            if event.key == pygame.K_d:x=+dx
-            #Check for boundaries
-            if x<0: x=0
-            if y<0: y=0
-            if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
-            if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
-            dispimg_offset = [x , y]
+        if editLayerMode:
+            # Handle zoom / pan of layer image
+            if event.type == pygame.KEYDOWN:
+                dzm=0.5
+                if event.key == pygame.K_KP_PLUS:
+                    if dispimg_zoom < 4:
+                        cx=dispimg_offset[0]+1440/2/dispimg_zoom
+                        cy=dispimg_offset[1]+2560/2/dispimg_zoom
+                        dispimg_zoom+=dzm
+                        dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
+                        dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
+                        print ("zoom: ",dispimg_zoom)
+                if event.key == pygame.K_KP_MINUS:
+                    if dispimg_zoom > 1:
+                        cx=dispimg_offset[0]+1440/2/dispimg_zoom
+                        cy=dispimg_offset[1]+2560/2/dispimg_zoom
+                        dispimg_zoom-=dzm
+                        dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
+                        dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
+                        print("zoom: ", dispimg_zoom)
+                x = dispimg_offset[0]
+                y = dispimg_offset[1]
+                dx = 0.125*1440
+                dy = 0.125*2560
+                if event.key == pygame.K_w:y-=dy
+                if event.key == pygame.K_s:y+=dy
+                if event.key == pygame.K_a:x-=dx
+                if event.key == pygame.K_d:x=+dx
+                #Check for boundaries
+                if x<0: x=0
+                if y<0: y=0
+                if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
+                if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
+                dispimg_offset = [x , y]
+
+            #Handle editing of layer image
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouseDrag = handleLayerSlider()
+
+                if dispimg == layerimg:
+                    gpos = GPoint.fromTuple(pos)
+                    #editMargin=GRect(80,80,80,80) # clicks on border are not processed
+                    displace=(-2,-2)
+                    layerRectEditArea=layerRect.copy()
+                    #layerRectEditArea.shrink(editMargin)
+                    if gpos.inGRect(layerRectEditArea):
+                        pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
+                                    dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom
+                                    ]
+                        brushWidth = 4
+                        pixRect = (
+                        pixCoord[0], pixCoord[1], brushWidth * 4 / dispimg_zoom, brushWidth * 4 / dispimg_zoom)
+                        print("pixRect: ", pixRect, event.button)
+                        if event.button == 1:
+                            pygame.draw.rect(layerimg, layerForecolor, pixRect, 0)
+                        elif event.button == 3:
+                            pygame.draw.rect(layerimg, layerBackcolor, pixRect, 0)
+                    dispimg = layerimg
 
     # Check for tooltips to draw
     tooltip=None

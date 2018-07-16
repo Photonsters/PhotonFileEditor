@@ -371,7 +371,7 @@ class PhotonFile:
     ## Encoding
     ########################################################################################################################
 
-    def encodedBitmap_Bytes_withnumpy(filename):
+    def encodedBitmap_Bytes_withnumpy(surfOrFile):
         """ Converts image data from file on disk to RLE encoded byte string.
             Uses Numpy library - Fast
             Based on https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
@@ -380,8 +380,13 @@ class PhotonFile:
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
 
-        # Load image and check if size is correct (1440 x 2560)
-        imgsurf = pygame.image.load(filename)
+        # Check if we got a string and if so load image
+        if isinstance(surfOrFile, str):
+            imgsurf = pygame.image.load(surfOrFile)
+        else:
+            imgsurf = surfOrFile
+
+        # Check if size is correct size (1440 x 2560)
         (width, height) = imgsurf.get_size()
         if not (width, height) == (1440, 2560):
             raise Exception("Your image dimensions are off and should be 1440x2560")
@@ -418,7 +423,7 @@ class PhotonFile:
         return bytes(rleData)
 
 
-    def encodedBitmap_Bytes_nonumpy(filename):
+    def encodedBitmap_Bytes_nonumpy(surfOrFile):
         """ Converts image data from file on disk to RLE encoded byte string.
             Processes pixels one at a time (pygame.get_at) - Slow
             Encoding scheme:
@@ -426,8 +431,13 @@ class PhotonFile:
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
 
-        # Load image and check if size is correct (1440 x 2560)
-        imgsurf = pygame.image.load(filename)
+        # Check if we got a string and if so load image
+        if isinstance(surfOrFile, str):
+            imgsurf = pygame.image.load(surfOrFile)
+        else:
+            imgsurf = surfOrFile
+
+        # Check if size is correct size (1440 x 2560)
         #bitDepth = imgsurf.get_bitsize()
         #bytePerPixel = imgsurf.get_bytesize()
         (width, height) = imgsurf.get_size()
@@ -462,12 +472,12 @@ class PhotonFile:
         return bytes(rleData)
 
 
-    def encodedBitmap_Bytes(filename):
+    def encodedBitmap_Bytes(surfOrFile):
         """ Depening on availability of Numpy, calls upon correct Encoding method."""
         if numpyAvailable:
-            return PhotonFile.encodedBitmap_Bytes_withnumpy(filename)
+            return PhotonFile.encodedBitmap_Bytes_withnumpy(surfOrFile)
         else:
-            return PhotonFile.encodedBitmap_Bytes_nonumpy(filename)
+            return PhotonFile.encodedBitmap_Bytes_nonumpy(surfOrFile)
 
 
     def encodedPreviewBitmap_Bytes_nonumpy(filename,checkSizeForNr=0):
@@ -672,7 +682,7 @@ class PhotonFile:
         return memory
 
 
-    def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(0.25, 0.25)):
+    def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(1, 1)):
         """ Depending on availability of Numpy, calls upon correct Decoding method."""
         if numpyAvailable:
             return self.getBitmap_withnumpy(layerNr,forecolor,backcolor,scale)

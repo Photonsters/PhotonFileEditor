@@ -387,9 +387,9 @@ class MenuList():
                 textsurface = self.font.render(text,True, localtextcolor)
                 self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
             else:
-                pygame.draw.line(self.pyscreen,defMenuForeground,
+                pygame.draw.line(self.pyscreen,self.bordercolor,
                                  (self.pos.x, rowtop-int(self.spacing/2)+int(self.rowheight/2)),
-                                 (self.pos.x+self.pos.width, rowtop-int(self.spacing/2)+int(self.rowheight/2) )
+                                 (self.pos.x+self.pos.width-1, rowtop-int(self.spacing/2)+int(self.rowheight/2) )
                                 )
 
 
@@ -554,6 +554,7 @@ class ImgBox():
 
     def handleMouseMove(self, pos):
         """ Updates state of ImgBox on hover. """
+        if not self.visible: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.hoverActive=True
