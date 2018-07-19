@@ -74,8 +74,8 @@ class MenuBar():
     menus=[]
     margins = GRect(4, 4, 4, 4)
     height = -1
-    spacing = 4
-    minwidth=50
+    spacing = 14
+    minwidth=40
     visible=True
     textcolor=defMenuForeground
     backcolor=defMenuBackground
@@ -429,6 +429,221 @@ class MenuList():
 
 
 ########################################################################################################################
+## Class Frame
+########################################################################################################################
+
+class Frame():
+    pyscreen=None
+    rect=GRect()
+    drawborder=True
+    text="Frame"
+    bordercolor=defBorder
+    topoffset=0
+    margin=GRect(4,2,4,2)
+    backcolor=defFormBackground
+    drawbackground=False
+    forecolor=defFormForeground
+    __visible=True
+    __vislist=None
+    __controls=None
+    __rects = None
+
+    #LAYOUT
+    LEFTRIGHT=1
+    TOPDOWN=2
+    ABSOLUTEPOSITIONING=9
+    layout=ABSOLUTEPOSITIONING
+    gridsize=-1 # -1: not fixes spacing, but depending on control size
+    spacing= 4  # spacing between controls
+    controlsTop=0 # set in redraw
+    __recalc=False
+
+    def __init__(self, pyscreen, rect=GRect(0,0,80,80),backcolor=defFormBackground, drawbackground=False,
+                 bordercolor=defBorder,drawborder=True,topoffset=0,margin=GRect(4,2,4,2),
+                 text = "Frame", fontname = defFontName,fontsize = defFontSize,textcolor=defFormForeground,
+                 layout=ABSOLUTEPOSITIONING,gridsize=-1,spacing=4,
+                 tag=""):
+        self.pyscreen=pyscreen
+        self.rect=rect
+        self.backcolor=backcolor
+        self.drawbackground=drawbackground
+        self.bordercolor=bordercolor
+        self.topoffset=topoffset
+        self.margin=margin
+        self.drawborder=drawborder
+        self.textcolor=textcolor
+        self.layout=layout
+        self.gridsize=gridsize
+        self.spacing=spacing
+        self.text=text
+        self.font = pygame.font.SysFont(fontname, fontsize)
+        self.font.set_bold(True)
+        # Calculate
+        (twidth,theight)=self.font.size(self.text)
+        self.controlsTop = self.margin.y
+        if not self.text=="":
+            self.controlsTop = self.controlsTop + theight
+        # Create instance specific lists instead of class wide lists
+        self.__vislist = []
+        self.__controls = []
+        self.__rects = []
+        self.tag=tag
+
+    @property
+    def visible(self):return self.__visible
+
+    @visible.setter
+    def visible(self, visible):
+        self.__visible = visible
+        # If make hidden - Store old visible setting and hide all controls
+        """
+        if visible==False:
+            for idx,control in enumerate(self.__controls):
+                self.__vislist[idx]=control.visible
+                control.visible=False
+        #If make visible - Restore old visible setting of controls
+        else:
+            for idx,control in enumerate(self.__controls):
+                control.visible= self.__vislist[idx]
+        """
+    def append(self,control,rect=None):
+        self.__controls.append(control)
+        if not rect==None:
+            self.__rects.append(rect)
+        else:
+            self.__rects.append(GRect((0,0,0,0)))
+        self.__vislist.append(True)
+
+    def setRect(self, rect):
+        self.rect=rect
+        self.__validated=False
+
+    def reposControls(self):
+        """ Reposition the controls (could be shared amongst frames and we want our positions to be set.
+        """
+        for idx in range(0,len(self.__controls)):
+            #print (idx,": ",control.rect,"| ",self.rect,"| ",rect)
+            self.__controls[idx].rect.x = self.rect.x + self.__rects[idx].x
+            self.__controls[idx].rect.y = self.rect.y + self.__rects[idx].y
+
+    def recalcControls(self):
+        """ Depending on direction, reposition the controls
+        """
+        if self.layout==self.TOPDOWN:
+            x=self.margin.x
+            y=self.controlsTop
+            for idx in range(0,len(self.__controls)):
+                self.__rects[idx].x = x
+                self.__rects[idx].y = y
+                if isinstance(self.__controls[idx], Frame): self.__controls[idx].setRect(self.__controls[idx].rect)
+                if self.gridsize==-1: # no fixed spacing, but depending on control size
+                    y=y+self.__controls[idx].rect.height+self.spacing
+                else:            # fixed spacing, margin ignored
+                    y=y+self.gridsize
+
+        elif self.layout==self.LEFTRIGHT:
+            x=self.margin.x
+            y=self.controlsTop
+            for idx in range(0, len(self.__controls)):
+                self.__rects[idx].x = x
+                self.__rects[idx].y = y
+                if isinstance(self.__controls[idx], Frame): self.__controls[idx].setRect(self.__controls[idx].rect)
+                if self.gridsize==-1: # no fixed spacing, but depending on control size
+                    x=x+self.__controls[idx].rect.width+self.spacing
+                else:            # fixed spacing, margin ignored
+                    x=x+self.gridsize
+
+        self.__recalc=True
+
+    """
+    def crop(self):
+        maxX=0
+        maxY=0
+        for control in self.__controls:
+            if isinstance(control,Frame):
+                control.recalcControls()
+                control.crop()
+            maxX = max(control.rect.x + control.rect.width, maxX)
+            maxY = max(control.rect.y + control.rect.height, maxY)
+        self.recalcControls()
+        self.rect.width = self.margin.x+maxX+self.margin.width
+        self.rect.height = self.margin.y + maxY + self.margin.height
+    """
+
+
+    def redraw(self):
+        if not self.__visible: return
+        if not self.__recalc: self.recalcControls()
+        self.reposControls()
+
+        # Calculate border, depending if Title ofsets top
+        (twidth,theight)=self.font.size(self.text)
+        frameRect = self.rect.copy()
+        frameRect.shrink(GRect(0, self.topoffset, 0, 0))
+
+        # Draw background
+        if self.drawbackground:
+            pygame.draw.rect(self.pyscreen, self.backcolor, frameRect.tuple(), 0)
+
+        # Draw border
+        if self.drawborder:
+            pygame.draw.rect(self.pyscreen, self.bordercolor, frameRect.tuple(),1)
+
+        # Draw Frame Title
+        if not self.text == "":
+            # Remove border behind text
+            if self.topoffset > 0:
+                pygame.draw.rect(self.pyscreen, self.backcolor,
+                                 (self.rect.x + self.margin.x-2, frameRect.y,twidth+4,1), 0)
+            # Draw text
+            textsurface = self.font.render(self.text, True, self.textcolor)
+            self.pyscreen.blit(textsurface, (self.rect.x + self.margin.x, self.rect.y+self.margin.y))
+
+        # Draw Controls on top of frame background
+        for control in self.__controls:
+            if not control==None:
+                control.redraw()
+                #if isinstance(control,Combobox):
+                #    print ("combo:",control.rect,control.visible)
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of ImgBox on hover. """
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseMove(pos)
+
+    def handleMouseUp(self, pos,button):
+        """ Calls on user function if clicked."""
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseUp(pos,button)
+
+    def handleMouseDown(self,pos,button):
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseDown(pos,button)
+
+    def handleKeyDown(self,key,unicode):
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleKeyDown(key,unicode)
+
+    def handleToolTips(self,lastpos):
+        tooltip=None
+        for control in self.__controls:
+            hasToolTip = getattr(control, "handleToolTips", False)
+            if hasToolTip:
+                ret = control.handleToolTips(lastpos)
+                if not ret==None: tooltip=ret
+        return tooltip
+
+
+########################################################################################################################
 ## Class ProgressBar
 ########################################################################################################################
 
@@ -485,9 +700,8 @@ class ImgBox():
     firstHoverTime = 0
     firstHoverPos=GPoint(0,0)
 
-    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,
-                 toolTip="",
-                 resizeto=None,func_on_click=None):
+    def __init__(self, pyscreen, filename, filename_hover=None, rect=GRect(0, 0,-1,-1), bordercolor=defBorder,
+                 borderhovercolor=defBorderHover, drawBorder=False,rotate=0,toolTip="",func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.bordercolor = bordercolor
@@ -495,28 +709,21 @@ class ImgBox():
         self.drawBorder=drawBorder
         self.func_on_click=func_on_click
 
-        # Load image and resize to fit
+        # Load image and rotate
         self.img=pygame.image.load(filename)
+        if not rotate==0:self.img=pygame.transform.rotate(self.img,rotate)
         if not filename_hover==None:
             self.hoverimg = pygame.image.load(filename_hover)
+            if not rotate == 0:self.hoverimg =pygame.transform.rotate(self.hoverimg ,rotate)
 
-        # If user want other size we try to resize
-        try:
-            if not resizeto == None:
-                self.img=pygame.transform.scale(self.img, resizeto)
-                if not filename_hover==None:
-                    self.hoverimg = pygame.transform.scale(self.hoverimg, resizeto)
-        except Exception as err:
-            print(err)
+        # Determine dest size (rescale is done in redraw if necessary)
+        imgrect = self.img.get_rect()
+        if rect.width < 1 or rect.height < 1:
+            rect.width = imgrect[2]
+            rect.height = imgrect[3]
+        self.rect = rect
 
-        # Determine size of control based on image size
-        imgrect=self.img.get_rect()
-        self.rect=GRect(imgrect[0],imgrect[1],imgrect[2],imgrect[3])
-        self.rect.x=pos[0]
-        self.rect.y=pos[1]
-
-        #And setup tooltip
-        # We need to figure out the correct width correct width of tooltip
+        # And setup tooltip - We need to figure out the correct width correct width of tooltip
         if not toolTip=="":
             self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 1024, 20),
                                       text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
@@ -535,6 +742,15 @@ class ImgBox():
 
         # If not visible nothing to do.
         if not self.visible: return
+
+        # Check if control size changed and we need to rescale image
+        imgrect = self.img.get_rect()
+        rect=self.rect.tuple()
+        if not imgrect[2]==rect[2] or not imgrect[3]==rect[3]:
+            resizeto=(rect[2],rect[3])
+            self.img = pygame.transform.smoothscale(self.img, resizeto)
+            if not self.hoverimg == None:
+                self.hoverimg = pygame.transform.smoothscale(self.hoverimg, resizeto)
 
         # Draw Image to screen
         self.pyscreen.blit(self.img,self.rect.tuple())
@@ -643,7 +859,11 @@ class Button():
     borderwidth=1
     visible=True
 
-    def __init__(self, pyscreen, rect=GRect(0,0,60,40),text="Button",  textcolor=(0,0,0),fontname=defFontName, fontsize=defFontSize, backcolor=defButtonBackground,filename=None,filename_hover=None,filename_down=None, bordercolor=defBorder, borderhovercolor=defBorderHover,func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(0,0,60,40),
+                 text="Button",  textcolor=(0,0,0),fontname=defFontName, fontsize=defFontSize,
+                 backcolor=defButtonBackground,filename=None,
+                 filename_hover=None,filename_down=None,
+                 bordercolor=defBorder, borderhovercolor=defBorderHover,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.text=text
@@ -785,7 +1005,7 @@ class ScrollBarV():
     visible = True
 
     #todo: replace forecolor with def constant
-    def __init__(self, pyscreen, rect=GRect(0, 0, 60, 40), forecolor=(0,0,0), sfontsize=defFontSize, sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover, func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
+    def __init__(self, pyscreen, rect=GRect(0, 0, 24, 40), forecolor=(0,0,0), sfontsize=defFontSize, sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover, func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect=rect
@@ -801,10 +1021,18 @@ class ScrollBarV():
         self.largeScroll=largeScroll
 
         # Add up and down button
-        self.btnUp = Button(pyscreen, text="^", bordercolor=sbordercolor, borderhovercolor=sborderhovercolor,
-                            textcolor=forecolor, func_on_click=self.scrollUp)
-        self.btnDown = Button(pyscreen, text="v", bordercolor=sbordercolor, borderhovercolor=sborderhovercolor,
-                              textcolor=forecolor, func_on_click=self.scrollDown)
+        self.btnUp=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=0,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollUp)
+        self.btnDown=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=180,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollDown)
 
 
     def scrollDown(self,isLargeScroll=False):
@@ -955,7 +1183,7 @@ class ListBox():
     items=[]
     rect = GRect(0, 0, 80, 32)
     margins = GRect(4, 4, 4, 4)
-    bordercolor = (128, 128, 128)
+    bordercolor = defBorder
     backcolor = defEditorBackground
     textcolor = defEditorForeground
     highbackcolor = defHighSelectBackground
@@ -1034,11 +1262,12 @@ class ListBox():
                     textsurface = self.font.render(item, True, self.hightextcolor)
                 else:
                     textsurface = self.font.render(item, True, self.textcolor)
-                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)),(0,0,self.rect.width,self.rowheight+self.spacing))
+                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)),
+                                                (0,0,self.rect.width-self.scrollbarV.rect.width,self.rowheight+self.spacing))
 
         # Position scrollbar and call upon scrollbarV to redraw itself
         scrollRect = self.rect.copy()
-        scrollRect.width = self.fontsize
+        scrollRect.width = int(self.fontsize*1.2)
         scrollRect.x = self.rect.right - scrollRect.width
         self.scrollbarV.rect=scrollRect
         self.scrollbarV.maxScroll = len(self.items)-self.nritems
@@ -1130,8 +1359,12 @@ class ListBox():
 
 class Combobox():
     items=[]
+    label=None
+    button=None
+    listbox=None
     rect = GRect(0, 0, 80, 32)
     margins = GRect(4, 4, 4, 4)
+    expandHeight = 40
     font=None
     fontname = "Consolas"
     fontsize = 16
@@ -1143,10 +1376,11 @@ class Combobox():
     text="" #stores text if clicked
     func_on_click=None
 
-    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), expandHeight=130, items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect=rect
+        self.expandHeight=expandHeight
         self.items=items
         self.font = pygame.font.SysFont(fontname, fontsize)
         text_width, text_height = self.font.size("M[].j")
@@ -1159,9 +1393,9 @@ class Combobox():
         fsize=fontsize
 
         # Calc positions
-        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
-        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
-        listboxRect=GRect(rect.left,rect.bottom,rect.width,120)
+        labelRect=GRect(rect.left,rect.top,rect.width-self.fontsize*1.2,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,self.fontsize*1.2,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,expandHeight)
         # Add Label
         defitem=items[defitemnr]
         self.label=Label(pyscreen,rect=labelRect,text=defitem,fontname=fname,fontsize=fsize,autowrap=False)
@@ -1175,31 +1409,51 @@ class Combobox():
         self.label.rect.width=rect.width-self.label.rect.height
         buttonRect.height=self.label.rect.height
         buttonRect.left=self.label.rect.right
-        buttonRect.width=self.label.rect.height
+        buttonRect.width=int(self.fontsize*1.2)#self.label.rect.height
         listboxRect.top=labelRect.bottom
         # Add Button
-        self.button=Button(pyscreen,rect=buttonRect,text="V",fontname=fname,fontsize=fsize,func_on_click=self.buttonClick)
+        self.button=ImgBox(pyscreen, rect=buttonRect,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=180,
+                     bordercolor=defBorder,borderhovercolor=defBorderHover, drawBorder=True,
+                     toolTip="",func_on_click=self.buttonClick)
+
         # Add Listbox
         self.listbox=ListBox(pyscreen,rect=listboxRect,items=items,fontname=fname,fontsize=fsize,func_on_click=self.listClick)
+        # Calc expanded size of listBox
+        nritems = int(expandHeight / (self.listbox.rowheight + self.listbox.spacing))
+        self.expandHeight=nritems*(self.listbox.rowheight + self.listbox.spacing)
 
         # Initially combobox is not expanded / listbox is not visible
         self.listbox.visible=False
 
-    """ 
-    def reposControls(self): #called after winrect is moved
-        # Recalculates all positions after moving dialog box. 
+    def reposControls(self):
+        if self.label==None or self.button==None or self.listbox==None:return
+
         rect=self.rect
-        #buttons is as wide as height
-        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
-        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
-        listboxRect=GRect(rect.left,rect.bottom,rect.width,40)
-        self.button.rect=buttonRect
+        text_width, text_height = self.font.size("M[].j")
+        self.rowheight=text_height
+
+        labelRect = GRect(rect.left, rect.top, rect.width - self.fontsize*1.2, rect.height)
+        buttonRect = GRect(labelRect.right, rect.top, self.fontsize*1.2, rect.height)
+        listboxRect = GRect(rect.left, rect.bottom, rect.width, self.expandHeight)
         self.label.rect=labelRect
-        #todo: listbox below label, but this should depend on room
+        labelRect = self.label.rect
+
+        # Label will resize itself in height
+        self.label.rect.width = rect.width - buttonRect.width
+        buttonRect.height = self.label.rect.height
+        buttonRect.left = self.label.rect.right
+        buttonRect.width = int(self.fontsize * 1.2)  # self.label.rect.height
+        listboxRect.top = labelRect.bottom
+        self.button.rect = buttonRect
         self.listbox.rect=listboxRect
-    """
+
 
     def redraw(self):
+        # In case user changed self.rect or self.rect.x or self.rect.y we need to repos children
+        self.reposControls()
         self.label.redraw()
         self.button.redraw()
         self.listbox.redraw()
@@ -1215,6 +1469,7 @@ class Combobox():
 
     def buttonClick(self):
         self.listbox.visible= not self.listbox.visible
+        #print ("listbox",self.listbox.rect,self.listbox.visible)
 
 
     def handleMouseUp(self,pos,button):
@@ -1414,6 +1669,12 @@ class TextBox():
     visible=True
     allSelected=False
 
+    #Hover
+    normal=0
+    hover=1
+    state= False
+
+
     #Tooltip vars
     toolTipLabel=None
     firstHoverTime = 0
@@ -1427,7 +1688,7 @@ class TextBox():
     inputType=TEXT
 
     def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
-                 bordercolor=defBorder, backcolor=defEditorBackground, textcolor=defEditorForeground,
+                 bordercolor=defBorder, borderhovercolor=defBorderHover, backcolor=defEditorBackground, textcolor=defEditorForeground,
                  borderwidth=1, drawBorder=True,
                  text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
                  inputType=TEXT,
@@ -1438,6 +1699,7 @@ class TextBox():
         self.rect = rect
         self.margin=margin
         self.bordercolor=bordercolor
+        self.borderhovercolor=borderhovercolor
         self.backcolor=backcolor
         self.textcolor=textcolor
         self.borderwidth=borderwidth
@@ -1490,7 +1752,12 @@ class TextBox():
 
         # Draw background and border if needed
         pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
-        if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
+        if self.drawBorder:
+            if self.borderwidth == 1:
+                if self.state==self.hover:
+                    pygame.draw.rect(self.pyscreen, self.borderhovercolor, self.rect.tuple(), self.borderwidth)
+                else:
+                    pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
 
         # Draw text
         # If all selected we need to draw with hightlighted background
@@ -1572,7 +1839,11 @@ class TextBox():
 
 
     def handleMouseMove(self,pos):
-        return
+        gpos=GPoint.fromTuple(pos)
+        if gpos.inGRect(self.rect) and self.editable:
+            self.state = self.hover
+        else:
+            self.state = self.normal
 
 
     def handleToolTips(self,pos):

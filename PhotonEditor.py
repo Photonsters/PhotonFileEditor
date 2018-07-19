@@ -37,14 +37,16 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
-#todo: zoom/pan layerimg with mouse
-#todo: implement edit layerimg - disable overlay in edit mode - save image
-#todo: calc time to print
+#todo: zoom/pan layerimg with mouse, continuous draw on mouse drag
+#todo: save editor layer image if layerchange or.... disable layerchange if editing
 #todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
 #       - show layer underneed transparent
 #       - make edit possible of current layer and all layers beneath
+#todo: plugin - exchange files with validator
+#todo: implement pcb plugin
+#todo: tooltips in Basic Frame overflow window
 #todo: OpenGL - why do we need it...
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
@@ -56,7 +58,6 @@ except ImportError as err:
 #todo: Exe/distribution made with
 #todo: drag GUI-scrollbar is not implementend
 #todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
-
 
 
 ########################################################################################################################
@@ -102,10 +103,19 @@ layerRect=GRect(0,0,settingsleft,windowheight)
 # GUI controls
 menubar=None
 controls=[]
+frameBasic=None
+frameAdvanced=None
+controlsGeneral=None
+controlsPreviews=None
+controlsLayers=None
+controlsSettings=None
+
+MODEBASIC=0
+MODEADVANCED=1
+MODEEDIT=2
+frameMode=MODEADVANCED
 layercontrols = []
-firstHeaderTextbox=-1
-firstPreviewTextbox=-1
-firstLayerTextbox=-1
+labelPrevNr=None
 
 # Scroll bar to the right
 mouseDrag=False
@@ -175,6 +185,7 @@ def layerDown(delta:int=1):
     """ Go a number of layers (delta) back and display image and settings """
     global layerNr, dispimg, layerimg, photonfile
     if photonfile == None: return
+    #print("layerDown")
     saveLayerSettings2PhotonFile()
 
     layerNr = layerNr - delta
@@ -190,7 +201,7 @@ def layerUp(delta=1):
     """ Go a number of layers (delta) forward and display image and settings """
     global layerNr, dispimg, layerimg, photonfile
     if photonfile == None: return
-    # print ("saveLayerSettings2PhotonFile()")
+    #print ("layerUp")
     saveLayerSettings2PhotonFile()
 
     maxLayer = photonfile.nrLayers()
@@ -876,6 +887,26 @@ def showFull3D():
     #update window surface
     redrawWindow(None)
 
+def calcTime():
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    global photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!", "A .photon file is needed to calculate the print time."): return
+
+    # Calculate time
+    offTime=expBottom=PhotonFile.bytes_to_float(photonfile.Header["Off time (s)"])
+    nrBottom=PhotonFile.bytes_to_int(photonfile.Header["# Bottom Layers"])
+    expBottom=PhotonFile.bytes_to_float(photonfile.Header["Exp. bottom (s)"])
+    expNormal = PhotonFile.bytes_to_float(photonfile.Header["Exp. time (s)"])
+    nrNormal=photonfile.nrLayers()-nrBottom
+    time=nrBottom*(offTime+expBottom)+nrNormal*(offTime+expNormal)
+    hr=int(time//3600)
+    min=int((time % 3600) // 60)
+    sec=int(time % 60)
+
+    # Display time
+    message = "Your model takes \n" + str(hr) + " hours, " + str(min) +" minutes, "+str(sec)+" seconds."
+    infoMessageBox("Printing time", message)
+
 def calcVolume():
     # Check if photonfile is loaded to prevent errors when operating on empty photonfile
     global photonfile
@@ -918,6 +949,34 @@ def openPlugin(filename):
     lines = ifile.read()
     exec(lines)
 
+def setFrameMode(fMode):
+    global frameBasic
+    global frameAdvanced
+    global frameMode
+    global MODEBASIC
+    global MODEADVANCED
+    global settingswidth
+    global windowwidth
+    global windowheight
+    global gl
+    global window
+    frameMode=fMode
+    if frameMode == MODEBASIC:
+        settingswidth = settingscolwidth  # 1 columns
+        #frameBasic.visible=True
+        #frameAdvanced.visible = False
+    elif frameMode == MODEADVANCED:
+        settingswidth = settingscolwidth * 2  # 2 columns
+        #frameBasic.visible = False
+        #frameAdvanced.visible = True
+    windowwidth = settingsleft + settingswidth
+
+    if not pyopenglAvailable:
+        window = pygame.display.set_mode((windowwidth, windowheight))
+        global menubar
+    else:
+        gl = GL((windowwidth, windowheight), handleGLCallback)
+
 
 def createMenu():
     global menubar
@@ -949,7 +1008,14 @@ def createMenu():
     menubar.addItem("View", "Preview 1",showPrev1)
     menubar.addItem("View", "3D", showFramed3D)
     menubar.addItem("View", "Full 3D", showFull3D)
-    menubar.addItem("View", "Volume", calcVolume)
+    menubar.addItem("View", "----", None)
+    global MODEBASIC
+    global MODEADVANCED
+    menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
+    menubar.addItem("View", "Advanced settings",setFrameMode,MODEADVANCED)
+    menubar.addMenu("Tools","T")
+    menubar.addItem("Tools", "Volume", calcVolume)
+    menubar.addItem("Tools", "Print Time", calcTime)
 
     menubar.addMenu("Plugins ", "P")
     for plugin in readPlugins():
@@ -968,23 +1034,23 @@ def createLayerOperations():
     iconsize=(46,59)
     icondist=iconsize[0]+16
     layercontrols.append(ImgBox(screen, filename="resources/cut.png", filename_hover="resources/cut-hover.png",
-                           pos=(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset),
+                           rect=GRect(20+0*icondist,2560/4-iconsize[1]-viewport_yoffset,-1,-1),
                            borderhovercolor=(0,0,0),toolTip="Cut (and store in clipboard)",
                            func_on_click=deleteLayer))
     layercontrols.append(ImgBox(screen, filename="resources/copy.png", filename_hover="resources/copy-hover.png",
-                           pos=(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           rect=GRect(20+1*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset,-1,-1),
                            borderhovercolor=(0, 0, 0),toolTip="Copy (to clipboard)",
                            func_on_click=copyLayer))
     layercontrols.append(ImgBox(screen, filename="resources/paste.png", filename_hover="resources/paste-hover.png",
-                           pos=(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           rect=GRect(20+2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset,-1,-1),
                            borderhovercolor=(0, 0, 0), toolTip="Paste (from clipboard)",
                            func_on_click=pasteLayer))
     layercontrols.append(ImgBox(screen, filename="resources/duplicate.png", filename_hover="resources/duplicate-hover.png",
-                           pos=(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           rect=GRect(20+3*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset,-1,-1),
                            borderhovercolor=(0, 0, 0), toolTip="Duplicate (current layer)",
                            func_on_click=duplicateLayer))
     layercontrols.append(ImgBox(screen, filename="resources/edit.png", filename_hover="resources/edit-hover.png",
-                           pos=(20+4*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset),
+                           rect=GRect(20+4.2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset,-1,-1),
                            borderhovercolor=(0, 0, 0), toolTip="Edit mode",
                            func_on_click=editLayer))
     for layercontrol in layercontrols:
@@ -1000,8 +1066,8 @@ def createLayernavigation():
 
     # Add two imageboxes to control as layer nav buttons
     viewport_yoffset=menubar.getHeight()
-    layercontrols.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", pos=(20,20+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerDown))
-    layercontrols.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", pos=(20,80+viewport_yoffset), borderhovercolor=(0,0,0),func_on_click=layerUp))
+    layercontrols.append(ImgBox(screen, filename="resources/arrow-up.png", filename_hover="resources/arrow-up-hover.png", rect=GRect(20,20+viewport_yoffset,-1,-1), borderhovercolor=(0,0,0),func_on_click=layerDown))
+    layercontrols.append(ImgBox(screen, filename="resources/arrow-down.png", filename_hover="resources/arrow-down-hover.png", rect=GRect(20,80+viewport_yoffset,-1,-1), borderhovercolor=(0,0,0),func_on_click=layerUp))
     layerLabel=Label(screen,GRect(26,80,52,40),textcolor=(255,255,255),fontsize=24,text="",istransparent=True,center=True)
     layerLabel.font.set_bold(True)
     layercontrols.append(layerLabel)
@@ -1012,11 +1078,18 @@ def createLayernavigation():
     layerNr=0
     setLayerSliderFromLayerNr()
 
+
 def createSidebar():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
     global menubar
     global screen
     global controls
+    global frameBasic
+    global frameAdvanced
+    global controlsGeneral
+    global controlsPreviews
+    global controlsLayers
+    global controlsSettings
 
     global settingscolwidth
     global settingslabelwidth
@@ -1028,9 +1101,8 @@ def createSidebar():
     global settingswidth
     global settingsleft
 
-    global firstHeaderTextbox
-    global firstPreviewTextbox
-    global firstLayerTextbox
+    global labelPrevNr
+    global labelLayerNr
 
     global resins
     global resincombo
@@ -1040,34 +1112,115 @@ def createSidebar():
     # The controls are placed below the menubar
     viewport_yoffset=menubar.getHeight()
 
+    # Setup Frames for settings
+    # We have 2 frames: Basic and Advanced
+    # Basic is 1 column and consist of two rows: General and Layer
+    # Advanced is 2 columns, first column consist of General, second column consists of Preview and Layer
+    margin=GRect(2,2,0,0)
+    settingsrowheight=26
+
+    debugFrames=False # for debugging we want to see each frame with a different color
+
+    frameResins = Frame(screen,
+                       rect=GRect(0, 0, settingscolwidth, 32 + 6 * settingsrowspacing),
+                       text="", drawbackground=debugFrames, backcolor=(0, 0, 255), drawborder=debugFrames,
+                       margin=margin, topoffset=0,
+                       layout=Frame.TOPDOWN, spacing=4, gridsize=28)
+
+    frameBasic=Frame(screen,
+                     rect=GRect(settingsleft, viewport_yoffset, settingscolwidth,windowheight - viewport_yoffset),
+                     text="",topoffset=0,
+                     drawbackground=debugFrames,backcolor=(255,0,0),
+                     drawborder=debugFrames,margin=GRect(settingslabelmargin,settingslabelmargin,0,0),
+                     layout=Frame.TOPDOWN,spacing=14,gridsize=-1,
+                     )
+    frameGenBasic=Frame(screen,
+                     rect=GRect(0, 0, settingscolwidth, 32 + 10 * settingsrowspacing),
+                     text="General",drawbackground=debugFrames,backcolor=(255,255,0),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    framePrevBasic=Frame(screen,
+                     rect=GRect(0, 0, settingscolwidth, 32 + 0 * settingsrowspacing),
+                     text="",drawbackground=debugFrames,backcolor=(255,0,255),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    frameLayerBasic=Frame(screen,
+                     rect=GRect(0,0, settingscolwidth, 32 + 1 * settingsrowspacing),
+                     text="",drawbackground=debugFrames,backcolor=(0,255,255),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    frameBasic.append(frameGenBasic)
+    frameBasic.append(framePrevBasic)
+    frameBasic.append(frameLayerBasic)
+    frameBasic.append(frameResins)
+
+    frameAdvanced=Frame(screen,
+                     rect=GRect(settingsleft, viewport_yoffset, 2* settingscolwidth,windowheight - viewport_yoffset),
+                     text="",topoffset=0,
+                     drawbackground=debugFrames,backcolor=(255,0,0),
+                     drawborder=debugFrames,margin=margin,
+                     layout=Frame.LEFTRIGHT,spacing=0,gridsize=settingscolwidth,
+                     )
+    frameAdvancedLeft = Frame(screen,
+                          rect=GRect(0, 0, settingscolwidth,windowheight - viewport_yoffset),
+                          text="", drawbackground=False, drawborder=False, margin=margin,topoffset=0,
+                          layout=Frame.TOPDOWN, spacing=14, gridsize=-1,
+                          )
+    frameAdvancedRight = Frame(screen,
+                          rect=GRect(0, 0, settingscolwidth,windowheight - viewport_yoffset),
+                          text="", drawbackground=False, drawborder=False, margin=margin,topoffset=0,
+                          layout=Frame.TOPDOWN, spacing=14, gridsize=-1,
+                          )
+    frameGenAdvanced=Frame(screen,
+                     rect=GRect(0, 0, settingscolwidth, 32 + 19 * settingsrowspacing),
+                     text="General",drawbackground=debugFrames,backcolor=(255,0,0),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    framePrevAdvanced=Frame(screen,
+                     rect=GRect(0, 0, settingscolwidth, 32 + 6 * settingsrowspacing),
+                     text="",drawbackground=debugFrames,backcolor=(0,255,0),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    frameLayerAdvanced=Frame(screen,
+                     rect=GRect(0,0, settingscolwidth, 32 + 6 * settingsrowspacing),
+                     text="",drawbackground=debugFrames,backcolor=(0,0,255),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+    frameAdvanced.append(frameAdvancedLeft)
+    frameAdvanced.append(frameAdvancedRight)
+    frameAdvancedLeft.append(frameGenAdvanced)
+    frameAdvancedRight.append(framePrevAdvanced)
+    frameAdvancedRight.append(frameLayerAdvanced)
+    frameAdvancedRight.append(frameResins)
+
+    controlsSettings=[] # will contain all controls of General/Previews/Layers
+    controlsGeneral=[]
+    controlsPreviews = []
+    controlsLayers = []
+
+
     # We need to translate the datatype of the photon settings to the datatypes an inputbox recognizes and enforces from the user
     transTypes={PhotonFile.tpByte: TextBox.HEX,PhotonFile.tpInt: TextBox.INT,PhotonFile.tpFloat: TextBox.FLOAT,PhotonFile.tpChar: TextBox.HEX}
 
     # Add General data fields
-    # Start with the title of this settingsgroup
-    row=0
-    titlebox=Label(screen,text="General", rect=GRect(settingsleft + settingslabelmargin, 10 + row * 24 + viewport_yoffset, settingscolwidth, 16),drawBorder=False)
-    titlebox.font.set_bold(True)
-    controls.append(titlebox)
-    # Add all labels for the settings we want to add
     for row, (bTitle, bNr, bType, bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
-    # Add all input boxes for the settings we want to add
-    firstHeaderTextbox=len(controls)
-    for row,  (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,1):#enum start at 1
         tbType = transTypes[bType]
         bcolor=(255,255,255) if bEditable else (128,128,128)
-        controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
-                                editable=bEditable, \
-                                backcolor=bcolor, \
-                                textcolor=(0,0,0),\
-                                inputType=tbType, \
-                                toolTip=bHint, \
-                                onEnter=updateTextBox2PhotonFile, \
-                                onLostFocus=updateTextBox2PhotonFile, \
-                                linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
-                                ))
+        label=Label(screen, text=bTitle, rect=GRect(0,0,settingslabelwidth,settingsrowheight))
+        textbox=TextBox(screen, text="", \
+                        rect=GRect(0,0, settingstextboxwidth, settingsrowheight),\
+                        editable=bEditable, \
+                        backcolor=bcolor, \
+                        textcolor=(0,0,0),\
+                        inputType=tbType, \
+                        toolTip=bHint, \
+                        onEnter=updateTextBox2PhotonFile, \
+                        onLostFocus=updateTextBox2PhotonFile, \
+                        linkedData={"VarGroup":"Header","Title":bTitle,"NrBytes":bNr,"Type":bType} \
+                        )
+        frow = Frame(
+                    screen,rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                    text="",drawborder=False,drawbackground=False,margin=GRect(0, 0, 0, 0),topoffset=0,
+                    layout=Frame.LEFTRIGHT,spacing=settingstextboxmargin,gridsize=settingslabelwidth)
+        frow.append(label)
+        frow.append(textbox)
+        if bEditable: frameGenBasic.append(frow)
+        frameGenAdvanced.append(frow)
+        controlsGeneral.append(textbox)
 
     # Add statusbar
     statusbar = Label(screen, text=" Status ready!",rect=GRect(settingsleft , windowheight-28,windowwidth-settingsleft+1, 28),drawBorder=True)
@@ -1075,55 +1228,92 @@ def createSidebar():
     controls.append(statusbar)
 
     # Add Preview data fields
-    # Start with the title of this settingsgroup
-    row=0
-    settingsleft = settingsleft+settingscolwidth
-    titlebox = Label(screen, text="Preview", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
-    titlebox.font.set_bold(True)
-    controls.append(titlebox)
-    # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingslabelwidth,settingsrowheight)))
-    # We also need navigation buttons for previewNr
-    row = 0
-    controls.append(Button(screen, rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin + settingstextboxwidth - 40,10 + row * settingsrowspacing + viewport_yoffset, 18, 20), text="<",func_on_click=prevDown))
-    controls.append(Button(screen,rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin+settingstextboxwidth-18,10+row*settingsrowspacing+viewport_yoffset,18,20),text=">",func_on_click=prevUp))
-    firstPreviewTextbox = len(controls)
-    controls.append(Label(screen, text=str(prevNr),rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth-40, settingsrowheight)))
-    # Add all input boxes for the settings we want to add
+    # First we need navigation buttons for previewNr which replaces title of frame
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=settingstextboxmargin, gridsize=settingslabelwidth)
+    frowsub = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=2, gridsize=-1)
+    labelPrevNr=Label(screen, text=(str(prevNr)+"/2"),rect=GRect(0,0,30, 26))
+    h=labelPrevNr.rect.height
+
+    buttonLeft = ImgBox(screen,rect=GRect(0,0,18,h),filename="resources/buttonarrow.png",rotate=90,
+                        drawBorder=True,func_on_click=prevDown)
+    buttonRight = ImgBox(screen,rect=GRect(0,0,18,h),filename="resources/buttonarrow.png",rotate=-90,
+                        drawBorder=True, func_on_click=prevUp)
+
+    label = Label(screen, text="Preview", rect=GRect(0, 0, settingstextboxwidth - 40, 20))
+    label.font.set_bold(True)
+    frow.append(label)
+    frow.append(frowsub)
+    frowsub.append(buttonLeft)
+    frowsub.append(labelPrevNr)
+    frowsub.append(buttonRight)
+
+    framePrevBasic.append(frow)
+    framePrevAdvanced.append(frow)
+
+    # Now add the settings
     for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
-        controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft+settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
-                                editable=bEditable, \
-                                backcolor=bcolor, \
-                                textcolor=(0, 0, 0), \
-                                inputType=tbType, \
-                                toolTip=bHint, \
-                                onEnter=updateTextBox2PhotonFile, \
-                                onLostFocus=updateTextBox2PhotonFile, \
-                                linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
-                                ))
+        label=Label(screen, text=bTitle, rect=GRect(0,0,settingslabelwidth,settingsrowheight))
+        textbox = TextBox(screen, text="", \
+                    rect=GRect(0,0, settingstextboxwidth, settingsrowheight),\
+                    editable=bEditable, \
+                    backcolor=bcolor, \
+                    textcolor=(0, 0, 0), \
+                    inputType=tbType, \
+                    toolTip=bHint, \
+                    onEnter=updateTextBox2PhotonFile, \
+                    onLostFocus=updateTextBox2PhotonFile, \
+                    linkedData={"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
+                    )
+        frow = Frame(screen,rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                    text="",drawborder=False,drawbackground=False,margin=GRect(0, 0, 0, 0),topoffset=0,
+                    layout=Frame.LEFTRIGHT,spacing=settingstextboxmargin,gridsize=settingslabelwidth)
+        frow.append(label)
+        frow.append(textbox)
+        if bEditable: framePrevBasic.append(frow)
+        framePrevAdvanced.append(frow)
+        controlsPreviews.append(textbox)
 
     # Add Current Layer meta fields
-    # Start with the title of this settingsgroup
-    row=8
-    titlebox = Label(screen, text="Layer", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
-    titlebox.font.set_bold(True)
-    controls.append(titlebox)
-    # Add all labels for the settings we want to add
-    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,9):
-        controls.append(Label(screen, text=bTitle, rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,120,16)))
-    row=8
-    # Add all input boxes for the settings we want to add
-    firstLayerTextbox = len(controls)
-    controls.append(Label(screen, text=str(layerNr), rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight)))
+    # First we need navigation buttons for previewNr which replaces title of frame
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    #frowsub = Frame(screen,
+    #             rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+    #             text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+    #             layout=Frame.LEFTRIGHT, spacing=2, gridsize=-1)
+    #buttonLeft=Button(screen, rect=GRect(0,0, 18, 20), text="<", func_on_click=layerDown)
+    #buttonRight = Button(screen, rect=GRect(0, 0, 18, 20), text=">", func_on_click=layerUp)
+    labelLayerNr=Label(screen, text="000/000",rect=GRect(0,0,80, 20))
+
+    label = Label(screen, text="Layer", rect=GRect(0, 0, settingslabelwidth+settingstextboxwidth-120, 20))
+    label.font.set_bold(True)
+    frow.append(label)
+    #frow.append(frowsub)
+    frow.append(labelLayerNr)
+    #frowsub.append(buttonLeft)
+    #frowsub.append(labelLayerNr)
+    #frowsub.append(buttonRight)
+
+    frameLayerBasic.append(frow)
+    frameLayerAdvanced.append(frow)
+
+    # Now add the settings
     for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, 9):
         tbType = transTypes[bType]
         bcolor = (255, 255, 255) if bEditable else (128, 128, 128)
-        controls.append(TextBox(screen, text="", \
-                                rect=GRect(settingsleft + settingslabelwidth+settingstextboxmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth, settingsrowheight),\
+        label=Label(screen, text=bTitle, rect=GRect(0,0,settingslabelwidth,settingsrowheight))
+        textbox=TextBox(screen, text="", \
+                                rect=GRect(0,0, settingstextboxwidth, settingsrowheight),\
                                 editable=bEditable, \
                                 backcolor=bcolor, \
                                 textcolor=(0, 0, 0), \
@@ -1132,7 +1322,16 @@ def createSidebar():
                                 onEnter=updateTextBox2PhotonFile, \
                                 onLostFocus=updateTextBox2PhotonFile, \
                                 linkedData={"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType} \
-                                ))
+                                )
+
+        frow = Frame(screen,rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                    text="",drawborder=False,drawbackground=False,margin=GRect(0, 0, 0, 0),topoffset=0,
+                    layout=Frame.LEFTRIGHT,spacing=settingstextboxmargin,gridsize=settingslabelwidth)
+        frow.append(label)
+        frow.append(textbox)
+        if bEditable: frameLayerBasic.append(frow)
+        frameLayerAdvanced.append(frow)
+        controlsLayers.append(textbox)
 
     # Add Resin Presets Chooser
     # First read settings from file
@@ -1144,30 +1343,58 @@ def createSidebar():
     for resin in resins:
         resinnames.append(resin[0]+ "-"+resin[1]+"-"+resin[2])
 
-    # Start with the title of this settingsgroup
-    row=16
-    titlebox = Label(screen, text="Resin Presets", rect=GRect(settingsleft+settingslabelmargin,10+row*settingsrowspacing+viewport_yoffset,settingscolwidth,settingsrowheight))
-    titlebox.font.set_bold(True)
-    controls.append(titlebox)
-
     # Make combobox (add last, so always on top)
-    row=row+1
     resincombo=Combobox(screen,
-                             rect=GRect(settingsleft + settingslabelmargin, 10 + row * settingsrowspacing+viewport_yoffset, settingstextboxwidth+settingslabelwidth, settingsrowheight),\
+                             rect=GRect(0,0, settingslabelwidth+settingstextboxwidth, settingsrowheight),
+                             expandHeight=110,
                              items=resinnames,
-                             defitemnr=0,
+                             defitemnr=0
+                             )
+    # Add apply button
+    resinbutton=Button(screen,
+                            rect=GRect(0,0, settingstextboxwidth,settingsrowheight),
+                            text="Apply", func_on_click=applyResinSettings
                              )
 
-    # Add apply button
-    row=row+1+0.4 # combo is larger than normal
-    controls.append( Button(screen,
-                            rect=GRect(settingsleft + settingslabelwidth + settingstextboxmargin, 10 + row * settingsrowspacing + viewport_yoffset, settingstextboxwidth,settingsrowheight*1.6), \
-                            text="Apply", func_on_click=applyResinSettings
-                             ))
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    label = Label(screen, text="Resin settings", rect=GRect(0, 0, settingslabelwidth+settingstextboxwidth-120, 20))
+    label.font.set_bold(True)
+    frow.append(label)
+    frow.append(resinbutton)
 
     # Add combobox to controls
-    controls.append(resincombo)
+    frameResins.append(frow)
+    frameResins.append(resincombo)
 
+    # Make one list of all controls
+    controlsSettings = controlsLayers+controlsGeneral
+
+
+    # Make Layer Edit sidebar
+    frameEdit=Frame(screen,
+                     rect=GRect(settingsleft, viewport_yoffset, settingscolwidth,windowheight - viewport_yoffset),
+                     text="Layer Edit Settings",topoffset=0,
+                     drawbackground=debugFrames,backcolor=(255,0,0),
+                     drawborder=debugFrames,margin=GRect(settingslabelmargin,settingslabelmargin,0,0),
+                     layout=Frame.TOPDOWN,spacing=14,gridsize=-1,
+                     )
+
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+
+    # draw size
+    # draw shape - round
+    # Show lower layers as reference (onionskinning slider)
+    # Color pixels from current layer to buttom layer (for making a support column)
+    # Multiple brushes, e.q. cylinder to bottom, small to large diameter towards bottom, draw angled to bottom
+    # Undo
+    # Add Typed Text
+    bla
 
 def applyResinSettings():
     """ Applies the selected resin settings.
@@ -1250,13 +1477,11 @@ def createWindow():
     global controls
     global layerNr
     global menubar
-    global firstHeaderTextbox
-    global firstPreviewTextbox
-    global firstLayerTextbox
     global layerLabel
     global filename
     global pyopenglAvailable
     global layerRect
+    global gl
 
     # For debugging we display current script-path and last modified date, so we know which version we are testing/editing
     scriptPath=os.path.join(os.getcwd(), "PhotonEditor.py")
@@ -1272,23 +1497,31 @@ def createWindow():
     pygame.display.set_caption("Photon File Editor")
     logo = pygame.image.load("PhotonEditor32x32.png")
     pygame.display.set_icon(logo)
+
+    # Create window
     if not pyopenglAvailable:
         # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
+        #window = pygame.display.set_mode((windowwidth, windowheight))
+        if frameMode == MODEBASIC:
+            settingswidth = settingscolwidth  # 1 columns
+        elif frameMode == MODEADVANCED:
+            settingswidth = settingscolwidth * 2  # 2 columns
+        windowwidth = settingsleft + settingswidth
         window = pygame.display.set_mode((windowwidth, windowheight))
 
-    scale = (0.25, 0.25)
-
-    # Creat a surface
+    # Create a surface
     if not pyopenglAvailable:
         screen = pygame.Surface((windowwidth,windowheight))
     else:
         screen = pygame.Surface((1024, 1024))
         screen.set_colorkey(defTransparent)
+        gl = GL((windowwidth, windowheight), handleGLCallback)
 
     print ("Window Size:", windowwidth,windowheight)
 
 
     # Initialize the surfaces for layer/preview images we want to fill from photonfile and draw on screen
+    scale = (0.25, 0.25)
     dispimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
     dispimg.fill(defTransparent) # first we fill with transparent
     previmg[0]=dispimg
@@ -1346,7 +1579,7 @@ def createWindow():
     global layerRect
     layerRect.y=menubar.getHeight()
     layerRect.height=windowheight-layerRect.y
-    print ("layerRect: ",layerRect)
+    #print ("layerRect: ",layerRect)
 
     # Create sidebar to display the settings of the photonfile
     createSidebar()
@@ -1434,15 +1667,15 @@ def saveGeneralSettings2PhotonFile():
 
     #print ("saveGeneralSettings2PhotonFile")
     global photonfile
-    global firstHeaderTextbox
+    global controlsGeneral
 
     # If no photonfile nothing to save, so exit
     if photonfile==None:return
 
     # Check for each general setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox):#enum start at 22
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header):#enum start at 22
         if bEditable:
-            textBox=controls[row]
+            textBox=controlsGeneral[row]
             #print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Header", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
@@ -1453,15 +1686,15 @@ def savePreviewSettings2PhotonFile():
     #print("savePreviewSettings2PhotonFile")
     global photonfile
     global prevNr
-    global firstPreviewTextbox
+    global controlsPreviews
 
     # If no photonfile nothing to save, so exit
     if photonfile==None:return
 
     # Check for each preview setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews):
         if bEditable:
-            textBox=controls[row]
+            textBox=controlsPreviews[row]
             print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "Preview", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
@@ -1472,15 +1705,15 @@ def saveLayerSettings2PhotonFile():
     #print ("saveLayerSettings2PhotonFile")
     global photonfile
     global layerNr
-    global firstLayerTextbox
+    global controlsLayers
 
     # If no photonfile nothing to save, so exit
     if photonfile == None: return
 
     # Check for each layer setting in PhotonFile if it is editable, control index in controls and update setting
-    for row, (bTitle, bNr, bType, bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef, firstLayerTextbox+1):
+    for row, (bTitle, bNr, bType, bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef):
         if bEditable:
-            textBox=controls[row]
+            textBox=controlsLayers[row]
             #print (row,bTitle,textBox.text)
             updateTextBox2PhotonFile(textBox,textBox.text,{"VarGroup": "LayerDef", "Title": bTitle, "NrBytes": bNr, "Type": bType})
 
@@ -1488,13 +1721,12 @@ def saveLayerSettings2PhotonFile():
 def refreshHeaderSettings():
     """ Updates all textboxes in the general settingsgroup with data from photonfile"""
     global photonfile
-    global firstHeaderTextbox
 
     # If no photonfile nothing to save, so exit
     if photonfile==None:return
 
     # Travers all general settings and update values in textboxes
-    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header,firstHeaderTextbox ):
+    for row, (bTitle, bNr, bType,bEditable,bHint) in enumerate(PhotonFile.pfStruct_Header):
         nr=PhotonFile.convBytes(photonfile.Header[bTitle],bType)
         if bType==PhotonFile.tpFloat:
             nr=round(nr,3) #round floats to 3 decimals
@@ -1503,26 +1735,25 @@ def refreshHeaderSettings():
             if nrDec>3:snr=snr[:len(snr)-(nrDec-3)]
         else:
             snr = str(nr)
-        controls[row].setText(snr)
+        controlsGeneral[row].setText(snr)
 
 
 def refreshPreviewSettings():
     """ Updates all textboxes in the preview settingsgroup with data from photonfile"""
     global photonfile
     global prevNr
-    global firstPreviewTextbox
+    global labelPrevNr
 
     # If no photonfile nothing to save, so exit
     if photonfile == None: return
 
     print ("prevNr: ",prevNr)
     # Travers all preview settings and update values in textboxes
-    row = firstPreviewTextbox
-    controls[row].setText(str(prevNr)+"/2") # Update preview counter
-    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, firstPreviewTextbox+1):
+    labelPrevNr.setText(str(prevNr)+"/2") # Update preview counter
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews):
         nr=PhotonFile.convBytes(photonfile.Previews[prevNr][bTitle],bType)
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
-        controls[row].setText(str(nr))
+        controlsPreviews[row].setText(str(nr))
 
 
 def refreshLayerSettings():
@@ -1530,16 +1761,15 @@ def refreshLayerSettings():
     global photonfile
     global layerNr
     global layerLabel
+    global labelLayerNr
 
     # If we have no photonfile loaded of there are no layers in the file there is nothing to save, so exit
     if photonfile==None:return
     if photonfile.nrLayers() == 0: return  # could occur if loading new file
 
     # Travers all layer settings and update values in textboxes
-    row=firstLayerTextbox
-    controls[row].setText(str(layerNr)+ " / "+str(photonfile.nrLayers())) # Update layer counter
-    #print (layerNr)
-    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef,firstLayerTextbox+1):
+    labelLayerNr.setText(str(layerNr)+ " / "+str(photonfile.nrLayers())) # Update layer counter
+    for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_LayerDef):
         nr=PhotonFile.convBytes(photonfile.LayerDefs[layerNr][bTitle],bType)
         #print("reading: ", bTitle,"=",nr)
         if bType==PhotonFile.tpFloat:
@@ -1549,7 +1779,7 @@ def refreshLayerSettings():
             if nrDec>3:snr=snr[:len(snr)-(nrDec-3)]
         else:
             snr = str(nr)
-        controls[row].setText(snr)
+        controlsLayers[row].setText(snr)
 
     #finally we update layerLabel in between the up and down ^ on the top left of the screen
         layerLabel.setText(str(layerNr))
@@ -1640,7 +1870,10 @@ def redrawWindow(tooltip=None):
         dispimg.fill((defTransparent))
         pygame.draw.rect(screen,defTransparent,(0,0,int(1440 * scale[0]), int(2560 * scale[1])),0)
 
-    # Redraw all side bar
+    # Redraw Sidebar
+    frameActive().redraw()
+
+    # Redraw other controls
     for ctrl in controls:
         ctrl.redraw()
 
@@ -1731,8 +1964,9 @@ def handleLayerSlider(checkRect=True):
 
 
 def activeControlIdx():
+    global controlsSettings
     """ Returns first textbox in controls where cursorActive is True. """
-    for idx, control in enumerate(controls):
+    for idx, control in enumerate(controlsSettings):
         if type(control) == TextBox:
             if control.cursorActive == True: return idx
     return None
@@ -1747,16 +1981,7 @@ def init():
     createWindow()
     # Init lastpos mouse hovered
     lastpos=(0,0) # stores last position for tooltip
-    if not pyopenglAvailable:
-        loop()
-        quit()
-    else:
-        gl=GL((windowwidth,windowheight),handleGLCallback)
-        loop()
-        #gl.userLoop(screen, poll)
-
-
-#import test.py
+    loop()
 
 
 def loop():
@@ -1766,10 +1991,22 @@ def loop():
         flipFunc()
     pygame.quit()
 
+def frameActive():
+    global frameMode
+    global MODEBASIC
+    global MODEADVANCED
+    global frameBasic
+    global frameAdvanced
+    if frameMode == MODEBASIC:return frameBasic
+    elif frameMode == MODEADVANCED:return frameAdvanced
+
 
 def poll(event=None):
     """ Entrypoint and controls the rest """
     global controls
+    global controlsSettings
+    global frameBasic
+    global frameAdvanced
     global menubar
     global mouseDrag
     global running
@@ -1818,18 +2055,21 @@ def poll(event=None):
         if event.type == pygame.MOUSEBUTTONUP:
             mouseDrag=False
             if not menubar.handleMouseUp(pos,event.button):
+                frameActive().handleMouseUp(pos,event.button)
                 for ctrl in controls:
                     ctrl.handleMouseUp(pos,event.button)
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouseDrag=handleLayerSlider()
             if not menubar.handleMouseDown(pos,event.button):
+                frameActive().handleMouseDown(pos,event.button)
                 for ctrl in controls:
                     ctrl.handleMouseDown(pos,event.button)
 
         if event.type == pygame.MOUSEMOTION:
             if mouseDrag: handleLayerSlider(False)
             if not menubar.handleMouseMove(pos):
+                frameActive().handleMouseMove(pos)
                 for ctrl in controls:
                     ctrl.handleMouseMove(pos)
 
@@ -1859,18 +2099,18 @@ def poll(event=None):
                 if not prevActive==None:
                     # Remove cursor from found control
                     #controls[prevActive].cursorActive=False
-                    controls[prevActive].setFocus(False)
+                    controlsSettings[prevActive].setFocus(False)
                     # Make first editable textbox we find in direction of dir
                     fnd=False
                     idx=prevActive+dir
                     while not fnd:
-                        if type(controls[idx]) == TextBox and controls[idx].editable and not fnd:
+                        if type(controlsSettings[idx]) == TextBox and controlsSettings[idx].editable and not fnd:
                             #controls[idx].cursorActive = True
-                            controls[idx].setFocus(True)
+                            controlsSettings[idx].setFocus(True)
                             fnd=True
                         idx=idx+dir
                         if idx>=len(controls): idx=0
-                        if idx<0: idx=len(controls)-1
+                        if idx<0: idx= len(controlsSettings) - 1
 
             if event.key == pygame.K_ESCAPE :
                 if editLayerMode:
@@ -1891,10 +2131,11 @@ def poll(event=None):
                     running = False
             else:
                 if not menubar.handleKeyDown(event.key,event.unicode):
+                    frameActive().handleKeyDown(event.key,event.unicode)
                     for ctrl in controls:
                         ctrl.handleKeyDown(event.key,event.unicode)
 
-        if editLayerMode:
+    if editLayerMode:
             # Handle zoom / pan of layer image
             if event.type == pygame.KEYDOWN:
                 dzm=0.5
@@ -1955,6 +2196,8 @@ def poll(event=None):
 
     # Check for tooltips to draw
     tooltip=None
+    ret = frameActive().handleToolTips(lastpos)
+    if not ret == None: tooltip = ret
     for ctrl in controls:
         hasToolTip = getattr(ctrl, "handleToolTips", False)
         if hasToolTip:
