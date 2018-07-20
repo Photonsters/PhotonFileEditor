@@ -686,6 +686,8 @@ class ProgressBar():
 ########################################################################################################################
 
 class ImgBox():
+    """ Imagebox can be loaded with image from disc of empty canvas to draw on
+    """
     rect=GRect()
     img=None
     hoverimg=None
@@ -700,7 +702,7 @@ class ImgBox():
     firstHoverTime = 0
     firstHoverPos=GPoint(0,0)
 
-    def __init__(self, pyscreen, filename, filename_hover=None, rect=GRect(0, 0,-1,-1), bordercolor=defBorder,
+    def __init__(self, pyscreen, filename=None, filename_hover=None, rect=GRect(0, 0,-1,-1), bordercolor=defBorder,
                  borderhovercolor=defBorderHover, drawBorder=False,rotate=0,toolTip="",func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
@@ -709,9 +711,15 @@ class ImgBox():
         self.drawBorder=drawBorder
         self.func_on_click=func_on_click
 
+        if filename==None and (rect.width==-1 or rect.height==-1):
+            raise Exception("Give an image filename or specify the image size!")
+
         # Load image and rotate
-        self.img=pygame.image.load(filename)
-        if not rotate==0:self.img=pygame.transform.rotate(self.img,rotate)
+        if not filename == None:
+            self.img=pygame.image.load(filename)
+            if not rotate==0:self.img=pygame.transform.rotate(self.img,rotate)
+        else: # we make an empty canvas for the user to draw on
+            self.img=pygame.Surface((rect.width, rect.height))
         if not filename_hover==None:
             self.hoverimg = pygame.image.load(filename_hover)
             if not rotate == 0:self.hoverimg =pygame.transform.rotate(self.hoverimg ,rotate)
@@ -736,6 +744,9 @@ class ImgBox():
             self.toolTipLabel.rect.width=max_width+self.toolTipLabel.margin.x+self.toolTipLabel.margin.width
             self.toolTipLabel.visible=False
 
+    def surface(self):
+        """ Returns surface for user to draw on."""
+        return self.img
 
     def redraw(self):
         """ Redraws ImgBox. """
@@ -989,6 +1000,157 @@ class Button():
 
 
 ########################################################################################################################
+## Class Checkbox
+########################################################################################################################
+
+class Checkbox():
+    """ Check box with dot/cross/images. Can be grouped.
+    """
+
+    # We need 3 states so boolean var does not suffice
+    unselected = 0
+    selected = 1
+    hover_unselected=2
+    hover_selected=3
+    state= unselected
+
+    # We need 2 types
+    radiobutton = 0
+    checkbox = 1
+    image = 2
+    cbtype=radiobutton
+
+    rect=None
+    img=None
+    selectimg = None
+    action=None
+
+    borderwidth=1
+    visible=True
+
+    group=None
+
+    def __init__(self, pyscreen, rect=GRect(0,0,32,32),type=radiobutton,
+                 backcolor=defButtonBackground,forecolor=(0,0,0),
+                 bordercolor=defBorder, borderhovercolor=defBorderHover,
+                 borderwidth=1,selectborderwidth=1,
+                 img=None,selectimg=None,
+                 group=None,
+                 func_on_click=None):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.forecolor=forecolor
+        self.bordercolor = bordercolor
+        self.borderhovercolor=borderhovercolor
+        self.selectborderwidth=selectborderwidth
+        self.borderwidth = borderwidth
+        self.backcolor=backcolor
+        self.func_on_click=func_on_click
+        if func_on_click==None: print ("None")
+        self.rect=rect
+        self.cbtype=type
+        self.img=img
+        self.selectimg=selectimg
+        if not group==None:
+            group.append(self)
+            self.group=group
+        if not self.img==None and selectimg==None: self.selectimg=self.img
+
+
+    def redraw(self):
+        """ Redraws Button. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Draw state symbol
+        if self.cbtype == self.radiobutton:
+            offset=0.2
+        else:
+            offset=0.3
+        shrinkRect=GRect(int(self.rect.width*offset),int(self.rect.height*offset),int(self.rect.width*offset),int(self.rect.height*offset))
+        innerRect=self.rect.copy()
+        innerRect.shrink(shrinkRect)
+        if self.cbtype == self.checkbox:
+            innerRect.x -= 1
+            innerRect.y -= 1
+
+        width = 1+int(innerRect.width/4)
+
+        if self.state==self.selected or self.state==self.hover_selected:
+            if self.cbtype==self.radiobutton:
+                #pygame.draw.circle(self.pyscreen, self.forecolor,(self.rect.x,self.rect.y), radi,0)
+                pygame.draw.ellipse(self.pyscreen, self.forecolor, innerRect.tuple(), 0)
+            elif self.cbtype==self.checkbox:
+                pygame.draw.line(self.pyscreen, self.forecolor, (innerRect.left, innerRect.top),
+                                 (innerRect.right, innerRect.bottom),width )
+                pygame.draw.line(self.pyscreen, self.forecolor, (innerRect.right, innerRect.top),
+                                 (innerRect.left, innerRect.bottom),width )
+
+        if self.cbtype==self.image:
+           if self.state==self.selected or self.state==self.hover_selected:
+                self.pyscreen.blit(self.img,self.rect.tuple())
+           if self.state==self.unselected or self.state==self.hover_unselected:
+                self.pyscreen.blit(self.img,self.rect.tuple())
+
+        # Draw border corresponding to button state
+        if self.state == self.hover_unselected or self.state == self.hover_selected:
+            color=self.borderhovercolor
+        else:
+            color=self.bordercolor
+        if self.state == self.selected or self.state ==self.hover_selected:
+            bwidth=self.selectborderwidth
+        else:
+            bwidth=self.borderwidth
+        if not bwidth==0: #user wants no border
+            pygame.draw.rect(self.pyscreen, color, self.rect.tuple(), bwidth)
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of Button on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            if self.state==self.unselected: self.state=self.hover_unselected
+            if self.state == self.selected: self.state = self.hover_selected
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+        else:
+            if self.state==self.hover_unselected: self.state=self.unselected
+            if self.state == self.hover_selected: self.state = self.selected
+        #print (self.state)
+
+    def handleMouseUp(self,pos,button):
+        return
+
+    def handleMouseDown(self,pos,button):
+        """ Updates state of box on down. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+            if self.state==self.unselected or self.state==self.hover_unselected:
+                self.state=self.hover_selected
+                # If we are in a group we will remove selection on other checkboxes in group
+                if not self.group == None:
+                    print ("remove selection:")
+                    for checkbox in self.group:
+                        if not checkbox==self:
+                            checkbox.state=self.unselected
+            elif self.state==self.selected or self.state==self.hover_selected:
+                self.state=self.hover_unselected
+
+
+    def handleKeyDown(self,key,unicode):
+        return
+
+
+########################################################################################################################
 ## Class ScrollBarV
 ########################################################################################################################
 
@@ -1170,6 +1332,200 @@ class ScrollBarV():
         # Call upon buttons to check for MouseDown above them
         self.btnUp.handleMouseDown(pos, button)
         self.btnDown.handleMouseDown(pos, button)
+
+    def handleKeyDown(self,key,unicode):
+        return
+
+
+########################################################################################################################
+## Class ScrollBarH
+########################################################################################################################
+
+class ScrollBarH():
+    # We need 3 buttonstates so boolean var does not suffice
+    normal=0
+    hover=1
+    down=2
+    state= False
+
+    rect = None
+    action = None
+    borderwidth = 1
+    visible = True
+
+    #todo: replace forecolor with def constant
+    def __init__(self, pyscreen, rect=GRect(0, 0, 40, 24), forecolor=(0,0,0),
+                 fontname=defFontName,fontsize=defFontSize,
+                 sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover,
+                 func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.rect=rect
+        self.bordercolor = sbordercolor
+        self.borderhovercolor = sborderhovercolor
+        self.backcolor = sbackcolor
+        self.forecolor=forecolor
+        self.func_on_click = func_on_click
+        self.minScroll=minScroll
+        self.maxScroll=maxScroll
+        self.curScroll = curScroll
+        self.smallScroll=smallScroll
+        self.largeScroll=largeScroll
+
+        # Add up and down button
+        self.btnLeft=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=90,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollDown)
+        self.btnRight=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=-90,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollUp)
+
+        self.label=Label(pyscreen,center=True,istransparent=True,fontname=fontname,fontsize=fontsize)
+
+    def scrollUp(self,isLargeScroll=False):
+        """ Decreases current scroll value. """
+
+        # Check if we have to take a small step or a large step
+        if not isLargeScroll:
+            self.curScroll=self.curScroll+self.smallScroll
+        else:
+            self.curScroll = self.curScroll + self.largeScroll
+        if self.curScroll>self.maxScroll: self.curScroll=self.maxScroll
+
+        # Send curScroll to parent
+        if not self.func_on_click ==None: self.func_on_click(self.curScroll)
+        #print("scroll Up: ",self.curScroll)
+
+
+    def scrollDown(self,isLargeScroll=False):
+        """ Inreases current scroll value. """
+
+        # Check if we have to take a small step or a large step
+        if not isLargeScroll:
+            self.curScroll = self.curScroll - self.smallScroll
+        else:
+            self.curScroll=self.curScroll - self.largeScroll
+        if self.curScroll < self.minScroll: self.curScroll = self.minScroll
+
+        # Send curScroll to parent
+        if not self.func_on_click==None: self.func_on_click(self.curScroll)
+        #print("scroll Down: ", self.curScroll, isLargeScroll, self.smallScroll)
+
+
+    def redraw(self):
+        """ Redraws ScrollBarV. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Position up and down buttons
+        self.btnLeft.rect= GRect(self.rect.x, self.rect.y, self.rect.height, self.rect.height)
+        self.btnRight.rect = GRect(self.rect.x+ self.rect.width - self.rect.height, self.rect.y , self.rect.height, self.rect.height)
+
+        # Draw background
+        pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
+
+        # Determine scroll area between up and down buttons
+        innerRect=self.rect.copy()
+        innerRect.x=self.rect.x+self.btnLeft.rect.width
+        innerRect.width=self.rect.width-self.btnLeft.rect.width-self.btnRight.rect.width
+        self.label.rect=innerRect
+        self.label.setText(str(self.curScroll))
+
+        # Determine at what percentage of this area we clicked
+        indXrel=(self.curScroll-self.minScroll)/(self.maxScroll-self.minScroll)
+        #indY=innerRect.bottom-indYrel*innerRect.height
+        indX=innerRect.left+indXrel*innerRect.width
+
+        # Draw indicator at the height we clicked.
+        indRect=self.rect.copy()
+        indRect.x=indX-1
+        indRect.width=3
+        pygame.draw.rect(self.pyscreen, self.forecolor, indRect.tuple(), 0)
+
+        # Draw border depending on state of ScrollbarV.
+        if self.borderwidth == 1:
+            if self.state == self.down or self.state == self.hover:
+                pygame.draw.rect(self.pyscreen, self.borderhovercolor, self.rect.tuple(), 1)
+            else:
+                pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), 1)
+
+        # Call upon up and down buttons to redraw themselves
+        self.btnLeft.redraw()
+        self.btnRight.redraw()
+        self.label.redraw()
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of Scroll Area and Up and Down buttons on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+            self.state=self.hover
+        else:
+            self.state=self.normal
+
+        # Call upon buttons to check if MouseMove (hover) above them
+        self.btnLeft.handleMouseMove(pos)
+        self.btnRight.handleMouseMove(pos)
+
+    def handleMouseUp(self, pos,button):
+        """ Transmits MouseUp to up and down button. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        #If not left mousebutton then nothing to do
+        if not button == 1: return
+
+        # Call upon buttons to check for MouseUp above them
+        self.btnLeft.handleMouseUp(pos,button)
+        self.btnRight.handleMouseUp(pos, button)
+
+    def handleMouseDown(self,pos,button):
+        """ Updates state of Scroll Area and Up and Down buttons on mousedown. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        #If not left mousebutton then nothing to do
+        if not button == 1: return
+
+        #Check if in rect
+        gpos=GPoint(pos[0],pos[1])
+        if not gpos.inGRect(self.rect): return
+
+        # We are handling this so clear queue for others
+        pygame.event.clear()
+
+        # Set state if clicked within area
+        self.state=self.down
+
+        # Determine scroll area between up and down buttons
+        innerRect = self.rect.copy()
+        innerRect.x = self.rect.x + self.btnLeft.rect.width
+        innerRect.width= self.rect.width- self.btnLeft.rect.width- self.btnRight.rect.width
+
+        # Check if mouseclick inside scroll area
+        if gpos.inGRect(innerRect):
+            # Determine at what screen position the scroll indicator is.
+            indXrel = (self.curScroll - self.minScroll) / (self.maxScroll - self.minScroll)
+            indX = innerRect.left + indXrel * innerRect.width
+            # If clicked above indicator we scroll up and vice versa
+            if gpos.x > indX: self.scrollUp(True)
+            if gpos.x < indX: self.scrollDown(True)
+
+        # Call upon buttons to check for MouseDown above them
+        self.btnLeft.handleMouseDown(pos, button)
+        self.btnRight.handleMouseDown(pos, button)
 
     def handleKeyDown(self,key,unicode):
         return

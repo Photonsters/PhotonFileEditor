@@ -526,8 +526,11 @@ def editLayer():
     global editLayerMode
     global layercontrols
     global layerSlider_visible
+    global frameMode
+    global MODEEDIT
 
     editLayerMode=True
+    frameMode=MODEEDIT
 
     layerSlider_visible=False
 
@@ -1374,6 +1377,7 @@ def createSidebar():
 
 
     # Make Layer Edit sidebar
+    global frameEdit
     frameEdit=Frame(screen,
                      rect=GRect(settingsleft, viewport_yoffset, settingscolwidth,windowheight - viewport_yoffset),
                      text="Layer Edit Settings",topoffset=0,
@@ -1382,19 +1386,98 @@ def createSidebar():
                      layout=Frame.TOPDOWN,spacing=14,gridsize=-1,
                      )
 
+    # Number of transparent layer below current to show
     frow = Frame(screen,
                  rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Shadow Layers", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=None))
+    frameEdit.append(frow)
 
-    # draw size
-    # draw shape - round
-    # Show lower layers as reference (onionskinning slider)
-    # Color pixels from current layer to buttom layer (for making a support column)
+    # Brush shape (square/round/filled/open/text)
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush shape", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+
+    frowsub = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingsrowheight*2)
+    group=[]
+    # Full circle
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 0)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=None,group=group))
+    # Full Square
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.rect(img, (0, 0, 0), (2,2,settingsrowheight-4, settingsrowheight-4), 0)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+    # Open circle
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 2)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=None,group=group))
+    # Open Square
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.rect(img, (0, 0, 0), (2, 2, settingsrowheight - 4, settingsrowheight - 4), 2)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+
+    # ABC
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    font = pygame.font.SysFont(defFontName, defFontSize)
+    font.set_bold(True)
+    font.set_underline(True)
+    textsurface = font.render("Abc", True, (0,0,0))
+    img.blit(textsurface, (0,0),(0, 0, img.get_width(), img.get_height() ))
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+
+    frow.append(frowsub)
+    frameEdit.append(frow)
+
+    # Brush size
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush size", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=None))
+    frameEdit.append(frow)
+
+    # Brush depth
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush depth", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen, GRect(0, 0, settingstextboxwidth * 2, settingsrowheight), minScroll=1, maxScroll=10,curScroll=1, func_on_click=None))
+    frameEdit.append(frow)
+
+    # Brush depth until bottom reached?
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frowsub = Frame(screen,
+                    rect=GRect(0, 0, settingstextboxmargin + settingstextboxwidth,settingsrowheight),
+                    text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                    layout=Frame.LEFTRIGHT, spacing=4, gridsize=-1)
+    frowsub.append(Label(screen, text="To bottom", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frowsub.append(Checkbox(screen,GRect(0,0,settingsrowheight,settingsrowheight),type=Checkbox.checkbox,func_on_click=None))
+    frow.append(frowsub)
+    frameEdit.append(frow)
+
     # Multiple brushes, e.q. cylinder to bottom, small to large diameter towards bottom, draw angled to bottom
     # Undo
-    # Add Typed Text
-    bla
+
+
 
 def applyResinSettings():
     """ Applies the selected resin settings.
@@ -1995,16 +2078,20 @@ def frameActive():
     global frameMode
     global MODEBASIC
     global MODEADVANCED
+    global MODEEDIT
     global frameBasic
     global frameAdvanced
+    global frameEdit
     if frameMode == MODEBASIC:return frameBasic
     elif frameMode == MODEADVANCED:return frameAdvanced
+    elif frameMode == MODEEDIT:return frameEdit
 
 
 def poll(event=None):
     """ Entrypoint and controls the rest """
     global controls
     global controlsSettings
+    global frameMode
     global frameBasic
     global frameAdvanced
     global menubar
@@ -2122,6 +2209,7 @@ def poll(event=None):
                     dispimg_zoom=1
                     # Change GUI elements for normal mode
                     editLayerMode=False
+                    frameMode=MODEADVANCED
                     layerSlider_visible = True
                     for control in layercontrols:
                         control.visible = True
@@ -2135,7 +2223,7 @@ def poll(event=None):
                     for ctrl in controls:
                         ctrl.handleKeyDown(event.key,event.unicode)
 
-    if editLayerMode:
+        if editLayerMode:
             # Handle zoom / pan of layer image
             if event.type == pygame.KEYDOWN:
                 dzm=0.5
