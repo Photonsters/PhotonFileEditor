@@ -1142,8 +1142,11 @@ class Checkbox():
                     for checkbox in self.group:
                         if not checkbox==self:
                             checkbox.state=self.unselected
+                # Send action
+                self.func_on_click(True)
             elif self.state==self.selected or self.state==self.hover_selected:
                 self.state=self.hover_unselected
+                self.func_on_click(False)
 
 
     def handleKeyDown(self,key,unicode):
@@ -1552,6 +1555,7 @@ class ListBox():
     spacing=4
     offset=0
     visible=True
+    func_on_click=None
 
     def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         """ Saves all values to internal variables. """

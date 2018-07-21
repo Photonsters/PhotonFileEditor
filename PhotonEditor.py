@@ -37,13 +37,13 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
-#todo: zoom/pan layerimg with mouse, continuous draw on mouse drag
-#todo: save editor layer image if layerchange or.... disable layerchange if editing
-#todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
 #       - show layer underneed transparent
 #       - make edit possible of current layer and all layers beneath
+#todo: zoom/pan layerimg with mouse, continuous draw on mouse drag
+#todo: save editor layer image if layerchange or.... disable layerchange if editing
+#todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: plugin - exchange files with validator
 #todo: implement pcb plugin
 #todo: tooltips in Basic Frame overflow window
@@ -78,6 +78,7 @@ dispimg_zoom=1
 defTransparent=(1,1,1)
 layerimg=None
 previmg=[None,None]
+shadowimg=None
 layerForecolor=(89,56,199) #I changed this to aproximate UV color what the machine shows X3msnake
 layerBackcolor=(0,0,0)
 layerLabel=None #Scroll chevrons at top left
@@ -114,6 +115,7 @@ MODEBASIC=0
 MODEADVANCED=1
 MODEEDIT=2
 frameMode=MODEADVANCED
+settingsMode=frameMode #disregards change to framemode MODEEDIT, used for saving preference
 layercontrols = []
 labelPrevNr=None
 
@@ -128,9 +130,27 @@ layerCursorRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin+2,scrollLayerWi
 # Resin settings
 resins=None
 resincombo=None
+resinlist=None
+
+# Preview image in basic settings
+prevImgBox=None
 
 # Statusbar
 statusbar =None
+
+# Mode Edit vars
+brushSize=1
+
+brushDepth=1
+brushDepth2Bottom=False
+
+BSROUND=1
+BSSQUARE=2
+BSOPEN=0
+BSFILLED=4
+brushShape=BSFILLED | BSSQUARE  #round
+
+cursorpos=(0,0)
 
 ########################################################################################################################
 ##  Message boxes
@@ -215,6 +235,28 @@ def layerUp(delta=1):
     setLayerSliderFromLayerNr()
     return
 
+
+def readShadowLayers(nrlayers):
+    """ Overlays several layers to produce a 'shadow' image of the layers below the current/active layer
+    """
+
+    global layerNr,shadowimg,layerForecolor,layerBackcolor
+    if photonfile == None: return
+
+    # First create canvas
+    scale = (0.25, 0.25)
+    shadowimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+    shadowimg.fill((layerBackcolor))
+    # Now blit all layers
+    for lNr in range (layerNr-nrlayers,layerNr):
+       if lNr>0:
+           idx=lNr-(layerNr-nrlayers)
+           perc=idx/nrlayers
+           shadowColor = (int(255 * perc),int(255*perc),int(255*perc))
+           print ("shadowColor",lNr,perc,"%", shadowColor)
+           shadow = photonfile.getBitmap(lNr, shadowColor, layerBackcolor,(1/4,1/4))
+           shadow.set_colorkey((0, 0, 0))  # and we make black of current layer transparent
+           shadowimg.blit(shadow,(0,0))
 
 ########################################################################################################################
 ##  Create Menu and menu handlers
@@ -523,6 +565,7 @@ def pasteLayer():
 def editLayer():
     """ Hides all controls on top of layer image and activates editing
     """
+    global statusbar
     global editLayerMode
     global layercontrols
     global layerSlider_visible
@@ -537,7 +580,7 @@ def editLayer():
     for control in layercontrols:
         control.visible=False
 
-    statusbar.setText(" [ESC] to exit edit mode | Use [+-/WASD/Mouse] ")
+    statusbar.setText(" [ESC] to exit edit mode | Use [+-/KEYPAD/Mouse] ")
 
 
 def replaceBitmap():
@@ -953,6 +996,7 @@ def openPlugin(filename):
     exec(lines)
 
 def setFrameMode(fMode):
+    global settingsMode
     global frameBasic
     global frameAdvanced
     global frameMode
@@ -964,12 +1008,17 @@ def setFrameMode(fMode):
     global gl
     global window
     frameMode=fMode
+    if frameMode == MODEBASIC or frameMode == MODEADVANCED: settingsMode = fMode
+    print ("fMode",fMode)
+    return
     if frameMode == MODEBASIC:
         settingswidth = settingscolwidth  # 1 columns
+        settingsMode=MODEBASIC
         #frameBasic.visible=True
         #frameAdvanced.visible = False
     elif frameMode == MODEADVANCED:
         settingswidth = settingscolwidth * 2  # 2 columns
+        settingsMode=MODEADVANCED
         #frameBasic.visible = False
         #frameAdvanced.visible = True
     windowwidth = settingsleft + settingswidth
@@ -1082,7 +1131,16 @@ def createLayernavigation():
     setLayerSliderFromLayerNr()
 
 
-def createSidebar():
+def createStatusBar():
+    """ Create status bar. """
+    global statusbar
+    global controls
+    statusbar = Label(screen, text=" Status ready!",rect=GRect(settingsleft , windowheight-28,windowwidth-settingsleft+1, 28),drawBorder=True)
+    statusbar.font.set_bold(True)
+    # Add statusbar to controls list
+    controls.append(statusbar)
+
+def createSidebarSettings():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
     global menubar
     global screen
@@ -1109,6 +1167,8 @@ def createSidebar():
 
     global resins
     global resincombo
+    global resinlist
+    global prevImgBox
 
     global statusbar
 
@@ -1124,35 +1184,54 @@ def createSidebar():
 
     debugFrames=False # for debugging we want to see each frame with a different color
 
-    frameResins = Frame(screen,
+    frameResinsAdv = Frame(screen,
+                       rect=GRect(0, 0, settingscolwidth, 32 + 6 * settingsrowspacing),
+                       text="", drawbackground=debugFrames, backcolor=(0, 0, 255), drawborder=debugFrames,
+                       margin=margin, topoffset=0,
+                       layout=Frame.TOPDOWN, spacing=4, gridsize=28)
+    frameResinsBasic = Frame(screen,
                        rect=GRect(0, 0, settingscolwidth, 32 + 6 * settingsrowspacing),
                        text="", drawbackground=debugFrames, backcolor=(0, 0, 255), drawborder=debugFrames,
                        margin=margin, topoffset=0,
                        layout=Frame.TOPDOWN, spacing=4, gridsize=28)
 
-    frameBasic=Frame(screen,
-                     rect=GRect(settingsleft, viewport_yoffset, settingscolwidth,windowheight - viewport_yoffset),
-                     text="",topoffset=0,
-                     drawbackground=debugFrames,backcolor=(255,0,0),
-                     drawborder=debugFrames,margin=GRect(settingslabelmargin,settingslabelmargin,0,0),
-                     layout=Frame.TOPDOWN,spacing=14,gridsize=-1,
-                     )
+    frameBasic = Frame(screen,
+                          rect=GRect(settingsleft, viewport_yoffset, 2 * settingscolwidth,
+                                     windowheight - viewport_yoffset),
+                          text="", topoffset=0,
+                          drawbackground=debugFrames, backcolor=(255, 0, 0),
+                          drawborder=debugFrames, margin=margin,
+                          layout=Frame.LEFTRIGHT, spacing=0, gridsize=settingscolwidth,
+                          )
+    frameBasicLeft = Frame(screen,
+                          rect=GRect(0, 0, settingscolwidth,windowheight - viewport_yoffset),
+                          text="", drawbackground=False, drawborder=False, margin=margin,topoffset=0,
+                          layout=Frame.TOPDOWN, spacing=14, gridsize=-1,
+                          )
+    frameBasicRight = Frame(screen,
+                          rect=GRect(0, 0, settingscolwidth,windowheight - viewport_yoffset),
+                          text="", drawbackground=False, drawborder=False, margin=margin,topoffset=0,
+                          layout=Frame.TOPDOWN, spacing=14, gridsize=-1,
+                          )
     frameGenBasic=Frame(screen,
                      rect=GRect(0, 0, settingscolwidth, 32 + 10 * settingsrowspacing),
                      text="General",drawbackground=debugFrames,backcolor=(255,255,0),drawborder=debugFrames,margin=margin,topoffset=0,
                      layout=Frame.TOPDOWN,spacing=4,gridsize=28)
     framePrevBasic=Frame(screen,
-                     rect=GRect(0, 0, settingscolwidth, 32 + 0 * settingsrowspacing),
-                     text="",drawbackground=debugFrames,backcolor=(255,0,255),drawborder=debugFrames,margin=margin,topoffset=0,
-                     layout=Frame.TOPDOWN,spacing=4,gridsize=28)
+                     rect=GRect(0, 0, settingslabelwidth+ settingstextboxwidth, settingsrowheight+settingslabelwidth+settingstextboxwidth),
+                     text="Preview",drawbackground=debugFrames,backcolor=(255,0,255),drawborder=debugFrames,margin=margin,topoffset=0,
+                     layout=Frame.TOPDOWN,spacing=4,gridsize=-1)
     frameLayerBasic=Frame(screen,
                      rect=GRect(0,0, settingscolwidth, 32 + 1 * settingsrowspacing),
                      text="",drawbackground=debugFrames,backcolor=(0,255,255),drawborder=debugFrames,margin=margin,topoffset=0,
                      layout=Frame.TOPDOWN,spacing=4,gridsize=28)
-    frameBasic.append(frameGenBasic)
-    frameBasic.append(framePrevBasic)
-    frameBasic.append(frameLayerBasic)
-    frameBasic.append(frameResins)
+
+    frameBasic.append(frameBasicLeft)
+    frameBasic.append(frameBasicRight)
+    frameBasicLeft.append(frameGenBasic)
+    frameBasicLeft.append(frameLayerBasic)
+    frameBasicRight.append(framePrevBasic)
+    frameBasicRight.append(frameResinsBasic)
 
     frameAdvanced=Frame(screen,
                      rect=GRect(settingsleft, viewport_yoffset, 2* settingscolwidth,windowheight - viewport_yoffset),
@@ -1188,7 +1267,7 @@ def createSidebar():
     frameAdvancedLeft.append(frameGenAdvanced)
     frameAdvancedRight.append(framePrevAdvanced)
     frameAdvancedRight.append(frameLayerAdvanced)
-    frameAdvancedRight.append(frameResins)
+    frameAdvancedRight.append(frameResinsAdv)
 
     controlsSettings=[] # will contain all controls of General/Previews/Layers
     controlsGeneral=[]
@@ -1225,11 +1304,6 @@ def createSidebar():
         frameGenAdvanced.append(frow)
         controlsGeneral.append(textbox)
 
-    # Add statusbar
-    statusbar = Label(screen, text=" Status ready!",rect=GRect(settingsleft , windowheight-28,windowwidth-settingsleft+1, 28),drawBorder=True)
-    statusbar.font.set_bold(True)
-    controls.append(statusbar)
-
     # Add Preview data fields
     # First we need navigation buttons for previewNr which replaces title of frame
     frow = Frame(screen,
@@ -1255,9 +1329,11 @@ def createSidebar():
     frowsub.append(buttonLeft)
     frowsub.append(labelPrevNr)
     frowsub.append(buttonRight)
-
-    framePrevBasic.append(frow)
     framePrevAdvanced.append(frow)
+
+    prevImgBox = ImgBox(screen,rect=GRect(0,0,settingslabelwidth+settingstextboxwidth,settingslabelwidth+settingstextboxwidth),drawBorder=True)
+    #framePrevBasic.append(label)
+    framePrevBasic.append(prevImgBox)
 
     # Now add the settings
     for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews, 1):
@@ -1353,6 +1429,12 @@ def createSidebar():
                              items=resinnames,
                              defitemnr=0
                              )
+
+    resinlist = ListBox(screen,
+                          rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth, settingsrowheight*10),
+                          items=resinnames,
+                          func_on_click=None)
+
     # Add apply button
     resinbutton=Button(screen,
                             rect=GRect(0,0, settingstextboxwidth,settingsrowheight),
@@ -1369,15 +1451,44 @@ def createSidebar():
     frow.append(resinbutton)
 
     # Add combobox to controls
-    frameResins.append(frow)
-    frameResins.append(resincombo)
+    frameResinsAdv.append(frow)
+    frameResinsAdv.append(resincombo)
+
+    # Add combobox to controls
+    frameResinsBasic.append(frow)
+    frameResinsBasic.append(resinlist)
 
     # Make one list of all controls
     controlsSettings = controlsLayers+controlsGeneral
 
 
-    # Make Layer Edit sidebar
+def createSidebarEdit():
+    """ Create all labels and input boxes to edit the layer image. """
+    global screen
     global frameEdit
+    global settingscolwidth
+    global settingslabelwidth
+    global settingslabelmargin
+    global settingstextboxmargin
+    global settingsrowheight
+    global settingsrowspacing
+    global settingstextboxwidth
+    global settingswidth
+    global settingsleft
+
+    # The controls are placed below the menubar
+    viewport_yoffset=menubar.getHeight()
+
+    # Setup Frames for settings
+    # We have 2 frames: Basic and Advanced
+    # Basic is 1 column and consist of two rows: General and Layer
+    # Advanced is 2 columns, first column consist of General, second column consists of Preview and Layer
+    margin=GRect(2,2,0,0)
+    settingsrowheight=26
+
+    debugFrames=False # for debugging we want to see each frame with a different color
+
+    # Make Layer Edit sidebar
     frameEdit=Frame(screen,
                      rect=GRect(settingsleft, viewport_yoffset, settingscolwidth,windowheight - viewport_yoffset),
                      text="Layer Edit Settings",topoffset=0,
@@ -1392,7 +1503,7 @@ def createSidebar():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Shadow Layers", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=None))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=readShadowLayers))
     frameEdit.append(frow)
 
     # Brush shape (square/round/filled/open/text)
@@ -1411,22 +1522,22 @@ def createSidebar():
     img = pygame.Surface((settingsrowheight, settingsrowheight))
     pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 0)
     frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=None,group=group))
+                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundFilled,group=group))
     # Full Square
     img = pygame.Surface((settingsrowheight, settingsrowheight))
     pygame.draw.rect(img, (0, 0, 0), (2,2,settingsrowheight-4, settingsrowheight-4), 0)
     frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareFilled,group=group))
     # Open circle
     img = pygame.Surface((settingsrowheight, settingsrowheight))
     pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 2)
     frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=None,group=group))
+                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundOpen,group=group))
     # Open Square
     img = pygame.Surface((settingsrowheight, settingsrowheight))
     pygame.draw.rect(img, (0, 0, 0), (2, 2, settingsrowheight - 4, settingsrowheight - 4), 2)
     frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareOpen,group=group))
 
     # ABC
     img = pygame.Surface((settingsrowheight, settingsrowheight))
@@ -1435,8 +1546,8 @@ def createSidebar():
     font.set_underline(True)
     textsurface = font.render("Abc", True, (0,0,0))
     img.blit(textsurface, (0,0),(0, 0, img.get_width(), img.get_height() ))
-    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                        type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
 
     frow.append(frowsub)
     frameEdit.append(frow)
@@ -1447,7 +1558,7 @@ def createSidebar():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Brush size", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=None))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=setBrushSize))
     frameEdit.append(frow)
 
     # Brush depth
@@ -1456,8 +1567,8 @@ def createSidebar():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Brush depth", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frow.append(ScrollBarH(screen, GRect(0, 0, settingstextboxwidth * 2, settingsrowheight), minScroll=1, maxScroll=10,curScroll=1, func_on_click=None))
-    frameEdit.append(frow)
+    frow.append(ScrollBarH(screen, GRect(0, 0, settingstextboxwidth * 2, settingsrowheight), minScroll=1, maxScroll=10,curScroll=1, func_on_click=setBrushDepth))
+    #frameEdit.append(frow)
 
     # Brush depth until bottom reached?
     frow = Frame(screen,
@@ -1470,13 +1581,35 @@ def createSidebar():
                     text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                     layout=Frame.LEFTRIGHT, spacing=4, gridsize=-1)
     frowsub.append(Label(screen, text="To bottom", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frowsub.append(Checkbox(screen,GRect(0,0,settingsrowheight,settingsrowheight),type=Checkbox.checkbox,func_on_click=None))
+    frowsub.append(Checkbox(screen,GRect(0,0,settingsrowheight,settingsrowheight),type=Checkbox.checkbox,func_on_click=setBrushDepth2Bottom))
     frow.append(frowsub)
-    frameEdit.append(frow)
+    #frameEdit.append(frow)
 
     # Multiple brushes, e.q. cylinder to bottom, small to large diameter towards bottom, draw angled to bottom
     # Undo
 
+# Some call backs from EditFrame
+def setBrushDepth(depth):
+    global brushDepth
+    brushDepth=depth
+def setBrushDepth2Bottom(checked):
+    global brushDepth2Bottom
+    brushDepth2Bottom = checked
+def setBrushSize(size):
+    global brushSize
+    brushSize=size
+def setBrushShapeSquareOpen(checked):
+    global brushShape
+    if checked: brushShape=BSSQUARE | BSOPEN
+def setBrushShapeSquareFilled(checked):
+    global brushShape
+    if checked: brushShape=BSSQUARE | BSFILLED
+def setBrushShapeRoundOpen(checked):
+    global brushShape
+    if checked: brushShape=BSROUND | BSOPEN
+def setBrushShapeRoundFilled(checked):
+    global brushShape
+    if checked: brushShape = BSROUND | BSFILLED
 
 
 def applyResinSettings():
@@ -1484,14 +1617,21 @@ def applyResinSettings():
     """
     global resins
     global resincombo
+    global resinlist
     global photonfile
+    global frameMode
 
     # Check if photonfile is loaded
     if photonfile==None: return
 
     # Check if user didn't select title (first item)
-    resinname=resincombo.text
-    resinidx=resincombo.index
+    if frameMode==MODEADVANCED:
+        resinname=resincombo.text
+        resinidx=resincombo.index
+    elif frameMode==MODEBASIC:
+        resinname = resinlist.activeText()
+        resinidx = resinlist.activeIndex()
+    else:return
     if resinname.startswith("Brand"): return
 
     # columns are Brand,Type,Layer Height,NormalExpTime,OffTime,BottomExp,BottomLayers
@@ -1543,6 +1683,42 @@ def applyResinSettings():
 
 
 ########################################################################################################################
+##  Save user preferences
+########################################################################################################################
+
+def loadUserPrefs():
+    """ Loads user settings from settings.txt to global variables
+        e.g. last path opened, settings adv/basic
+    """
+    global frameMode
+    global settingsMode
+
+    # Settings.txt could be absent or wrongly edited by user
+    try:
+        ifile = open("settings.txt", "r", encoding="Latin-1")  # Latin-1 handles special characters
+        lines = ifile.readlines()
+        #print ("lines",lines)
+        #for line in lines:
+        #    print ("setting",line.strip())
+        frameMode = int(lines[0])
+        settingsMode=frameMode
+    except Exception as err:
+        print (err)
+
+def saveUserPrefs():
+    """ Save user settings to settings.txt from global variables
+        e.g. last path opened, settings adv/basic
+    """
+    global settingsMode
+    # User settings will be saved here like, last path opened, settings adv/basic
+    ifile = open("settings.txt", "w",encoding="Latin-1") #Latin-1 handles special characters
+    lines=str(settingsMode)+ "\n"+"next line\n"
+    try:
+        ifile.writelines(lines)
+    except Exception as err:
+        print (err)
+
+########################################################################################################################
 ##  Setup windows, pygame, menu and controls
 ########################################################################################################################
 
@@ -1572,6 +1748,10 @@ def createWindow():
     print ("Script Info:")
     print ("  "+ scriptPath)
     print("  " + str(scriptDateTime))
+
+
+    #load user preferences
+    loadUserPrefs()
 
     # Init pygame, fonts
     pygame.init()
@@ -1665,7 +1845,8 @@ def createWindow():
     #print ("layerRect: ",layerRect)
 
     # Create sidebar to display the settings of the photonfile
-    createSidebar()
+    createSidebarSettings()
+    createSidebarEdit()
 
     # Create layer controls to navigate (up and down) the layers (and display another layer)
     createLayernavigation()
@@ -1673,6 +1854,8 @@ def createWindow():
     # Create toolbar to do layer operations from edit menu
     createLayerOperations()
 
+    # Create statusbar below sidebar
+    createStatusBar()
 
 def updateTextBox2PhotonFile(control, val,linkedData):
     """ Saves value in current textbox to the correct setting in the PhotonFile object. """
@@ -1826,6 +2009,7 @@ def refreshPreviewSettings():
     global photonfile
     global prevNr
     global labelPrevNr
+    global prevImgBox
 
     # If no photonfile nothing to save, so exit
     if photonfile == None: return
@@ -1838,6 +2022,8 @@ def refreshPreviewSettings():
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controlsPreviews[row].setText(str(nr))
 
+    prevImgBox.img=photonfile.getPreviewBitmap(0,(settingslabelwidth+settingslabelwidth))
+    prevImgBox.drawBorder=True
 
 def refreshLayerSettings():
     """ Updates all textboxes in the layer settingsgroup with data from photonfile"""
@@ -1908,6 +2094,7 @@ def redrawWindow(tooltip=None):
     global windowheight
     global fontFullScreen
     global dispimg_offset
+    global frameMode
 
     # Clear window surface
     if not fullScreenOpenGL:
@@ -1931,15 +2118,35 @@ def redrawWindow(tooltip=None):
         if not photonfile.isDrawing:
             #if we display layer image we need to apply zoom
             global layerimg
+            global shadowimg
             global menubar
-            if dispimg==layerimg:
+            if  dispimg==layerimg:
+                # display current layer and scale back
                 global dispimg_offset
                 global dispimg_zoom
                 scimg=pygame.transform.scale(dispimg,(int(dispimg_zoom/4*1440),int(dispimg_zoom/4*2560)))
+                # if we are in edit mode, we display shadow images (which are stored scaled down to minimize memory)
+                if not shadowimg==None and frameMode==MODEEDIT:
+                    screen.blit(shadowimg,dest=(0, menubar.getHeight()),area=Rect(0,0,1440/4,2560/4)) #dest is pos to blit to, area is rect of source/dispimg to blit from
+                    scimg.set_colorkey((0,0,0)) # and we make black of current layer transparent
+                # blit the current layer
                 screen.blit(scimg,
                             dest=(0, menubar.getHeight()),
                             area=Rect(dispimg_offset[0]*dispimg_zoom/4,dispimg_offset[1]*dispimg_zoom/4,1440/4,2560/4)
                             ) #dest is pos to blit to, area is rect of source/dispimg to blit from
+                # if we are in edit mode, we display cursor
+                if frameMode == MODEEDIT:
+                    global brushSize, brushShape, brushDepth, brushDepth2Bottom, cursorpos, layerRect
+                    gpos = GPoint.fromTuple(cursorpos)
+                    if gpos.inGRect(layerRect):
+                        displace = (-2-brushSize, -2-brushSize)
+                        cursorimg = pygame.Surface((brushSize, brushSize))
+                        cursorimg.fill((0,0,0))
+                        cursorimg.set_colorkey((0,0,0))
+                        if brushShape & BSROUND:pygame.draw.circle(cursorimg, (255, 0, 0), (brushSize // 2, brushSize // 2),brushSize // 2 , not brushShape & BSFILLED)
+                        if brushShape & BSSQUARE:pygame.draw.rect(cursorimg, (255, 0, 0), (0, 0, brushSize, brushSize), not brushShape & BSFILLED)
+                        pixCoord = [cursorpos[0] + displace[0],cursorpos[1] + displace[1] ]
+                        screen.blit(cursorimg,dest=pixCoord)
             else:
                 screen.blit(dispimg,
                             dest=(0, menubar.getHeight()+(2560/4-menubar.getHeight()-dispimg.get_height())/2),
@@ -2094,6 +2301,7 @@ def poll(event=None):
     global frameMode
     global frameBasic
     global frameAdvanced
+    global settingsMode
     global menubar
     global mouseDrag
     global running
@@ -2137,6 +2345,7 @@ def poll(event=None):
         lastpos=pos
         if event.type == pygame.QUIT:
             print("Window was closed. Exit!")
+            saveUserPrefs()
             running = False  # change the value to False, to exit the main loop
 
         if event.type == pygame.MOUSEBUTTONUP:
@@ -2209,13 +2418,14 @@ def poll(event=None):
                     dispimg_zoom=1
                     # Change GUI elements for normal mode
                     editLayerMode=False
-                    frameMode=MODEADVANCED
+                    frameMode=settingsMode
                     layerSlider_visible = True
                     for control in layercontrols:
                         control.visible = True
                     statusbar.setText("")
                 else:
                     print ("Escape key pressed down. Exit!")
+                    saveUserPrefs()
                     running = False
             else:
                 if not menubar.handleKeyDown(event.key,event.unicode):
@@ -2247,39 +2457,43 @@ def poll(event=None):
                 y = dispimg_offset[1]
                 dx = 0.125*1440
                 dy = 0.125*2560
-                if event.key == pygame.K_w:y-=dy
-                if event.key == pygame.K_s:y+=dy
-                if event.key == pygame.K_a:x-=dx
-                if event.key == pygame.K_d:x=+dx
+                if event.key == pygame.K_KP8 or event.key==pygame.K_UP :y-=dy
+                if event.key == pygame.K_KP2 or event.key==pygame.K_DOWN:y+=dy
+                if event.key == pygame.K_KP4 or event.key==pygame.K_LEFT:x-=dx
+                if event.key == pygame.K_KP6 or event.key==pygame.K_RIGHT:x=+dx
                 #Check for boundaries
                 if x<0: x=0
                 if y<0: y=0
                 if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
                 if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
+                sss
                 dispimg_offset = [x , y]
 
-            #Handle editing of layer image
+            # Store mouse position to draw
+            if event.type == pygame.MOUSEMOTION:
+                global cursorpos
+                cursorpos = pos
+
+            # Handle editing of layer image
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouseDrag = handleLayerSlider()
 
                 if dispimg == layerimg:
                     gpos = GPoint.fromTuple(pos)
-                    #editMargin=GRect(80,80,80,80) # clicks on border are not processed
-                    displace=(-2,-2)
+                    displace=(-2-brushSize,-2-brushSize)
                     layerRectEditArea=layerRect.copy()
                     #layerRectEditArea.shrink(editMargin)
                     if gpos.inGRect(layerRectEditArea):
                         pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
-                                    dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom
-                                    ]
-                        brushWidth = 4
-                        pixRect = (
-                        pixCoord[0], pixCoord[1], brushWidth * 4 / dispimg_zoom, brushWidth * 4 / dispimg_zoom)
-                        print("pixRect: ", pixRect, event.button)
-                        if event.button == 1:
-                            pygame.draw.rect(layerimg, layerForecolor, pixRect, 0)
-                        elif event.button == 3:
-                            pygame.draw.rect(layerimg, layerBackcolor, pixRect, 0)
+                                    dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
+                        pixRect = (pixCoord[0], pixCoord[1], brushSize * 4 / dispimg_zoom, brushSize * 4 / dispimg_zoom)
+                        pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom), int(pixCoord[1]+brushSize * 2 / dispimg_zoom))
+                        pixRadius=int(brushSize * 2 / dispimg_zoom)
+                        if event.button == 1:pcolor=layerForecolor
+                        elif event.button == 3:pcolor=layerBackcolor
+                        if brushShape & BSROUND:pygame.draw.circle(layerimg, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*6)
+                        if brushShape & BSSQUARE:pygame.draw.rect(layerimg, pcolor, pixRect, (not brushShape & BSFILLED)*6)
+
                     dispimg = layerimg
 
     # Check for tooltips to draw

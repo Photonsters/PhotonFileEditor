@@ -586,7 +586,7 @@ class PhotonFile:
 
         # Replace 0's en 1's with correct colors
         forecolor_int = (forecolor[0] << 16) + (forecolor[1] << 8) + forecolor[2]
-        backcolor_int = backcolor[0] << 16 + backcolor[1] << 8 + backcolor[2]
+        backcolor_int = (backcolor[0] << 16) + (backcolor[1] << 8) + backcolor[2]
         val = numpy.array([{0: backcolor_int, 1: forecolor_int}[x] for x in valbin])
 
         # Make a 2d array like [ [3,0] [2,1], [nr_i,val_i]...] using the colorvalues (val) and repetitions(nr)
