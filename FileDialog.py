@@ -161,12 +161,11 @@ class FileDialog():
 
     def readDirectory(self):
         """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
-
-        # Always make sure we can go back
-        dirs = []
+        print ("self.startdir",self.startdir)
 
         # If in root check if we need to add drives
         if self.startdir=="DRIVELIST":
+            self.startdir=""
             drives = []
             #print (self.startdir)
             #print(os.listdir(self.startdir))
@@ -177,11 +176,16 @@ class FileDialog():
                         drives.append(drivepath)
             elif sys.platform.startswith("linux"):
                 print("inroot")
-                drives.append('/dev/media')
+                drives.append('/')
+                drives.append('/home/'+os.environ['USER']+"/")
+                drives.append('/dev/media/')
             elif sys.platform=="darwin":
                 print ("inroot")
             self.dirsandfiles=drives
             return
+
+        # Always make sure we can go back
+        dirs = [".."]
 
         # Check if we have access to dir
         hasAccess=os.access(self.startdir,os.R_OK)
@@ -218,7 +222,7 @@ class FileDialog():
             files.sort(key=str.lower)
 
         # Make one list of dirs and files
-        self.dirsandfiles = [".."] + dirs + files
+        self.dirsandfiles = dirs + files
         #print("dirs : ",dirs)
         #print("files: ", files)
 
@@ -308,8 +312,17 @@ class FileDialog():
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.selFilename=""
+        # Check if user selects linux toor
+        elif text=="/":
+            self.startdir=text
+            self.selDirectory = self.startdir
+            self.readDirectory()
+            self.listbox.setItems(self.dirsandfiles)
+            self.selFilename = ""
+            print("Nav to dir: ", self.selDirectory)
         # Check if user selects a directory
         elif (text.endswith("/") or text.endswith("\\")):
+            print ("selectdir")
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
