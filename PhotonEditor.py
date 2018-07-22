@@ -39,11 +39,15 @@ except ImportError as err:
 #TODO LIST
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
-#       - show layer underneed transparent
 #       - make edit possible of current layer and all layers beneath
 #todo: draw circles sometimes crashing (low width)
+#todo: change preview in advanced mode is slow
+#todo: preview in basic mode (photon.photon) is stretched
+#todo: in preferences add recent files opened/saved
+#todo: in preferences store last save dir and last load dir as starting point for loadfile and save file
 #todo: continuous draw on mouse drag
 #todo: scroll in fileopen causes list repeat
+#todo: in root of fileopen we don't yet see the drives
 #todo: save editor layer image if layerchange or.... disable layerchange if editing
 #todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: plugin - exchange files with validator
@@ -252,10 +256,12 @@ def readShadowLayers(nrlayers):
     shadowimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
     shadowimg.fill((layerBackcolor))
     # Now blit all layers
-    for lNr in range (layerNr-nrlayers,layerNr):
+    nrShadows=10
+    stepSize=1+int(nrlayers/nrShadows)
+    for lNr in range (layerNr-nrlayers,layerNr,stepSize):
        if lNr>0:
            idx=lNr-(layerNr-nrlayers)
-           perc=idx/nrlayers
+           perc=0.5#idx/nrlayers
            shadowColor = (int(255 * perc),int(255*perc),int(255*perc))
            print ("shadowColor",lNr,perc,"%", shadowColor)
            shadow = photonfile.getBitmap(lNr, shadowColor, layerBackcolor,(1/4,1/4))
@@ -1510,7 +1516,7 @@ def createSidebarEdit():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Shadow Layers", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=readShadowLayers))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=100, curScroll=1,func_on_click=readShadowLayers))
     frameEdit.append(frow)
 
     # Brush shape (square/round/filled/open/text)
@@ -2467,7 +2473,6 @@ def poll(event=None):
         if editLayerMode:
             global dragDistance
             checkMouseDrag(pos,event)
-            print ("mouseDrag", mouseDrag,dragDistance)
             # Handle zoom / pan of layer image
             # Zoom
             scrollUp=False

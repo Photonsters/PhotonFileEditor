@@ -6,6 +6,7 @@ __version__ = "alpha"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
+import sys
 
 import pygame
 from pygame.locals import *
@@ -43,6 +44,7 @@ class FileDialog():
     controls=[]
     ext="*"
     startdir=""
+    dirsep="\\"
     selFilename="None selected"
     selDirectory = "None selected"
     showFilenames=True
@@ -76,6 +78,11 @@ class FileDialog():
         self.title=title
         self.defFilename=defFilename
         self.font = pygame.font.SysFont(dfontname, dfontsize)
+
+        # Check which path seperator we need
+        if sys.platform == "win32":self.dirsep = "\\"
+        elif sys.platform.startswith("linux"):self.dirsep = "/"
+        elif sys.platform == "darwin":self.dirsep = "/"
 
         # Calculate extra variables
         dummy, textheight = self.font.size("MinimalText")
@@ -156,7 +163,25 @@ class FileDialog():
         """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
 
         # Always make sure we can go back
-        dirs = [".."]
+        dirs = []
+
+        # If in root check if we need to add drives
+        if self.startdir=="DRIVELIST":
+            drives = []
+            #print (self.startdir)
+            #print(os.listdir(self.startdir))
+            if sys.platform=="win32":
+                for d in range(0,26):
+                    drivepath=chr(65+d)+":\\"
+                    if os.path.isdir(drivepath):
+                        drives.append(drivepath)
+            elif sys.platform.startswith("linux"):
+                print("inroot")
+                drives.append('/dev/media')
+            elif sys.platform=="darwin":
+                print ("inroot")
+            self.dirsandfiles=drives
+            return
 
         # Check if we have access to dir
         hasAccess=os.access(self.startdir,os.R_OK)
@@ -178,7 +203,7 @@ class FileDialog():
         for entry in direntries:
             if not entry.startswith("$"):   # recycle bin in windows
                 fullname = os.path.join(self.startdir, entry)
-                if os.path.isdir(fullname): dirs.append(entry + "/")
+                if os.path.isdir(fullname): dirs.append(entry + self.dirsep )
         dirs.sort(key=str.lower)
 
         # Extract files and apply filter
@@ -193,7 +218,7 @@ class FileDialog():
             files.sort(key=str.lower)
 
         # Make one list of dirs and files
-        self.dirsandfiles = dirs + files
+        self.dirsandfiles = [".."] + dirs + files
         #print("dirs : ",dirs)
         #print("files: ", files)
 
@@ -223,6 +248,7 @@ class FileDialog():
         self.btnOK.redraw()
         self.tbFilename.redraw()
         self.flipFunc()
+
 
     def waitforuser(self):
         """ Blocks all events to Main window and wait for user to click OK. """
@@ -274,13 +300,16 @@ class FileDialog():
 
         # Check if user wants to go up.
         if text=="..":
-            self.startdir=os.path.dirname(self.startdir)
+            if self.startdir == os.path.dirname(self.startdir):
+                self.startdir="DRIVELIST"
+            else:
+                self.startdir=os.path.dirname(self.startdir)
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.selFilename=""
         # Check if user selects a directory
-        elif text.endswith("/"):
+        elif (text.endswith("/") or text.endswith("\\")):
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
