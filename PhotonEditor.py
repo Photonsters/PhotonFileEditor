@@ -41,7 +41,9 @@ except ImportError as err:
 #       - zoom to quadrant to edit pixels of current layer,
 #       - show layer underneed transparent
 #       - make edit possible of current layer and all layers beneath
-#todo: zoom/pan layerimg with mouse, continuous draw on mouse drag
+#todo: draw circles sometimes crashing (low width)
+#todo: continuous draw on mouse drag
+#todo: scroll in fileopen causes list repeat
 #todo: save editor layer image if layerchange or.... disable layerchange if editing
 #todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: plugin - exchange files with validator
@@ -120,7 +122,7 @@ layercontrols = []
 labelPrevNr=None
 
 # Scroll bar to the right
-mouseDrag=False
+sliderDrag=False
 scrollLayerWidth=30
 scrollLayerVMargin=30
 scrollLayerRect=GRect(1440/4-scrollLayerWidth,scrollLayerVMargin,scrollLayerWidth,2560/4-scrollLayerVMargin*2)
@@ -151,6 +153,8 @@ BSFILLED=4
 brushShape=BSFILLED | BSSQUARE  #round
 
 cursorpos=(0,0)
+mouseDrag=False
+prevMouseDragPos=None
 
 ########################################################################################################################
 ##  Message boxes
@@ -571,6 +575,9 @@ def editLayer():
     global layerSlider_visible
     global frameMode
     global MODEEDIT
+
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!", "A .photon file is needed to load the bitmap in."): return
 
     editLayerMode=True
     frameMode=MODEEDIT
@@ -2293,6 +2300,29 @@ def frameActive():
     elif frameMode == MODEADVANCED:return frameAdvanced
     elif frameMode == MODEEDIT:return frameEdit
 
+dragDistance=None
+def checkMouseDrag(pos,event):
+    global mouseDrag,prevMouseDragPos,dragDistance, layerRect
+    gpos=GPoint.fromTuple(pos)
+    if event.type == pygame.MOUSEBUTTONDOWN and gpos.inGRect(layerRect): mouseDrag=True
+    if event.type == pygame.MOUSEBUTTONUP: mouseDrag = False
+    if event.type == pygame.MOUSEMOTION and not gpos.inGRect(layerRect):mouseDrag=False
+
+    # extra check
+    if event.type == pygame.MOUSEMOTION:
+        if not (pygame.mouse.get_pressed()[0] or
+                pygame.mouse.get_pressed()[1] or
+                pygame.mouse.get_pressed()[2]): mouseDrag = False
+
+    # store previous pos
+    if not prevMouseDragPos==None:
+        dragDistance=(pos[0]-prevMouseDragPos[0],pos[1]-prevMouseDragPos[1])
+    else:
+        dragDistance=(0,0)
+    if mouseDrag:
+        prevMouseDragPos=pos
+    else:
+        prevMouseDragPos=None
 
 def poll(event=None):
     """ Entrypoint and controls the rest """
@@ -2303,6 +2333,7 @@ def poll(event=None):
     global frameAdvanced
     global settingsMode
     global menubar
+    global sliderDrag
     global mouseDrag
     global running
     global photonfile
@@ -2349,21 +2380,21 @@ def poll(event=None):
             running = False  # change the value to False, to exit the main loop
 
         if event.type == pygame.MOUSEBUTTONUP:
-            mouseDrag=False
+            sliderDrag=False
             if not menubar.handleMouseUp(pos,event.button):
                 frameActive().handleMouseUp(pos,event.button)
                 for ctrl in controls:
                     ctrl.handleMouseUp(pos,event.button)
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            mouseDrag=handleLayerSlider()
+            sliderDrag=handleLayerSlider()
             if not menubar.handleMouseDown(pos,event.button):
                 frameActive().handleMouseDown(pos,event.button)
                 for ctrl in controls:
                     ctrl.handleMouseDown(pos,event.button)
 
         if event.type == pygame.MOUSEMOTION:
-            if mouseDrag: handleLayerSlider(False)
+            if sliderDrag: handleLayerSlider(False)
             if not menubar.handleMouseMove(pos):
                 frameActive().handleMouseMove(pos)
                 for ctrl in controls:
@@ -2434,10 +2465,27 @@ def poll(event=None):
                         ctrl.handleKeyDown(event.key,event.unicode)
 
         if editLayerMode:
+            global dragDistance
+            checkMouseDrag(pos,event)
+            print ("mouseDrag", mouseDrag,dragDistance)
             # Handle zoom / pan of layer image
+            # Zoom
+            scrollUp=False
+            scrollDown=False
             if event.type == pygame.KEYDOWN:
-                dzm=0.5
                 if event.key == pygame.K_KP_PLUS:
+                    scrollUp = True
+            if event.type ==pygame.MOUSEBUTTONDOWN:
+                if event.button == 5:
+                    scrollUp = True
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_KP_MINUS:
+                    scrollDown = True
+            if event.type ==pygame.MOUSEBUTTONDOWN:
+                if event.button == 4:
+                    scrollDown = True
+            dzm = 0.5
+            if scrollUp:
                     if dispimg_zoom < 4:
                         cx=dispimg_offset[0]+1440/2/dispimg_zoom
                         cy=dispimg_offset[1]+2560/2/dispimg_zoom
@@ -2445,7 +2493,7 @@ def poll(event=None):
                         dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
                         dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
                         print ("zoom: ",dispimg_zoom)
-                if event.key == pygame.K_KP_MINUS:
+            if scrollDown:
                     if dispimg_zoom > 1:
                         cx=dispimg_offset[0]+1440/2/dispimg_zoom
                         cy=dispimg_offset[1]+2560/2/dispimg_zoom
@@ -2453,20 +2501,30 @@ def poll(event=None):
                         dispimg_offset[0] = cx - (1440 / 2) / dispimg_zoom
                         dispimg_offset[1] = cy - (2560 / 2) / dispimg_zoom
                         print("zoom: ", dispimg_zoom)
-                x = dispimg_offset[0]
-                y = dispimg_offset[1]
-                dx = 0.125*1440
-                dy = 0.125*2560
-                if event.key == pygame.K_KP8 or event.key==pygame.K_UP :y-=dy
-                if event.key == pygame.K_KP2 or event.key==pygame.K_DOWN:y+=dy
-                if event.key == pygame.K_KP4 or event.key==pygame.K_LEFT:x-=dx
-                if event.key == pygame.K_KP6 or event.key==pygame.K_RIGHT:x=+dx
-                #Check for boundaries
+
+            # Pan
+            x = dispimg_offset[0]
+            y = dispimg_offset[1]
+            dx=0
+            dy=0
+            if mouseDrag:
+                dx = dragDistance[0] * 4 / dispimg_zoom
+                dy = dragDistance[1] * 4 / dispimg_zoom
+                x -= dx
+                y -= dy
+            if event.type == pygame.KEYDOWN:
+                dx = 1440 / dispimg_zoom
+                dy = 2560 / dispimg_zoom
+                if (not isNumlockOn and event.key == pygame.K_KP8) or event.key==pygame.K_UP :y-=dy
+                if (not isNumlockOn and event.key == pygame.K_KP2) or event.key==pygame.K_DOWN:y+=dy
+                if (not isNumlockOn and event.key == pygame.K_KP4) or event.key==pygame.K_LEFT:x-=dx
+                if (not isNumlockOn and event.key == pygame.K_KP6) or event.key==pygame.K_RIGHT:x+=dx
+            #Check for boundaries
+            if not dx==0 or not dy==0:
                 if x<0: x=0
                 if y<0: y=0
                 if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
                 if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
-                sss
                 dispimg_offset = [x , y]
 
             # Store mouse position to draw
@@ -2476,25 +2534,24 @@ def poll(event=None):
 
             # Handle editing of layer image
             if event.type == pygame.MOUSEBUTTONDOWN:
-                mouseDrag = handleLayerSlider()
+                if event.button==1 or event.button==3:
+                    if dispimg == layerimg:
+                        gpos = GPoint.fromTuple(pos)
+                        displace=(-2-brushSize,-2-brushSize)
+                        layerRectEditArea=layerRect.copy()
+                        #layerRectEditArea.shrink(editMargin)
+                        if gpos.inGRect(layerRectEditArea):
+                            pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
+                                        dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
+                            pixRect = (pixCoord[0], pixCoord[1], brushSize * 4 / dispimg_zoom, brushSize * 4 / dispimg_zoom)
+                            pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom), int(pixCoord[1]+brushSize * 2 / dispimg_zoom))
+                            pixRadius=int(brushSize * 2 / dispimg_zoom)
+                            if event.button == 1:pcolor=layerForecolor
+                            elif event.button == 3:pcolor=layerBackcolor
+                            if brushShape & BSROUND:pygame.draw.circle(layerimg, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
+                            if brushShape & BSSQUARE:pygame.draw.rect(layerimg, pcolor, pixRect, (not brushShape & BSFILLED)*6)
 
-                if dispimg == layerimg:
-                    gpos = GPoint.fromTuple(pos)
-                    displace=(-2-brushSize,-2-brushSize)
-                    layerRectEditArea=layerRect.copy()
-                    #layerRectEditArea.shrink(editMargin)
-                    if gpos.inGRect(layerRectEditArea):
-                        pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
-                                    dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
-                        pixRect = (pixCoord[0], pixCoord[1], brushSize * 4 / dispimg_zoom, brushSize * 4 / dispimg_zoom)
-                        pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom), int(pixCoord[1]+brushSize * 2 / dispimg_zoom))
-                        pixRadius=int(brushSize * 2 / dispimg_zoom)
-                        if event.button == 1:pcolor=layerForecolor
-                        elif event.button == 3:pcolor=layerBackcolor
-                        if brushShape & BSROUND:pygame.draw.circle(layerimg, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*6)
-                        if brushShape & BSSQUARE:pygame.draw.rect(layerimg, pcolor, pixRect, (not brushShape & BSFILLED)*6)
-
-                    dispimg = layerimg
+                        dispimg = layerimg
 
     # Check for tooltips to draw
     tooltip=None
