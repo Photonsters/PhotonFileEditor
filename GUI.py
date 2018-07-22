@@ -71,7 +71,9 @@ def drawTextMarkdown(markdown, font, color, surface, pos):
 ########################################################################################################################
 
 class MenuBar():
+    # menus array: [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
     menus=[]
+
     margins = GRect(4, 4, 4, 4)
     height = -1
     spacing = 14
@@ -135,8 +137,8 @@ class MenuBar():
         self.menus.append(menudata)
 
 
-    def addItem(self, menutitle, menuitem, func_on_click,arg=None):
-        """ Adds new item to menulist. """
+    def addItem(self, menutitle, menuitem, func_on_click=None,arg=None):
+        """ Adds new item to menulist (or seperator is menutitle='---') """
 
         # Find menu in menus, retrieve menulist and add item
         for menu in self.menus:
@@ -144,6 +146,28 @@ class MenuBar():
                 menulist=menu["menulist"]
                 menulist.addItem(menuitem,func_on_click,arg)
 
+    def addSubMenu(self, menutitle, submenutitle):
+        # self.menus array: [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+
+        # Make menulist
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                menulist = menudata["menulist"]
+                loc=(menulist.pos.right, menulist.pos.bottom)
+                submenulist=MenuList(pyscreen=self.pyscreen,location=loc, fontname = self.fontname, fontsize = self.fontsize, title=submenutitle)
+                menulist.addItem(submenutitle,None,None,submenulist)
+
+    def addSubItem(self, menutitle, submenutitle, submenuitem, func_on_click=None,arg=None):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,func_on_click,arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.addItem(submenuitem,func_on_click,arg)
 
     def redraw(self):
         """ Redraws MenuBar. """
@@ -197,7 +221,7 @@ class MenuBar():
 
 
     def handleMouseDown(self, pos,button):
-        """ Updates menu states if user clicked on menubar. """
+        """ Updates menu states only if user clicked on menubar. """
 
         # If not visible nothing to do.
         if not self.visible: return
@@ -236,7 +260,9 @@ class MenuBar():
         # If not visible nothing to do.
         if not self.visible: return
 
+        # If not left mouse button, nothing to do
         if not button == 1: return
+
         # Call upon menulists to handle mouse (if above menulists). """
         for menu in self.menus:
             # If menulist accepts MouseUp we can close menulist and active item in menubar
@@ -245,6 +271,7 @@ class MenuBar():
                 pygame.event.clear()
                 self.activeMenu["menulist"].visible = False
                 self.activeMenu = None
+                print ("close menu True")
                 return True
 
         # If we are below menubar and nothing in menulists (not returned True) then user clicks on workarea of window to hide all menus
@@ -254,6 +281,7 @@ class MenuBar():
                 pygame.event.clear()
                 self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
+                print("close menu False")
 
 
     def handleMouseMove(self, pos):
@@ -317,9 +345,10 @@ class MenuBar():
 ########################################################################################################################
 
 class MenuList():
+    # items array: [ (menuitem,func_on_click,arg,sub_MenuList), ....]
+    items=[]
     title=""
     pos=GRect(0, 0, 0, 0)
-    items=[]
     margins=GRect(4, 4, 4, 4)
     rowheight=0
     spacing=4
@@ -351,10 +380,11 @@ class MenuList():
         self.rowheight = height
 
 
-    def addItem(self,menuitem,func_on_click,arg):
+    def addItem(self,menuitem,func_on_click,arg,submenulist=None):
         """ Add menulist item and adjust menulist height and width (if needed) """
+
         #Add item
-        itemdata = (menuitem,func_on_click,arg)
+        itemdata = (menuitem,func_on_click,arg,submenulist)
         self.items.append(itemdata)
 
         # Adjust height and width only if needed
@@ -362,6 +392,8 @@ class MenuList():
         if (width+self.margins.x+self.margins.width) >self.pos.width: self.pos.width=width+self.margins.x+self.margins.width
         self.pos.height= len(self.items)*(self.rowheight+self.spacing)+ self.margins.y + self.margins.height-self.spacing # extract 1x spacing at the bottom
 
+    #def itemY(self,itemNr):
+    #    return self.pos.y + self.margins.y + itemNr * (self.rowheight + self.spacing)
 
     def redraw(self):
         """ Redraws MenuList. """
@@ -376,7 +408,7 @@ class MenuList():
         pygame.draw.rect(self.pyscreen, self.bordercolor, (self.pos.tuple()), 1)
 
         # Draw item text
-        for row,(text,func_on_click,arg) in enumerate(self.items):
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
             rowtop=self.pos.y+self.margins.y+row*(self.rowheight+self.spacing)
             if not text.startswith("---"):
                 if row==self.activeItem:
@@ -391,19 +423,35 @@ class MenuList():
                                  (self.pos.x, rowtop-int(self.spacing/2)+int(self.rowheight/2)),
                                  (self.pos.x+self.pos.width-1, rowtop-int(self.spacing/2)+int(self.rowheight/2) )
                                 )
+        # Draw sub menus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.redraw()
 
 
     def handleMouseMove(self, pos):
         """ Highlights menulist item if mouse hover above."""
         if not self.visible: return
 
+        # Hide all submenus, we will set correct submenu to visible below
+        if pos[0] > self.pos.x and pos[0] < (self.pos.x + self.pos.width):
+            for (text, func_on_click, arg, subMenuList) in self.items:
+                if not subMenuList==None: subMenuList.visible=False
+
+        # Find correct menu item and if present submenu
         if pos[0] > self.pos.x and pos[0] < (self.pos.x+self.pos.width) and \
             pos[1] < (self.pos.y + self.pos.height):
             rely=pos[1]-self.pos.y
             self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
+            (text, func_on_click, arg, subMenuList)=self.items[self.activeItem]
+            if not subMenuList==None:
+                subMenuList.visible=True
             # We are handling this so clear queue for others
             pygame.event.clear()
             return True
+
+        # Handle submenus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.handleMouseMove(pos)
 
 
     def handleMouseDown(self, pos,button):
@@ -413,20 +461,30 @@ class MenuList():
         """ Calls on user function if clicked on menu item."""
         if not button == 1: return
         if not self.visible: return
+        print ("menulist.mouseUp", self.title)
+
+        # Handle submenus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.handleMouseUp(pos,button)
+
+        # Now handle this menu
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.pos):
             # We are handling this so clear queue for others
             pygame.event.clear()
-            for row, (item, func_on_click,arg) in enumerate(self.items):
+            for row, (item, func_on_click,arg,subMenuList) in enumerate(self.items):
                 if row == self.activeItem:
+                    print ("handleMouseUp",self.title)
                     if not func_on_click==None:
                         if arg==None:
+                            print("  func_on_click")
                             func_on_click()
                         else:
+                            print("  func_on_click + arg")
                             func_on_click(arg)
                         self.visible=False
                         return True
-
+                    self.visible=False
 
 ########################################################################################################################
 ## Class Frame
@@ -1670,9 +1728,13 @@ class ListBox():
                 self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
             # Mousewheel Down, so scroll down by setting offset (first item to be displayed)
             if button==5:
-                self.offset = self.offset + 1
-                if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
-                self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
+                if len(self.items)<self.nritems: # only scroll (set offset) if items in memory is larger than nritems displayed
+                    self.offset=0
+                else:
+                    #print ("button 5", self.offset, len(self.items),self.nritems)
+                    self.offset = self.offset + 1
+                    if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
+                    self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
             # We are handling this so clear queue for others
             pygame.event.clear()
         # Else ask to check if clicked on scrollbarV

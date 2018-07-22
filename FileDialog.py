@@ -71,7 +71,8 @@ class FileDialog():
         self.flipFunc = flipFunc
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
-        if startdir==None: self.startdir=os.getcwd()
+        if startdir==None:startdir=os.getcwd()
+        self.startdir=startdir
         if isinstance(ext,str): ext=(ext,) # forces it into a list
         self.ext=ext
         self.winrect=GRect(pos[0], pos[1], 350, height)
@@ -161,7 +162,6 @@ class FileDialog():
 
     def readDirectory(self):
         """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
-        print ("self.startdir",self.startdir)
 
         # If in root check if we need to add drives
         if self.startdir=="DRIVELIST":
@@ -312,14 +312,13 @@ class FileDialog():
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.selFilename=""
-        # Check if user selects linux toor
-        elif text=="/":
+        # Check if user selects root (then we don't want to remove trailing slash
+        elif text=="/" or text.endswith(":\\"):
             self.startdir=text
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.selFilename = ""
-            print("Nav to dir: ", self.selDirectory)
         # Check if user selects a directory
         elif (text.endswith("/") or text.endswith("\\")):
             print ("selectdir")
@@ -328,7 +327,6 @@ class FileDialog():
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
             self.selFilename = ""
-            print ("Nav to dir: ",self.selDirectory)
         # Else user selected a file
         else:
             self.tbFilename.text=self.listbox.activeText()

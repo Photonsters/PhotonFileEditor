@@ -39,15 +39,12 @@ except ImportError as err:
 #TODO LIST
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
-#       - make edit possible of current layer and all layers beneath
-#todo: draw circles sometimes crashing (low width)
+#todo: draw circles sometimes crashes (if line width< circle radius)
 #todo: change preview in advanced mode is slow
 #todo: preview in basic mode (photon.photon) is stretched
 #todo: in preferences add recent files opened/saved
 #todo: in preferences store last save dir and last load dir as starting point for loadfile and save file
 #todo: continuous draw on mouse drag
-#todo: scroll in fileopen causes list repeat
-#todo: in root of fileopen we don't yet see the drives
 #todo: save editor layer image if layerchange or.... disable layerchange if editing
 #todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: plugin - exchange files with validator
@@ -109,7 +106,6 @@ layerRect=GRect(0,0,settingsleft,windowheight)
 
 # GUI controls
 menubar=None
-controls=[]
 frameBasic=None
 frameAdvanced=None
 controlsGeneral=None
@@ -124,6 +120,10 @@ frameMode=MODEADVANCED
 settingsMode=frameMode #disregards change to framemode MODEEDIT, used for saving preference
 layercontrols = []
 labelPrevNr=None
+
+recentLoaded=[]
+lastLoadDir=None
+lastSaveDir=None
 
 # Scroll bar to the right
 sliderDrag=False
@@ -229,7 +229,6 @@ def layerUp(delta=1):
     """ Go a number of layers (delta) forward and display image and settings """
     global layerNr, dispimg, layerimg, photonfile
     if photonfile == None: return
-    #print ("layerUp")
     saveLayerSettings2PhotonFile()
 
     maxLayer = photonfile.nrLayers()
@@ -408,10 +407,10 @@ class handleGLCallback:
 def loadFile():
     """ Asks for a filename and tells the PhotonFile object to load it . """
 
-    global filename
+    global filename, lastLoadDir
 
     # Ask user for filename
-    dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow)
+    dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow,startdir=lastLoadDir)
     retfilename=dialog.getFile()
 
     # Check if user pressed Cancel
@@ -431,6 +430,7 @@ def loadFile():
                 fullScreenOpenGL = True
                 # update window surface
                 redrawWindow(None)
+            updateRecentMenu(filename)
 
         except Exception as err:
             print (err)
@@ -1042,6 +1042,8 @@ def setFrameMode(fMode):
     else:
         gl = GL((windowwidth, windowheight), handleGLCallback)
 
+def loadRecent(menuIdx):
+    print ("loadRecent", menuIdx)
 
 def createMenu():
     global menubar
@@ -1051,20 +1053,23 @@ def createMenu():
     menubar=MenuBar(screen)
     menubar.addMenu("File","F")
     menubar.addItem("File", "New", newFile)
-    menubar.addItem("File","Load",loadFile)
-    menubar.addItem("File","Save As",saveFile)
-    menubar.addItem("File","Exit",exitFile)
+    menubar.addItem("File", "Load",loadFile)
+    menubar.addSubMenu("File", "Open Recent")
+    menubar.addSubItem("File", "Open Recent", "Photon.photon",loadRecent,0)
+    menubar.addSubItem("File", "Open Recent", "Test.photon",loadRecent,0)
+    menubar.addItem("File", "Save As", saveFile)
+    menubar.addItem("File", "Exit", exitFile)
     menubar.addMenu("Edit", "E")
     menubar.addItem("Edit", "Undo", undo)
-    menubar.addItem("Edit", "----", None)
+    menubar.addItem("Edit", "----")
     menubar.addItem("Edit", "Cut Layer", deleteLayer)
     menubar.addItem("Edit", "Copy Layer", copyLayer)
     menubar.addItem("Edit", "Paste Layer", pasteLayer)
     menubar.addItem("Edit", "Duplicate Layer", duplicateLayer)
-    menubar.addItem("Edit", "----", None)
+    menubar.addItem("Edit", "----")
     menubar.addItem("Edit", "Export Bitmap", exportBitmap)
     menubar.addItem("Edit", "Replace Bitmap", replaceBitmap)
-    menubar.addItem("Edit", "----", None)
+    menubar.addItem("Edit", "----")
     menubar.addItem("Edit", "Import Bitmaps", importBitmaps)
     menubar.addItem("Edit", "Export Bitmaps", exportBitmaps)
     menubar.addMenu("View", "V")
@@ -1073,7 +1078,7 @@ def createMenu():
     menubar.addItem("View", "Preview 1",showPrev1)
     menubar.addItem("View", "3D", showFramed3D)
     menubar.addItem("View", "Full 3D", showFull3D)
-    menubar.addItem("View", "----", None)
+    menubar.addItem("View", "----")
     global MODEBASIC
     global MODEADVANCED
     menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
@@ -1088,6 +1093,17 @@ def createMenu():
         menubar.addItem("Plugins ", name,openPlugin,plugin)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
+
+
+def updateRecentMenu(filenamepath):
+    """ Adds filename to recents if not yet precent and stores last directory """
+    global recentLoaded, lastLoadDir
+    # save history
+    lastLoadDir = os.path.dirname(filenamepath)
+    fnd = False
+    for recent in recentLoaded:
+        if recent == filenamepath: fnd = True
+    if not fnd: recentLoaded.append(filenamepath)
 
 
 def createLayerOperations():
@@ -1118,8 +1134,6 @@ def createLayerOperations():
                            rect=GRect(20+4.2*icondist, 2560 / 4 - iconsize[1] - viewport_yoffset,-1,-1),
                            borderhovercolor=(0, 0, 0), toolTip="Edit mode",
                            func_on_click=editLayer))
-    for layercontrol in layercontrols:
-        controls.append(layercontrol)
 
 def createLayernavigation():
     """ Create the layer navigation buttons (Up/Down) """
@@ -1137,9 +1151,6 @@ def createLayernavigation():
     layerLabel.font.set_bold(True)
     layercontrols.append(layerLabel)
 
-    for control in layercontrols:
-      controls.append(control)
-
     layerNr=0
     setLayerSliderFromLayerNr()
 
@@ -1150,8 +1161,7 @@ def createStatusBar():
     global controls
     statusbar = Label(screen, text=" Status ready!",rect=GRect(settingsleft , windowheight-28,windowwidth-settingsleft+1, 28),drawBorder=True)
     statusbar.font.set_bold(True)
-    # Add statusbar to controls list
-    controls.append(statusbar)
+
 
 def createSidebarSettings():
     """ Create all labels and input boxes to edit the general, preview and current layer settings of the photonfile. """
@@ -1542,15 +1552,15 @@ def createSidebarEdit():
     frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
                             type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareFilled,group=group))
     # Open circle
-    img = pygame.Surface((settingsrowheight, settingsrowheight))
-    pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 2)
-    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundOpen,group=group))
+    #img = pygame.Surface((settingsrowheight, settingsrowheight))
+    #pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 2)
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                     type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundOpen,group=group))
     # Open Square
-    img = pygame.Surface((settingsrowheight, settingsrowheight))
-    pygame.draw.rect(img, (0, 0, 0), (2, 2, settingsrowheight - 4, settingsrowheight - 4), 2)
-    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
-                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareOpen,group=group))
+    #img = pygame.Surface((settingsrowheight, settingsrowheight))
+    #pygame.draw.rect(img, (0, 0, 0), (2, 2, settingsrowheight - 4, settingsrowheight - 4), 2)
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                        type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareOpen,group=group))
 
     # ABC
     img = pygame.Surface((settingsrowheight, settingsrowheight))
@@ -1571,7 +1581,7 @@ def createSidebarEdit():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Brush size", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
-    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=10, curScroll=1,func_on_click=setBrushSize))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=50, curScroll=1,func_on_click=setBrushSize))
     frameEdit.append(frow)
 
     # Brush depth
@@ -1581,7 +1591,7 @@ def createSidebarEdit():
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
     frow.append(Label(screen, text="Brush depth", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
     frow.append(ScrollBarH(screen, GRect(0, 0, settingstextboxwidth * 2, settingsrowheight), minScroll=1, maxScroll=10,curScroll=1, func_on_click=setBrushDepth))
-    #frameEdit.append(frow)
+    frameEdit.append(frow)
 
     # Brush depth until bottom reached?
     frow = Frame(screen,
@@ -1596,7 +1606,7 @@ def createSidebarEdit():
     frowsub.append(Label(screen, text="To bottom", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
     frowsub.append(Checkbox(screen,GRect(0,0,settingsrowheight,settingsrowheight),type=Checkbox.checkbox,func_on_click=setBrushDepth2Bottom))
     frow.append(frowsub)
-    #frameEdit.append(frow)
+    frameEdit.append(frow)
 
     # Multiple brushes, e.q. cylinder to bottom, small to large diameter towards bottom, draw angled to bottom
     # Undo
@@ -2177,8 +2187,11 @@ def redrawWindow(tooltip=None):
     frameActive().redraw()
 
     # Redraw other controls
-    for ctrl in controls:
-        ctrl.redraw()
+    for ctrl in layercontrols:
+      ctrl.redraw()
+
+    # Redraw Statusbar
+    statusbar.redraw()
 
     # Redraw Menubar
     menubar.redraw()
@@ -2332,7 +2345,7 @@ def checkMouseDrag(pos,event):
 
 def poll(event=None):
     """ Entrypoint and controls the rest """
-    global controls
+    global layercontrols
     global controlsSettings
     global frameMode
     global frameBasic
@@ -2389,21 +2402,21 @@ def poll(event=None):
             sliderDrag=False
             if not menubar.handleMouseUp(pos,event.button):
                 frameActive().handleMouseUp(pos,event.button)
-                for ctrl in controls:
+                for ctrl in layercontrols:
                     ctrl.handleMouseUp(pos,event.button)
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             sliderDrag=handleLayerSlider()
             if not menubar.handleMouseDown(pos,event.button):
                 frameActive().handleMouseDown(pos,event.button)
-                for ctrl in controls:
+                for ctrl in layercontrols:
                     ctrl.handleMouseDown(pos,event.button)
 
         if event.type == pygame.MOUSEMOTION:
             if sliderDrag: handleLayerSlider(False)
             if not menubar.handleMouseMove(pos):
                 frameActive().handleMouseMove(pos)
-                for ctrl in controls:
+                for ctrl in layercontrols:
                     ctrl.handleMouseMove(pos)
 
 
@@ -2467,7 +2480,7 @@ def poll(event=None):
             else:
                 if not menubar.handleKeyDown(event.key,event.unicode):
                     frameActive().handleKeyDown(event.key,event.unicode)
-                    for ctrl in controls:
+                    for ctrl in layercontrols:
                         ctrl.handleKeyDown(event.key,event.unicode)
 
         if editLayerMode:
@@ -2553,8 +2566,18 @@ def poll(event=None):
                             pixRadius=int(brushSize * 2 / dispimg_zoom)
                             if event.button == 1:pcolor=layerForecolor
                             elif event.button == 3:pcolor=layerBackcolor
-                            if brushShape & BSROUND:pygame.draw.circle(layerimg, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
-                            if brushShape & BSSQUARE:pygame.draw.rect(layerimg, pcolor, pixRect, (not brushShape & BSFILLED)*6)
+                            #def draw2Layer(layernr,color,shape):
+                            #now draw
+                            toLayer=-1
+                            if not brushDepth2Bottom: toLayer=layerNr-brushDepth
+                            for idx in range(layerNr, toLayer, -1):
+                                    print ("draw on layer",idx)
+                                    editLayer = photonfile.getBitmap(idx, layerForecolor, layerBackcolor, (1,1))
+                                    if brushShape & BSROUND:pygame.draw.circle(editLayer, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
+                                    if brushShape & BSSQUARE:pygame.draw.rect(editLayer, pcolor, pixRect, (not brushShape & BSFILLED)*6)
+                                    # Ask PhotonFile object to replace bitmap
+                                    photonfile.replaceBitmap(idx, editLayer)
+                                    if idx == layerNr: layerimg = editLayer
 
                         dispimg = layerimg
 
@@ -2562,7 +2585,7 @@ def poll(event=None):
     tooltip=None
     ret = frameActive().handleToolTips(lastpos)
     if not ret == None: tooltip = ret
-    for ctrl in controls:
+    for ctrl in layercontrols:
         hasToolTip = getattr(ctrl, "handleToolTips", False)
         if hasToolTip:
             ret = ctrl.handleToolTips(lastpos)
