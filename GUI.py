@@ -762,12 +762,12 @@ class Frame():
         for control in self.__controls:
             control.handleKeyDown(key,unicode)
 
-    def handleToolTips(self,lastpos):
+    def handleToolTips(self,lastpos,displaywidth=None):
         tooltip=None
         for control in self.__controls:
             hasToolTip = getattr(control, "handleToolTips", False)
             if hasToolTip:
-                ret = control.handleToolTips(lastpos)
+                ret = control.handleToolTips(lastpos,displaywidth)
                 if not ret==None: tooltip=ret
         return tooltip
 
@@ -939,13 +939,16 @@ class ImgBox():
         return
 
 
-    def handleToolTips(self,pos):
+    def handleToolTips(self,pos,displaywidth=None):
         """ Returns label control with tooltip if hovered long enough. """
         # If not visible nothing to do.
         if not self.visible: return
 
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
+
+        # if displaywidth not given, we use screen width (in openGL they can differ)
+        if displaywidth==None: displaywidth=self.pyscreen.get_size()[0]
 
         #Check if mouse above control, if not exit
         gpos=GPoint.fromTuple(pos)
@@ -975,7 +978,7 @@ class ImgBox():
             self.toolTipLabel.rect.x = gpos.x
             self.toolTipLabel.rect.y = gpos.y
             #check if tooltip overflow right edge of pyscreen
-            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+            if self.toolTipLabel.rect.right>displaywidth:
                 self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
             return self.toolTipLabel
 
@@ -2339,13 +2342,16 @@ class TextBox():
             self.state = self.normal
 
 
-    def handleToolTips(self,pos):
+    def handleToolTips(self,pos, displaywidth=None):
         """ Returns label control with tooltip if hovered long enough. """
         # If not visible nothing to do.
         if not self.visible: return
 
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
+
+        # if displaywidth not given, we use screen width (in openGL they can differ)
+        if displaywidth==None: displaywidth=self.pyscreen.get_size()[0]
 
         #Check if mouse above control, if not exit
         gpos=GPoint.fromTuple(pos)
@@ -2370,12 +2376,12 @@ class TextBox():
 
         #Check if hovered enough time and return tooltip
         timeHovered=time.time()-self.firstHoverTime
-        if timeHovered>1.5 and not self.toolTipLabel.text=="" :
-            self.toolTipLabel.visible=True
-            self.toolTipLabel.rect.x = gpos.x
-            self.toolTipLabel.rect.y = gpos.y
+        if timeHovered>1.5 and not self.toolTipLabel.text=="":
+            self.toolTipLabel.visible = True
+            self.toolTipLabel.rect.x  = gpos.x
+            self.toolTipLabel.rect.y  = gpos.y
             #check if tooltip overflow right edge of pyscreen
-            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+            if self.toolTipLabel.rect.right>displaywidth:
                 self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
             return self.toolTipLabel
 

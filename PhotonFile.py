@@ -76,7 +76,7 @@ class PhotonFile:
         ("Preview 0 (addr)",    4, tpInt,   False, "Address where the metadata \n of the High Res preview image can be found."),  # start of preview 0
         ("Layer Defs (addr)",   4, tpInt,   False, "Address where the metadata \n for the layer images can be found."),  # start of layerDefs
         (nrLayersString,        4, tpInt,   False, "Number of layers this file has."),
-        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata \n of the Low Res preview image can be found."),  # start of preview 1
+        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata of the \n Low Res preview image can be found."),  # start of preview 1
         ("unknown6",            4, tpInt,   False, ""),
         ("Proj.type-Cast/Mirror", 4, tpInt, False, "LightCuring/Projection type:\n 1=LCD_X_MIRROR \n 0=CAST"),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
         ("padding1",        6 * 4, tpByte,  False, "")  # 6 ints
@@ -85,18 +85,18 @@ class PhotonFile:
     pfStruct_Previews = [
         ("Resolution X",        4, tpInt,   False, "X-Resolution of preview pictures."),
         ("Resolution Y",        4, tpInt,   False, "Y-Resolution of preview pictures."),
-        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),  # start of rawData0
-        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  # size of rawData0
+        ("Image Address",       4, tpInt,   False, "Address where the raw \n image can be found."),  # start of rawData0
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the \n raw image."),  # size of rawData0
         ("padding",         4 * 4, tpByte,  False, ""),  # 4 ints
         ("Image Data",         -1, tpByte,  False, "The raw image."),
     ]
 
     # The exposure time and off times are ignored by Photon printer, layerheight not and is cumulative
     pfStruct_LayerDef = [
-        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer should be printed."),
+        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer \n should be printed."),
         ("Exp. time (s)",       4, tpFloat, False, "Exposure time for this layer.\n (Based on General Info.)"),
         ("Off time (s)",        4, tpFloat, False, "Off time for this layer.\n (Based on General Info.)"),
-        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),#dataStartPos -> Image Address
+        ("Image Address",       4, tpInt,   False, "Address where the raw image \n can be found."),#dataStartPos -> Image Address
         ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  #size of rawData+lastByte(1)
         ("padding",         4 * 4, tpByte,  False, "") # 4 ints
     ]

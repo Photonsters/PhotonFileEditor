@@ -37,13 +37,8 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
-#todo: in edit-mode, drag causes point to be drawn and layer to store which causes a delay
-#todo: if zoom>4 cursor should be bigger and drawing also
+#todo: in edit-mode, store all edits and apply on exit
 #todo: implement pcb plugin.old
-#todo: tooltips in Basic Frame overflow window
-#todo: make slice images editable
-#       - zoom to quadrant to edit pixels of current layer,
-#todo: draw circles sometimes crashes (if line width< circle radius)
 #todo: change preview in advanced mode is slow
 #todo: preview in basic mode (photon.photon) is stretched
 
@@ -52,13 +47,12 @@ except ImportError as err:
 #todo: OpenGL - why do we need it...
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
-#todo: button.png should be used in scrollbarv
-#todo: PhotonFile float_to_bytes(floatVal) does not work correctie if floatVal=0.5 - now struct library used
+#todo: PhotonFile float_to_bytes(floatVal) does not work correct if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
-#todo: drag GUI-scrollbar is not implementend
+#todo: drag GUI-ScrollbarH and ScrollbarV is not implementend
 #todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
 
 
@@ -2216,6 +2210,19 @@ def redrawWindow(tooltip=None):
                         if brushShape & BSROUND:pygame.draw.circle(cursorimg, (255, 0, 0), (brushSize // 2, brushSize // 2),brushSize // 2 , not brushShape & BSFILLED)
                         if brushShape & BSSQUARE:pygame.draw.rect(cursorimg, (255, 0, 0), (0, 0, brushSize, brushSize), not brushShape & BSFILLED)
                         pixCoord = [cursorpos[0] + displace[0],cursorpos[1] + displace[1] ]
+                        # If we zoomed to pixelsize>1, we need to scale up (and pixelate) the cursor as well as snap it to the grid
+                        if dispimg_zoom>4:
+                            # Scale up (and pixelate) the cursor
+                            nBrushSize=int(brushSize*dispimg_zoom / 4)
+                            cursorimg = pygame.transform.scale(cursorimg,(nBrushSize ,nBrushSize))
+                            # We need to snap pixCoord to grid
+                            x=pixCoord[0]
+                            y=pixCoord[1]
+                            y=y-menubar.getHeight() # remove height from menubar since it can have a height not a multiple of gridsize
+                            x = x - x % (dispimg_zoom / 4)
+                            y = y - y % (dispimg_zoom / 4)
+                            y=y+menubar.getHeight()
+                            pixCoord=[x,y]
                         screen.blit(cursorimg,dest=pixCoord)
                     if dispimg_zoom>4: screen.blit(gridimg,(0,menubar.getHeight()))
             else:
@@ -2252,7 +2259,9 @@ def redrawWindow(tooltip=None):
             pygame.draw.rect(screen, (0,0,255), layerCursorRect.tuple(), 0)
 
     # Redraw tooltip
-    if not tooltip==None: tooltip.redraw()
+    if not tooltip==None:
+        tooltip.redraw()
+        print (screen.get_size() ,tooltip.rect)
 
 
 def setLayerSliderFromLayerNr():
@@ -2371,8 +2380,8 @@ dragDistance=None
 def checkMouseDrag(pos,event):
     global mouseDrag,prevMouseDragPos,dragDistance, layerRect
     gpos=GPoint.fromTuple(pos)
-    if event.type == pygame.MOUSEBUTTONDOWN and gpos.inGRect(layerRect): mouseDrag=True
-    if event.type == pygame.MOUSEBUTTONUP: mouseDrag = False
+    #if event.type == pygame.MOUSEBUTTONDOWN and gpos.inGRect(layerRect): mouseInitDrag=True#mouseDrag=True
+    if event.type == pygame.MOUSEBUTTONUP:mouseDrag = False
     if event.type == pygame.MOUSEMOTION and not gpos.inGRect(layerRect):mouseDrag=False
 
     # extra check
@@ -2380,7 +2389,8 @@ def checkMouseDrag(pos,event):
         if not (pygame.mouse.get_pressed()[0] or
                 pygame.mouse.get_pressed()[1] or
                 pygame.mouse.get_pressed()[2]): mouseDrag = False
-
+        else:
+            mouseDrag=True
     # store previous pos
     if not prevMouseDragPos==None:
         dragDistance=(pos[0]-prevMouseDragPos[0],pos[1]-prevMouseDragPos[1])
@@ -2520,8 +2530,8 @@ def poll(event=None):
                             ctrl.handleKeyDown(event.key,event.unicode)
 
         if editLayerMode:
-            global dragDistance
-            if mouseDrag and
+            global dragDistance, wasDragged
+            wasDragged=mouseDrag
             checkMouseDrag(pos,event)
             # Handle control mouse events
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -2562,7 +2572,7 @@ def poll(event=None):
                     scrollUp = True
                 if event.button == 4:
                     scrollDown = True
-            if dispimg_zoom<4:
+            if (scrollUp and dispimg_zoom<4) or (scrollDown and dispimg_zoom<=4):
                 dzm = 0.5
             else:
                 dzm = 12
@@ -2616,19 +2626,32 @@ def poll(event=None):
                 cursorpos = pos
 
             # Handle editing of layer image
-            if event.type == pygame.MOUSEBUTTONUP and not mouseDrag:
+            if event.type == pygame.MOUSEBUTTONUP and not wasDragged:
                 if event.button==1 or event.button==3:
                     if dispimg == layerimg:
                         gpos = GPoint.fromTuple(pos)
                         displace=(-2-brushSize,-2-brushSize)
                         layerRectEditArea=layerRect.copy()
                         #layerRectEditArea.shrink(editMargin)
+
                         if gpos.inGRect(layerRectEditArea):
-                            pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
-                                        dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
-                            pixRect = (pixCoord[0], pixCoord[1], brushSize * 4 / dispimg_zoom, brushSize * 4 / dispimg_zoom)
-                            pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom), int(pixCoord[1]+brushSize * 2 / dispimg_zoom))
-                            pixRadius=int(brushSize * 2 / dispimg_zoom)
+                            if dispimg_zoom > 4:
+                                d = 0.5 # magic needed for circle, had no time to find out the cause
+                                # Scale up (and pixelate) the cursor
+                                pixCoord = [dispimg_offset[0] + (pos[0] + displace[0]) * 4 / dispimg_zoom,
+                                            dispimg_offset[1] + (pos[1] + displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
+                                pixRect = (pixCoord[0], pixCoord[1], brushSize , brushSize )
+                                pixCenter = (int(pixCoord[0] + brushSize / 2-d),
+                                             int(pixCoord[1] + brushSize / 2-d))
+                                pixRadius = int(brushSize / 2-d)
+                            else:
+                                d = 4 - dispimg_zoom  # magic needed for circle, had no time to find out the cause
+                                pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
+                                            dispimg_offset[1] + (pos[1]+displace[1] - menubar.getHeight()) * 4 / dispimg_zoom]
+                                pixRect = (pixCoord[0], pixCoord[1], brushSize * 4 / dispimg_zoom, brushSize * 4 / dispimg_zoom)
+                                pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom-d),
+                                           int(pixCoord[1]+brushSize * 2 / dispimg_zoom-d))
+                                pixRadius=int(brushSize * 2 / dispimg_zoom-d)
                             if event.button == 1:pcolor=layerForecolor
                             elif event.button == 3:pcolor=layerBackcolor
                             #def draw2Layer(layernr,color,shape):
@@ -2636,10 +2659,11 @@ def poll(event=None):
                             toLayer=-1
                             if not brushDepth2Bottom: toLayer=layerNr-brushDepth
                             for idx in range(layerNr, toLayer, -1):
-                                    print ("draw on layer",idx)
+                                    #print ("draw on layer",idx)
                                     editLayer = photonfile.getBitmap(idx, layerForecolor, layerBackcolor, (1,1))
                                     if brushShape & BSROUND:pygame.draw.circle(editLayer, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
                                     if brushShape & BSSQUARE:pygame.draw.rect(editLayer, pcolor, pixRect, (not brushShape & BSFILLED)*6)
+                                    print ("pixRect",pixRect)
                                     # Ask PhotonFile object to replace bitmap
                                     photonfile.replaceBitmap(idx, editLayer)
                                     if idx == layerNr: layerimg = editLayer
@@ -2647,8 +2671,9 @@ def poll(event=None):
                         dispimg = layerimg
 
     # Check for tooltips to draw
+    global windowwidth
     tooltip=None
-    ret = frameActive().handleToolTips(lastpos)
+    ret = frameActive().handleToolTips(lastpos,windowwidth)
     if not ret == None: tooltip = ret
     for ctrl in layercontrols:
         hasToolTip = getattr(ctrl, "handleToolTips", False)
