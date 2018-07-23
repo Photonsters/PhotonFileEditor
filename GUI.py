@@ -153,8 +153,7 @@ class MenuBar():
         for menudata in self.menus:
             if menudata["title"] == menutitle:
                 menulist = menudata["menulist"]
-                loc=(menulist.pos.right, menulist.pos.bottom)
-                submenulist=MenuList(pyscreen=self.pyscreen,location=loc, fontname = self.fontname, fontsize = self.fontsize, title=submenutitle)
+                submenulist=MenuList(pyscreen=self.pyscreen,location=(0,0), fontname = self.fontname, fontsize = self.fontsize, title=submenutitle)
                 menulist.addItem(submenutitle,None,None,submenulist)
 
     def addSubItem(self, menutitle, submenutitle, submenuitem, func_on_click=None,arg=None):
@@ -165,9 +164,33 @@ class MenuBar():
             if menudata["title"] == menutitle:
                 # Find menu item which contains submenu
                 menulist=menudata["menulist"]
-                for (menuitem,func_on_click,arg,sub_menulist) in menulist.items:
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
                     if menuitem==submenutitle:
                         sub_menulist.addItem(submenuitem,func_on_click,arg)
+
+    def delSubItem(self, menutitle, submenutitle, submenuitem):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.delItem(submenuitem)
+
+    def clearSubItems(self, menutitle, submenutitle):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.clearItems()
 
     def redraw(self):
         """ Redraws MenuBar. """
@@ -379,18 +402,62 @@ class MenuList():
         self.pos=GRect(l_x,l_y,l_width,l_height)
         self.rowheight = height
 
+        # Make sure we have caretimg if needed for submenu
+        self.caretimg = pygame.image.load("resources/buttonarrow.png")
+        self.caretimg = pygame.transform.rotate(self.caretimg, -90)
+        self.caretwidth=self.rowheight
+        self.caretimg = pygame.transform.smoothscale(self.caretimg, (self.caretwidth,self.rowheight))
+        self.caretimg.set_colorkey(self.caretimg.get_at((0,0)))
+
 
     def addItem(self,menuitem,func_on_click,arg,submenulist=None):
         """ Add menulist item and adjust menulist height and width (if needed) """
 
-        #Add item
+        # Add item
         itemdata = (menuitem,func_on_click,arg,submenulist)
         self.items.append(itemdata)
 
+        # Set top of submenu if present
+        if not submenulist==None:
+            submenulist.pos.top=self.pos.bottom-self.margins.bottom+self.margins.top
+
         # Adjust height and width only if needed
         width, height = self.font.size(menuitem)
+        if not submenulist==None: width=width+self.caretwidth # make room for > image
         if (width+self.margins.x+self.margins.width) >self.pos.width: self.pos.width=width+self.margins.x+self.margins.width
         self.pos.height= len(self.items)*(self.rowheight+self.spacing)+ self.margins.y + self.margins.height-self.spacing # extract 1x spacing at the bottom
+
+        # Repos all submenus left for new width of this menu
+        for (menuitem, func_on_click, arg, submenulist)  in self.items:
+            if not submenulist==None:
+                submenulist.pos.left = self.pos.right
+
+    def delItem(self, del_menuitem):
+            """ Delete menulist item and adjust menulist height and width (if needed) """
+
+            # Find and remove item
+            for itemdata in self.items:
+                (menuitem, func_on_click, arg, submenulist) = itemdata
+                if menuitem==del_menuitem:
+                    self.items.remove(itemdata)
+
+            # Adjust height and width only if needed
+            width, height = self.font.size(menuitem)
+            if (width + self.margins.x + self.margins.width) > self.pos.width:
+                self.pos.width = width + self.margins.x + self.margins.width
+            self.pos.height = len(self.items) * (self.rowheight + self.spacing) + self.margins.y + self.margins.height - self.spacing  # extract 1x spacing at the bottom
+
+    def clearItems(self):
+            """ Delete menulist item and adjust menulist height and width (if needed) """
+
+            # Find and remove item
+            self.items.clear()
+
+            # Adjust height and width only if needed
+            width, height = self.font.size("Min width")
+            if (width + self.margins.x + self.margins.width) > self.pos.width:
+                self.pos.width = width + self.margins.x + self.margins.width
+            self.pos.height = len(self.items) * (self.rowheight + self.spacing) + self.margins.y + self.margins.height - self.spacing  # extract 1x spacing at the bottom
 
     #def itemY(self,itemNr):
     #    return self.pos.y + self.margins.y + itemNr * (self.rowheight + self.spacing)
@@ -418,6 +485,9 @@ class MenuList():
                     localtextcolor = defMenuForeground
                 textsurface = self.font.render(text,True, localtextcolor)
                 self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
+                # Draw > if submenu
+                if not subMenuList==None:
+                    self.pyscreen.blit(self.caretimg, (self.pos.right - self.margins.width - self.caretwidth, rowtop))
             else:
                 pygame.draw.line(self.pyscreen,self.bordercolor,
                                  (self.pos.x, rowtop-int(self.spacing/2)+int(self.rowheight/2)),
@@ -442,9 +512,10 @@ class MenuList():
             pos[1] < (self.pos.y + self.pos.height):
             rely=pos[1]-self.pos.y
             self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
-            (text, func_on_click, arg, subMenuList)=self.items[self.activeItem]
-            if not subMenuList==None:
-                subMenuList.visible=True
+            if self.activeItem<len(self.items):
+                (text, func_on_click, arg, subMenuList)=self.items[self.activeItem]
+                if not subMenuList==None:
+                    subMenuList.visible=True
             # We are handling this so clear queue for others
             pygame.event.clear()
             return True
@@ -474,7 +545,7 @@ class MenuList():
             pygame.event.clear()
             for row, (item, func_on_click,arg,subMenuList) in enumerate(self.items):
                 if row == self.activeItem:
-                    print ("handleMouseUp",self.title)
+                    print ("handleMouseUp",self.title, item, func_on_click)
                     if not func_on_click==None:
                         if arg==None:
                             print("  func_on_click")

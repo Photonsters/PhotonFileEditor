@@ -37,19 +37,18 @@ except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
+#todo: in edit-mode, drag causes point to be drawn and layer to store which causes a delay
+#todo: if zoom>4 cursor should be bigger and drawing also
+#todo: implement pcb plugin.old
+#todo: tooltips in Basic Frame overflow window
 #todo: make slice images editable
 #       - zoom to quadrant to edit pixels of current layer,
 #todo: draw circles sometimes crashes (if line width< circle radius)
 #todo: change preview in advanced mode is slow
 #todo: preview in basic mode (photon.photon) is stretched
-#todo: in preferences add recent files opened/saved
-#todo: in preferences store last save dir and last load dir as starting point for loadfile and save file
+
 #todo: continuous draw on mouse drag
-#todo: save editor layer image if layerchange or.... disable layerchange if editing
-#todo calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
-#todo: plugin - exchange files with validator
-#todo: implement pcb plugin
-#todo: tooltips in Basic Frame overflow window
+#todo: calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: OpenGL - why do we need it...
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
@@ -78,6 +77,7 @@ window=None
 screen=None
 dispimg_offset=[0,0]
 dispimg_zoom=1
+gridimg=None
 defTransparent=(1,1,1)
 layerimg=None
 previmg=[None,None]
@@ -298,7 +298,7 @@ def exitFile():
 def saveFile():
     """ Asks for a filename and tells the PhotonFile object to save it . """
 
-    global filename
+    global filename, lastLoadDir
 
     # Check if photonfile is loaded to prevent errors when operating on empty photonfile
     if not checkLoadedPhotonfile("No photon file loaded!","There is no .photon file loaded to save."): return
@@ -313,7 +313,7 @@ def saveFile():
     retfilename=""
     while not okUser:
         # Get filename
-        dialog = FileDialog(flipFunc,screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow)
+        dialog = FileDialog(flipFunc,screen, (40, 40), ext=".photon",title="Save Photon File", defFilename="newfile.photon", parentRedraw=redrawWindow, startdir=lastLoadDir)
         retfilename=dialog.newFile()
         # If user canceled saveFile on FileDialog, retfilename=None and we should continue and thus set okUser to true
         if retfilename == None:
@@ -342,6 +342,7 @@ def saveFile():
             photonfile.writeFile(filename)
             barefilename = (os.path.basename(filename))
             pygame.display.set_caption("Photon File Editor - " + barefilename)
+            updateRecentMenu(filename)
         except Exception as err:
             print (err)
             errMessageBox(str(err))
@@ -404,14 +405,17 @@ class handleGLCallback:
             errMessageBox(str(err))
 
 
-def loadFile():
+def loadFile(retfilename=None):
     """ Asks for a filename and tells the PhotonFile object to load it . """
 
     global filename, lastLoadDir
 
     # Ask user for filename
-    dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow,startdir=lastLoadDir)
-    retfilename=dialog.getFile()
+    if retfilename==None:
+        dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow,startdir=lastLoadDir)
+        retfilename=dialog.getFile()
+    else:
+        filename=retfilename
 
     # Check if user pressed Cancel
     if not retfilename==None:
@@ -1001,9 +1005,9 @@ def readPlugins():
     return files
 
 
-def openPlugin(filename):
+def openPlugin(pluginfilename):
     # BEWARE: IT IS NORMAL THIS DOES NOT RUN IN PYCHARM!!!
-    filepath="plugins/"+filename
+    filepath="plugins/"+pluginfilename
     ifile = open(filepath, "r", encoding="Latin-1")  # Latin-1 handles special characters
     lines = ifile.read()
     exec(lines)
@@ -1042,8 +1046,36 @@ def setFrameMode(fMode):
     else:
         gl = GL((windowwidth, windowheight), handleGLCallback)
 
-def loadRecent(menuIdx):
-    print ("loadRecent", menuIdx)
+def loadRecent(fileName):
+    print ("loadRecent", fileName)
+    loadFile(fileName)
+
+
+def updateRecentMenu(filenamepath=None):
+    """ Adds filename to recents if not yet present, stores last directory and updates menu"""
+    global recentLoaded, lastLoadDir, menubar
+
+    # Store last dir and update recents list
+    if not filenamepath==None:
+        # store last dir
+        lastLoadDir = os.path.dirname(filenamepath)
+
+        # update recents list
+        fnd = False
+        for recent in recentLoaded:
+            if recent == filenamepath: fnd = True
+        if not fnd: recentLoaded.append(filenamepath)
+
+        # check if recent list < 7
+        while len(recentLoaded)>7:
+            recentLoaded.pop(0)
+
+    # Update Menu
+    menubar.clearSubItems("File", "Open Recent")
+    for recent in recentLoaded:
+        recentshort=os.path.basename(recent)
+        menubar.addSubItem("File", "Open Recent", recentshort, loadRecent, recent)
+
 
 def createMenu():
     global menubar
@@ -1055,8 +1087,9 @@ def createMenu():
     menubar.addItem("File", "New", newFile)
     menubar.addItem("File", "Load",loadFile)
     menubar.addSubMenu("File", "Open Recent")
-    menubar.addSubItem("File", "Open Recent", "Photon.photon",loadRecent,0)
-    menubar.addSubItem("File", "Open Recent", "Test.photon",loadRecent,0)
+    #menubar.addSubItem("File", "Open Recent", "Photon.photon",loadRecent,"Photon.photon")
+    #menubar.addSubItem("File", "Open Recent", "Test.photon",loadRecent,"Test.photon")
+    updateRecentMenu()
     menubar.addItem("File", "Save As", saveFile)
     menubar.addItem("File", "Exit", exitFile)
     menubar.addMenu("Edit", "E")
@@ -1093,17 +1126,6 @@ def createMenu():
         menubar.addItem("Plugins ", name,openPlugin,plugin)
     menubar.addMenu("Help", "H")
     menubar.addItem("Help", "About",about)
-
-
-def updateRecentMenu(filenamepath):
-    """ Adds filename to recents if not yet precent and stores last directory """
-    global recentLoaded, lastLoadDir
-    # save history
-    lastLoadDir = os.path.dirname(filenamepath)
-    fnd = False
-    for recent in recentLoaded:
-        if recent == filenamepath: fnd = True
-    if not fnd: recentLoaded.append(filenamepath)
 
 
 def createLayerOperations():
@@ -1715,6 +1737,10 @@ def loadUserPrefs():
     """
     global frameMode
     global settingsMode
+    global lastLoadDir
+    global recentLoaded
+
+    lastLoadDir=os.getcwd()
 
     # Settings.txt could be absent or wrongly edited by user
     try:
@@ -1725,6 +1751,11 @@ def loadUserPrefs():
         #    print ("setting",line.strip())
         frameMode = int(lines[0])
         settingsMode=frameMode
+        lastLoadDir = lines[1].strip()
+        recentLoaded=[]
+        for idx in range(2,len(lines)):
+            recentLoaded.append(lines[idx].strip())
+            #print (lines[idx].strip())
     except Exception as err:
         print (err)
 
@@ -1735,7 +1766,9 @@ def saveUserPrefs():
     global settingsMode
     # User settings will be saved here like, last path opened, settings adv/basic
     ifile = open("settings.txt", "w",encoding="Latin-1") #Latin-1 handles special characters
-    lines=str(settingsMode)+ "\n"+"next line\n"
+    lines=str(settingsMode)+ "\n"+str(lastLoadDir)+ "\n"
+    for recent in recentLoaded:
+        lines=lines+recent+"\n"
     try:
         ifile.writelines(lines)
     except Exception as err:
@@ -1752,6 +1785,7 @@ def createWindow():
     global dispimg
     global layerimg
     global previmg
+    global gridimg
     global windowwidth
     global windowheight
     global settingsleft
@@ -1813,6 +1847,17 @@ def createWindow():
     previmg[0]=dispimg
     previmg[1] = dispimg
     layerimg = dispimg
+
+    # Make grid for edit with large zoom
+    gridimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+    gridcol = Color(100,100,100)
+    transcol= Color(0,0,0,0)
+    gridimg.fill(transcol)
+    gridimg.set_colorkey(transcol)
+    for row in range (0, int(2560 * scale[1]), 4):
+        pygame.draw.line(gridimg, gridcol, (0,row), (1440 * scale[0], row))
+    for col in range (0, int(1440 * scale[1]), 4):
+        pygame.draw.line(gridimg, gridcol, (col,0), (col,2560 * scale[0]))
 
     #display Nag screen on image
     disclaimerString= "" \
@@ -2113,6 +2158,7 @@ def redrawWindow(tooltip=None):
     global pyopenglAvailable
     global screen
     global dispimg
+    global gridimg
     global windowwidth
     global windowheight
     global fontFullScreen
@@ -2164,12 +2210,14 @@ def redrawWindow(tooltip=None):
                     if gpos.inGRect(layerRect):
                         displace = (-2-brushSize, -2-brushSize)
                         cursorimg = pygame.Surface((brushSize, brushSize))
-                        cursorimg.fill((0,0,0))
-                        cursorimg.set_colorkey((0,0,0))
+                        transcol = Color(0, 0, 0, 0)
+                        cursorimg.fill(transcol)
+                        cursorimg.set_colorkey(transcol)
                         if brushShape & BSROUND:pygame.draw.circle(cursorimg, (255, 0, 0), (brushSize // 2, brushSize // 2),brushSize // 2 , not brushShape & BSFILLED)
                         if brushShape & BSSQUARE:pygame.draw.rect(cursorimg, (255, 0, 0), (0, 0, brushSize, brushSize), not brushShape & BSFILLED)
                         pixCoord = [cursorpos[0] + displace[0],cursorpos[1] + displace[1] ]
                         screen.blit(cursorimg,dest=pixCoord)
+                    if dispimg_zoom>4: screen.blit(gridimg,(0,menubar.getHeight()))
             else:
                 screen.blit(dispimg,
                             dest=(0, menubar.getHeight()+(2560/4-menubar.getHeight()-dispimg.get_height())/2),
@@ -2393,73 +2441,99 @@ def poll(event=None):
 
         pos = pygame.mouse.get_pos()
         lastpos=pos
+        isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
+
+        # Check if window was closed
         if event.type == pygame.QUIT:
             print("Window was closed. Exit!")
             saveUserPrefs()
             running = False  # change the value to False, to exit the main loop
 
-        if event.type == pygame.MOUSEBUTTONUP:
-            sliderDrag=False
-            if not menubar.handleMouseUp(pos,event.button):
-                frameActive().handleMouseUp(pos,event.button)
-                for ctrl in layercontrols:
-                    ctrl.handleMouseUp(pos,event.button)
+        if not editLayerMode:
+            if event.type == pygame.MOUSEBUTTONUP:
+                sliderDrag=False
+                if not menubar.handleMouseUp(pos,event.button):
+                    frameActive().handleMouseUp(pos,event.button)
+                    for ctrl in layercontrols:
+                        ctrl.handleMouseUp(pos,event.button)
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            sliderDrag=handleLayerSlider()
-            if not menubar.handleMouseDown(pos,event.button):
-                frameActive().handleMouseDown(pos,event.button)
-                for ctrl in layercontrols:
-                    ctrl.handleMouseDown(pos,event.button)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                sliderDrag=handleLayerSlider()
+                if not menubar.handleMouseDown(pos,event.button):
+                    frameActive().handleMouseDown(pos,event.button)
+                    for ctrl in layercontrols:
+                        ctrl.handleMouseDown(pos,event.button)
 
-        if event.type == pygame.MOUSEMOTION:
-            if sliderDrag: handleLayerSlider(False)
-            if not menubar.handleMouseMove(pos):
+            if event.type == pygame.MOUSEMOTION:
+                if sliderDrag: handleLayerSlider(False)
+                if not menubar.handleMouseMove(pos):
+                    frameActive().handleMouseMove(pos)
+                    for ctrl in layercontrols:
+                        ctrl.handleMouseMove(pos)
+
+
+            if event.type == pygame.KEYDOWN :
+                #If numlock on then we use it to navigate layers
+                if not photonfile==None:
+                    if not isNumlockOn:
+                        maxLayer = photonfile.nrLayers()
+                        page=int(maxLayer/10)
+                        if event.key == pygame.K_KP8: layerDown()
+                        if event.key == pygame.K_KP9: layerDown(page)
+                        if event.key == pygame.K_KP2: layerUp()
+                        if event.key == pygame.K_KP3: layerUp(page)
+                    if event.key == pygame.K_UP: layerDown()
+                    if event.key == pygame.K_DOWN: layerUp()
+
+                #We use tab to navigate the textboxes in controls
+                if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
+                    # Check shift state, without we move to next, with to previous control
+                    isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
+                    dir=1 if not isLShift else -1
+                    # Get control with active cursor
+                    prevActive=activeControlIdx()
+                    # Check because maybe there is none active
+                    if not prevActive==None:
+                        # Remove cursor from found control
+                        #controls[prevActive].cursorActive=False
+                        controlsSettings[prevActive].setFocus(False)
+                        # Make first editable textbox we find in direction of dir
+                        fnd=False
+                        idx=prevActive+dir
+                        while not fnd:
+                            if type(controlsSettings[idx]) == TextBox and controlsSettings[idx].editable and not fnd:
+                                #controls[idx].cursorActive = True
+                                controlsSettings[idx].setFocus(True)
+                                fnd=True
+                            idx=idx+dir
+                            if idx>=len(controls): idx=0
+                            if idx<0: idx= len(controlsSettings) - 1
+
+                if event.key == pygame.K_ESCAPE :
+                    print ("Escape key pressed down. Exit!")
+                    saveUserPrefs()
+                    running = False
+                else:
+                    if not menubar.handleKeyDown(event.key,event.unicode):
+                        frameActive().handleKeyDown(event.key,event.unicode)
+                        for ctrl in layercontrols:
+                            ctrl.handleKeyDown(event.key,event.unicode)
+
+        if editLayerMode:
+            global dragDistance
+            if mouseDrag and
+            checkMouseDrag(pos,event)
+            # Handle control mouse events
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                frameActive().handleMouseDown(pos, event.button)
+            if event.type == pygame.MOUSEBUTTONUP:
+                frameActive().handleMouseUp(pos, event.button)
+            if event.type == pygame.MOUSEMOTION:
                 frameActive().handleMouseMove(pos)
-                for ctrl in layercontrols:
-                    ctrl.handleMouseMove(pos)
 
-
-        if event.type == pygame.KEYDOWN :
-            #If numlock on then we use it to navigate layers
-            if not photonfile==None:
-                isNumlockOn = (pygame.key.get_mods() & pygame.KMOD_NUM) == 4096
-                if not isNumlockOn:
-                    maxLayer = photonfile.nrLayers()
-                    page=int(maxLayer/10)
-                    if event.key == pygame.K_KP8: layerDown()
-                    if event.key == pygame.K_KP9: layerDown(page)
-                    if event.key == pygame.K_KP2: layerUp()
-                    if event.key == pygame.K_KP3: layerUp(page)
-                if event.key == pygame.K_UP: layerDown()
-                if event.key == pygame.K_DOWN: layerUp()
-
-            #We use tab to navigate the textboxes in controls
-            if event.key in (pygame.K_TAB,pygame.K_RETURN,pygame.K_KP_ENTER):
-                # Check shift state, without we move to next, with to previous control
-                isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
-                dir=1 if not isLShift else -1
-                # Get control with active cursor
-                prevActive=activeControlIdx()
-                # Check because maybe there is none active
-                if not prevActive==None:
-                    # Remove cursor from found control
-                    #controls[prevActive].cursorActive=False
-                    controlsSettings[prevActive].setFocus(False)
-                    # Make first editable textbox we find in direction of dir
-                    fnd=False
-                    idx=prevActive+dir
-                    while not fnd:
-                        if type(controlsSettings[idx]) == TextBox and controlsSettings[idx].editable and not fnd:
-                            #controls[idx].cursorActive = True
-                            controlsSettings[idx].setFocus(True)
-                            fnd=True
-                        idx=idx+dir
-                        if idx>=len(controls): idx=0
-                        if idx<0: idx= len(controlsSettings) - 1
-
-            if event.key == pygame.K_ESCAPE :
-                if editLayerMode:
+            # Handle close and store edit mode
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
                     print ("Exit edit mode.")
                     # Store bitmap
                     storeLayerBitmap()
@@ -2473,19 +2547,7 @@ def poll(event=None):
                     for control in layercontrols:
                         control.visible = True
                     statusbar.setText("")
-                else:
-                    print ("Escape key pressed down. Exit!")
-                    saveUserPrefs()
-                    running = False
-            else:
-                if not menubar.handleKeyDown(event.key,event.unicode):
-                    frameActive().handleKeyDown(event.key,event.unicode)
-                    for ctrl in layercontrols:
-                        ctrl.handleKeyDown(event.key,event.unicode)
 
-        if editLayerMode:
-            global dragDistance
-            checkMouseDrag(pos,event)
             # Handle zoom / pan of layer image
             # Zoom
             scrollUp=False
@@ -2493,18 +2555,19 @@ def poll(event=None):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_KP_PLUS:
                     scrollUp = True
-            if event.type ==pygame.MOUSEBUTTONDOWN:
-                if event.button == 5:
-                    scrollUp = True
-            if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_KP_MINUS:
                     scrollDown = True
-            if event.type ==pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 5:
+                    scrollUp = True
                 if event.button == 4:
                     scrollDown = True
-            dzm = 0.5
+            if dispimg_zoom<4:
+                dzm = 0.5
+            else:
+                dzm = 12
             if scrollUp:
-                    if dispimg_zoom < 4:
+                    if dispimg_zoom < 16:
                         cx=dispimg_offset[0]+1440/2/dispimg_zoom
                         cy=dispimg_offset[1]+2560/2/dispimg_zoom
                         dispimg_zoom+=dzm
@@ -2543,6 +2606,8 @@ def poll(event=None):
                 if y<0: y=0
                 if x > 1440 * (1 - 1 / dispimg_zoom): x = 1440 * (1 - 1 / dispimg_zoom)
                 if y > 2560 * (1 - 1 / dispimg_zoom): y = 2560 * (1 - 1 / dispimg_zoom)
+                x = int(x)
+                y = int(y)
                 dispimg_offset = [x , y]
 
             # Store mouse position to draw
@@ -2551,7 +2616,7 @@ def poll(event=None):
                 cursorpos = pos
 
             # Handle editing of layer image
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONUP and not mouseDrag:
                 if event.button==1 or event.button==3:
                     if dispimg == layerimg:
                         gpos = GPoint.fromTuple(pos)
