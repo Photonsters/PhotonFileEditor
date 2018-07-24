@@ -780,7 +780,7 @@ class PhotonFile:
             #green = round(((b12 >> 6) & 0x1F) / 31 * 255)
             green = round(((b12 >> 6) & 0x1F) << 3 )
             #blue = round(((b12 >> 0) & 0x1F) / 31 * 255)
-            blue = round(((b12 >> 0) & 0x1F) << 3 )
+            blue = round((b12 & 0x1F) << 3 )
             col = (red, green, blue)
 
             # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
