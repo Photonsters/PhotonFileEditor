@@ -69,7 +69,7 @@ class PhotonFile:
         ("Layer height (mm)",   4, tpFloat, True,  "Default layer height."),
         ("Exp. time (s)",       4, tpFloat, True,  "Default exposure time."),
         ("Exp. bottom (s)",     4, tpFloat, True,  "Exposure time for bottom layers."),
-        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers."),
+        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers. \n Minimum is 6.5 sec, the time to rise the \n build plate and dip back in the resin."),
         ("# Bottom Layers",     4, tpInt,   True,  "Number of bottom layers.\n (These have different exposure time.)"),
         ("Resolution X",        4, tpInt,   True,  "X-Resolution of the screen through \n which the layer image is projected."),
         ("Resolution Y",        4, tpInt,   True,  "Y-Resolution of the screen through \n which the layer image is projected." ),

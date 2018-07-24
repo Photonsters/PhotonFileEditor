@@ -962,6 +962,8 @@ def calcTime():
 
     # Calculate time
     offTime=expBottom=PhotonFile.bytes_to_float(photonfile.Header["Off time (s)"])
+    # minimum offtime is 6.5 seconds, the time the printer needs to rise the build plate and dip back into the resin
+    offTime=max(offTime,6.5)
     nrBottom=PhotonFile.bytes_to_int(photonfile.Header["# Bottom Layers"])
     expBottom=PhotonFile.bytes_to_float(photonfile.Header["Exp. bottom (s)"])
     expNormal = PhotonFile.bytes_to_float(photonfile.Header["Exp. time (s)"])
