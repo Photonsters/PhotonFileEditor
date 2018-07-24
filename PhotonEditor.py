@@ -10,6 +10,7 @@ import sys
 import datetime
 import time
 import subprocess
+import configparser
 
 import pygame
 from pygame.locals import *
@@ -39,8 +40,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: await reaction to peeltime calculation
 #todo: implement pcb plugin.old
-#todo: change preview in advanced mode is slow
 
 #todo: continuous draw on mouse drag
 #todo: calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
@@ -109,7 +110,7 @@ controlsSettings=None
 MODEBASIC=0
 MODEADVANCED=1
 MODEEDIT=2
-frameMode=MODEADVANCED
+frameMode=MODEBASIC
 settingsMode=frameMode #disregards change to framemode MODEEDIT, used for saving preference
 layercontrols = []
 labelPrevNr=None
@@ -118,7 +119,7 @@ recentLoaded=[]
 lastLoadDir=None
 lastSaveDir=None
 
-disableOpenGL=False
+disableOpenGL=True # OpenGL used for stl loading and slicing, which does not work yet (experimental)
 
 # Scroll bar to the right
 sliderDrag=False
@@ -154,6 +155,9 @@ brushShape=BSFILLED | BSSQUARE  #round
 cursorpos=(0,0)
 mouseDrag=False
 prevMouseDragPos=None
+
+# Peeltime of firmware (needed to calc printing time)
+peelTime = 6.5
 
 ########################################################################################################################
 ##  Message boxes
@@ -246,7 +250,7 @@ def readShadowLayers(nrlayers):
     if photonfile == None: return
 
     # First create canvas
-    scale = (0.25, 0.25)
+    scale = (1, 1) # same scale as layerimg which is used in redraw()
     shadowimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])),depth=32)
     shadowimg.fill((layerBackcolor))
     #shadowimg.fill((255,0,0))
@@ -256,16 +260,18 @@ def readShadowLayers(nrlayers):
     r = range (layerNr-nrlayers,layerNr,stepSize)
     l=len(r)
     #print ("nrLayers",nrlayers, layerNr, stepSize)
+    shadowForecolor=[layerForecolor[0],layerForecolor[1],0]
     for p,lNr in enumerate(r):
        if lNr>0:
            perc=p/l
            #print (lNr,p,perc)
-           shadowColor = (50 + int(perc*150 * layerForecolor[0] / 255), 50 + int(perc*150 * layerForecolor[1] / 255), 50 + int(perc*150 * layerForecolor[2] / 255))
+           shadowColor = (50 + int(perc*150 * shadowForecolor[0] / 255), 50 + int(perc*150 * shadowForecolor[1] / 255), 50 + int(perc*150 * shadowForecolor[2] / 255))
            transcol = Color (0,0,0,0)
-           shadow = photonfile.getBitmap(lNr, shadowColor, transcol,(1/4,1/4))
-           pygame.image.save(shadow, "test"+str(p)+".png")
+           shadow = photonfile.getBitmap(lNr, shadowColor, transcol,scale)
+           #pygame.image.save(shadow, "test"+str(p)+".png")
            shadow.set_colorkey(transcol)  # and we make black of current layer transparent
            shadowimg.blit(shadow,(0,0))
+
 ########################################################################################################################
 ##  Create Menu and menu handlers
 ########################################################################################################################
@@ -957,13 +963,14 @@ def showFull3D():
 
 def calcTime():
     # Check if photonfile is loaded to prevent errors when operating on empty photonfile
-    global photonfile
+    global photonfile, peelTime
     if not checkLoadedPhotonfile("No photon file loaded!", "A .photon file is needed to calculate the print time."): return
 
     # Calculate time
     offTime=expBottom=PhotonFile.bytes_to_float(photonfile.Header["Off time (s)"])
-    # minimum offtime is 6.5 seconds, the time the printer needs to rise the build plate and dip back into the resin
-    offTime=max(offTime,6.5)
+    # minimum offtime is 6.5 seconds by default and use adjustable by editing peelTime
+    # in settings.ini. PeelTime is the time the printer needs to rise the build plate and dip back into the resin.
+    offTime=max(offTime,peelTime)
     nrBottom=PhotonFile.bytes_to_int(photonfile.Header["# Bottom Layers"])
     expBottom=PhotonFile.bytes_to_float(photonfile.Header["Exp. bottom (s)"])
     expNormal = PhotonFile.bytes_to_float(photonfile.Header["Exp. time (s)"])
@@ -1757,7 +1764,7 @@ def applyResinSettings():
 ########################################################################################################################
 
 def loadUserPrefs():
-    """ Loads user settings from settings.txt to global variables
+    """ Loads user settings from settings.ini to global variables
         e.g. last path opened, settings adv/basic
     """
     global frameMode
@@ -1765,50 +1772,54 @@ def loadUserPrefs():
     global lastLoadDir
     global recentLoaded
     global disableOpenGL
+    global peelTime
     global pyopenglIsAvailable
 
     lastLoadDir=os.getcwd()
 
-    # Settings.txt could be absent or wrongly edited by user
+    # Settings.ini could be absent or wrongly edited by user
     try:
-        ifile = open("settings.txt", "r", encoding="Latin-1")  # Latin-1 handles special characters
-        lines = ifile.readlines()
-        #print ("lines",lines)
-        #for line in lines:
-        #    print ("setting",line.strip())
-        frameMode = int(lines[0])
-        settingsMode=frameMode
-        disableOpenGL=(lines[1].strip()=="True")
-        lastLoadDir = lines[2].strip()
-        recentLoaded=[]
-        for idx in range(3,len(lines)):
-            recentLoaded.append(lines[idx].strip())
-            #print (lines[idx].strip())
-
-        if disableOpenGL:
-            if pyopenglIsAvailable: print ("OpenGL is available, but is disabled by user.")
-
+        parser = configparser.ConfigParser()
+        parser.read("settings.ini")
+        if parser.has_option("General","UserMode"): frameMode=parser.getint("General","UserMode")
+        settingsMode = frameMode
+        if parser.has_option("General", "DisableOpenGL"):disableOpenGL=parser.getboolean("General","DisableOpenGL")
+        if parser.has_option("General", "PeelTime"):peelTime=parser.getfloat("General","peelTime")
+        if parser.has_option("General", "LastLoadDir"):lastLoadDir= parser.get("General","LastLoadDir")
+        for recIdx in range(0,9):
+            recStr="Recent"+str(recIdx)
+            if parser.has_option("General", recStr):
+                recentFile = parser.get("General",recStr)
+                recentLoaded.append(recentFile.strip())
     except Exception as err:
-        print (err)
+        print(err)
+
+    if disableOpenGL:
+        if pyopenglIsAvailable: print ("OpenGL is available, but is disabled by user.")
+
 
 def saveUserPrefs():
-    """ Save user settings to settings.txt from global variables
+    """ Save user settings to settings.ini from global variables
         e.g. last path opened, settings adv/basic
     """
     global settingsMode
     global disableOpenGL
+    global peelTime
+    global lastLoadDir
 
-    # User settings will be saved here like, last path opened, settings adv/basic
-    ifile = open("settings.txt", "w",encoding="Latin-1") #Latin-1 handles special characters
-    lines=str(settingsMode)  + "\n" + \
-          str(disableOpenGL) + "\n" + \
-          str(lastLoadDir)   + "\n"
-    for recent in recentLoaded:
-        lines=lines+recent+"\n"
-    try:
-        ifile.writelines(lines)
-    except Exception as err:
-        print (err)
+    parser = configparser.ConfigParser()
+    parser.add_section("General")
+    parser.set("General", "UserMode", str(settingsMode))
+    parser.set("General", "DisableOpenGL", str(disableOpenGL))
+    parser.set("General", "PeelTime", str(peelTime))
+    parser.set("General", "LastLoadDir", lastLoadDir)
+    for idx,recent in enumerate(recentLoaded):
+        recStr="Recent"+str(idx)
+        parser.set("General", recStr, recent)
+
+    file=open("settings.ini",'w')
+    parser.write(file)
+    file.close()
 
 ########################################################################################################################
 ##  Setup windows, pygame, menu and controls
@@ -2236,9 +2247,13 @@ def redrawWindow(tooltip=None):
                 global dispimg_offset
                 global dispimg_zoom
                 scimg=pygame.transform.scale(dispimg,(int(dispimg_zoom/4*1440),int(dispimg_zoom/4*2560)))
-                # if we are in edit mode, we display shadow images (which are stored scaled down to minimize memory)
+                # if we are in edit mode, we display shadow images
                 if not shadowimg==None and frameMode==MODEEDIT:
-                    screen.blit(shadowimg,dest=(0, menubar.getHeight()),area=Rect(0,0,1440/4,2560/4)) #dest is pos to blit to, area is rect of source/dispimg to blit from
+                    shadowimg = pygame.transform.scale(shadowimg,
+                                                   (int(dispimg_zoom / 4 * 1440), int(dispimg_zoom / 4 * 2560)))
+                    screen.blit(shadowimg, dest=(0, menubar.getHeight()),
+                                   area=Rect(dispimg_offset[0] * dispimg_zoom / 4, dispimg_offset[1] * dispimg_zoom / 4,1440 / 4, 2560 / 4)
+                                   )  # dest is pos to blit to, area is rect of source/dispimg to blit from
                     scimg.set_colorkey((0,0,0)) # and we make black of current layer transparent
                 # blit the current layer
                 screen.blit(scimg,
