@@ -6,6 +6,7 @@ __version__ = "Alpha (build 30-6-2018)"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
+import sys
 import datetime
 import time
 import subprocess
@@ -19,9 +20,6 @@ from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
 from ProgressDialog import *
-from OGLEngine import *
-from Slicer import *
-from STLFile import *
 
 #Following tests are done for initial message to user below the disclaimer
 try:
@@ -33,18 +31,19 @@ except ImportError:
 try:
     import OpenGL #pyopengl
     pyopenglAvailable = True
+    if pyopenglAvailable:
+        from OGLEngine import *
+        from Slicer import *
+        from STLFile import *
 except ImportError as err:
     pyopenglAvailable = False
 
 #TODO LIST
-#todo: in edit-mode, store all edits and apply on exit
 #todo: implement pcb plugin.old
 #todo: change preview in advanced mode is slow
-#todo: preview in basic mode (photon.photon) is stretched
 
 #todo: continuous draw on mouse drag
 #todo: calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
-#todo: OpenGL - why do we need it...
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: PhotonFile float_to_bytes(floatVal) does not work correct if floatVal=0.5 - now struct library used
@@ -76,7 +75,7 @@ defTransparent=(1,1,1)
 layerimg=None
 previmg=[None,None]
 shadowimg=None
-layerForecolor=(89,56,199) #I changed this to aproximate UV color what the machine shows X3msnake
+layerForecolor=(167,34,252)#(89,56,199) #I changed this to aproximate UV color what the machine shows X3msnake
 layerBackcolor=(0,0,0)
 layerLabel=None #Scroll chevrons at top left
 layerNr = 0
@@ -118,6 +117,8 @@ labelPrevNr=None
 recentLoaded=[]
 lastLoadDir=None
 lastSaveDir=None
+
+disableOpenGL=False
 
 # Scroll bar to the right
 sliderDrag=False
@@ -246,21 +247,25 @@ def readShadowLayers(nrlayers):
 
     # First create canvas
     scale = (0.25, 0.25)
-    shadowimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
+    shadowimg = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])),depth=32)
     shadowimg.fill((layerBackcolor))
+    #shadowimg.fill((255,0,0))
     # Now blit all layers
     nrShadows=10
     stepSize=1+int(nrlayers/nrShadows)
-    for lNr in range (layerNr-nrlayers,layerNr,stepSize):
+    r = range (layerNr-nrlayers,layerNr,stepSize)
+    l=len(r)
+    #print ("nrLayers",nrlayers, layerNr, stepSize)
+    for p,lNr in enumerate(r):
        if lNr>0:
-           idx=lNr-(layerNr-nrlayers)
-           perc=0.5#idx/nrlayers
-           shadowColor = (int(255 * perc),int(255*perc),int(255*perc))
-           print ("shadowColor",lNr,perc,"%", shadowColor)
-           shadow = photonfile.getBitmap(lNr, shadowColor, layerBackcolor,(1/4,1/4))
-           shadow.set_colorkey((0, 0, 0))  # and we make black of current layer transparent
+           perc=p/l
+           #print (lNr,p,perc)
+           shadowColor = (50 + int(perc*150 * layerForecolor[0] / 255), 50 + int(perc*150 * layerForecolor[1] / 255), 50 + int(perc*150 * layerForecolor[2] / 255))
+           transcol = Color (0,0,0,0)
+           shadow = photonfile.getBitmap(lNr, shadowColor, transcol,(1/4,1/4))
+           pygame.image.save(shadow, "test"+str(p)+".png")
+           shadow.set_colorkey(transcol)  # and we make black of current layer transparent
            shadowimg.blit(shadow,(0,0))
-
 ########################################################################################################################
 ##  Create Menu and menu handlers
 ########################################################################################################################
@@ -404,9 +409,13 @@ def loadFile(retfilename=None):
 
     global filename, lastLoadDir
 
+    # Set extensions, depending on OpenGL is available
+    exts = [".photon"]
+    if pyopenglAvailable and not disableOpenGL:exts.append(".stl")
+
     # Ask user for filename
     if retfilename==None:
-        dialog = FileDialog(flipFunc,screen, (40, 40), ext=(".photon",".stl"),title="Load Photon File", parentRedraw=redrawWindow,startdir=lastLoadDir)
+        dialog = FileDialog(flipFunc,screen, (40, 40), ext=exts,title="Load Photon File", parentRedraw=redrawWindow,startdir=lastLoadDir)
         retfilename=dialog.getFile()
     else:
         filename=retfilename
@@ -691,9 +700,10 @@ def replaceLayerBitmap():
         print ("User Canceled")
     return
 
+"""
 def storeLayerBitmap():
-    """ Stores (edited) display image to PhotonFile
-    """
+    # Stores (edited) display image to PhotonFile
+    #
     global dispimg
     global layerimg
     global layerNr
@@ -705,6 +715,7 @@ def storeLayerBitmap():
     # Show user the new bitmap (as check all is stored well)
     layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
     dispimg = layerimg
+"""
 
 def importBitmaps():
     """ Replace all bitmaps with all bitmap found in a directory selected by the user """
@@ -1034,7 +1045,7 @@ def setFrameMode(fMode):
         #frameAdvanced.visible = True
     windowwidth = settingsleft + settingswidth
 
-    if not pyopenglAvailable:
+    if not pyopenglAvailable or disableOpenGL:
         window = pygame.display.set_mode((windowwidth, windowheight))
         global menubar
     else:
@@ -1070,10 +1081,26 @@ def updateRecentMenu(filenamepath=None):
         recentshort=os.path.basename(recent)
         menubar.addSubItem("File", "Open Recent", recentshort, loadRecent, recent)
 
+def setOpenGL(enable):
+    global disableOpenGL,running
+    disableOpenGL= not enable
+    dialog = MessageDialog(flipFunc, screen, pos=(140, 140), width=400,
+                           title="Please restart PhotonFileEditor.",
+                           message="PhotonFileEditor will close now. \n Your changes will NOT be saved!\n Continue?",
+                           center=True,
+                           buttonChoice=MessageDialog.OKCANCEL,
+                           parentRedraw=redrawWindow)
+    ret = dialog.show()
+
+    if ret=="OK":
+        running=False
 
 def createMenu():
     global menubar
     global screen
+    global MODEBASIC
+    global MODEADVANCED
+    global disableOpenGL
 
     # Create the menu
     menubar=MenuBar(screen)
@@ -1103,11 +1130,15 @@ def createMenu():
     menubar.addItem("View", "Slices", showSlices)
     menubar.addItem("View", "Preview 0", showPrev0)
     menubar.addItem("View", "Preview 1",showPrev1)
-    menubar.addItem("View", "3D", showFramed3D)
-    menubar.addItem("View", "Full 3D", showFull3D)
     menubar.addItem("View", "----")
-    global MODEBASIC
-    global MODEADVANCED
+    if pyopenglAvailable:
+        if disableOpenGL:
+            menubar.addItem("View", "Enable OGL", setOpenGL, True)
+        else:
+            menubar.addItem("View", "Disable OGL", setOpenGL, False)
+            menubar.addItem("View", "3D", showFramed3D)
+            menubar.addItem("View", "Full 3D", showFull3D)
+        menubar.addItem("View", "----")
     menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
     menubar.addItem("View", "Advanced settings",setFrameMode,MODEADVANCED)
     menubar.addMenu("Tools","T")
@@ -1124,7 +1155,6 @@ def createMenu():
 
 def createLayerOperations():
     """ Create the layer modification buttons pointing to Edit menu layer options """
-    global controls
     global layercontrols
     global menubar
     viewport_yoffset = 8
@@ -1155,7 +1185,6 @@ def createLayernavigation():
     """ Create the layer navigation buttons (Up/Down) """
     global layerLabel
     global menubar
-    global controls
     global layercontrols
     global layerNr
 
@@ -1733,6 +1762,8 @@ def loadUserPrefs():
     global settingsMode
     global lastLoadDir
     global recentLoaded
+    global disableOpenGL
+    global pyopenglAvailable
 
     lastLoadDir=os.getcwd()
 
@@ -1745,11 +1776,16 @@ def loadUserPrefs():
         #    print ("setting",line.strip())
         frameMode = int(lines[0])
         settingsMode=frameMode
-        lastLoadDir = lines[1].strip()
+        disableOpenGL=(lines[1].strip()=="True")
+        lastLoadDir = lines[2].strip()
         recentLoaded=[]
-        for idx in range(2,len(lines)):
+        for idx in range(3,len(lines)):
             recentLoaded.append(lines[idx].strip())
             #print (lines[idx].strip())
+
+        if disableOpenGL:
+            if pyopenglAvailable: print ("OpenGL is available, but is disabled by user.")
+
     except Exception as err:
         print (err)
 
@@ -1758,9 +1794,13 @@ def saveUserPrefs():
         e.g. last path opened, settings adv/basic
     """
     global settingsMode
+    global disableOpenGL
+
     # User settings will be saved here like, last path opened, settings adv/basic
     ifile = open("settings.txt", "w",encoding="Latin-1") #Latin-1 handles special characters
-    lines=str(settingsMode)+ "\n"+str(lastLoadDir)+ "\n"
+    lines=str(settingsMode)  + "\n" + \
+          str(disableOpenGL) + "\n" + \
+          str(lastLoadDir)   + "\n"
     for recent in recentLoaded:
         lines=lines+recent+"\n"
     try:
@@ -1800,10 +1840,6 @@ def createWindow():
     print ("  "+ scriptPath)
     print("  " + str(scriptDateTime))
 
-
-    #load user preferences
-    loadUserPrefs()
-
     # Init pygame, fonts
     pygame.init()
     pygame.font.init()
@@ -1813,18 +1849,18 @@ def createWindow():
     pygame.display.set_icon(logo)
 
     # Create window
-    if not pyopenglAvailable:
+    if not pyopenglAvailable or disableOpenGL:
         # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
         #window = pygame.display.set_mode((windowwidth, windowheight))
         if frameMode == MODEBASIC:
-            settingswidth = settingscolwidth  # 1 columns
+            settingswidth = settingscolwidth * 2 # 1 columns
         elif frameMode == MODEADVANCED:
             settingswidth = settingscolwidth * 2  # 2 columns
         windowwidth = settingsleft + settingswidth
         window = pygame.display.set_mode((windowwidth, windowheight))
 
     # Create a surface
-    if not pyopenglAvailable:
+    if not pyopenglAvailable or disableOpenGL:
         screen = pygame.Surface((windowwidth,windowheight))
     else:
         screen = pygame.Surface((1024, 1024))
@@ -1879,7 +1915,7 @@ def createWindow():
         libraryString = libraryString + \
        "> PhotonFileEditor works faster if you \n" \
        "   install numpy!\n\n"
-    if not pyopenglAvailable :
+    if not pyopenglAvailable:
         libraryString = libraryString + \
        "> If you install pyOpenGl the built-in\n" \
        "   slicer and voxel viewer will become\n"\
@@ -2084,8 +2120,16 @@ def refreshPreviewSettings():
         if bType == PhotonFile.tpFloat: nr = round(nr, 4) #round floats to 4 decimals
         controlsPreviews[row].setText(str(nr))
 
-    prevImgBox.img=photonfile.getPreviewBitmap(0,(settingslabelwidth+settingslabelwidth))
+    # put it in imgbox, however image box will stretch img to fit
+    prevImg=photonfile.getPreviewBitmap(0,(settingslabelwidth+settingstextboxwidth))
+    prevImgBox.img.fill(defFormBackground)
+    prevImgBox.img.blit(prevImg,dest=(0, 0))
     prevImgBox.drawBorder=True
+    #alternative implementation
+    #canvas=pygame.Surface((prevImgBox.rect.width, prevImgBox.rect.height))
+    #canvas.fill(defFormBackground)
+    #canvas.blit(prevImg,dest=(0, 0))
+    #prevImgBox.img=canvas
 
 def refreshLayerSettings():
     """ Updates all textboxes in the layer settingsgroup with data from photonfile"""
@@ -2349,13 +2393,24 @@ running = True
 gl=None
 
 def init():
-    global gl
+    global gl,flipFunc, pyopenglAvailable, disableOpenGL
+
+    # Load user preferences
+    loadUserPrefs()
+
+    # Link to correct display flip function
+    if pyopenglAvailable and not disableOpenGL:
+        flipFunc = flipOGL
+    else:
+        flipFunc = flipSDL
+
     # Initialize the pygame module and create the window
     createWindow()
     # Init lastpos mouse hovered
     lastpos=(0,0) # stores last position for tooltip
     loop()
-
+    # load user preferences
+    saveUserPrefs()
 
 def loop():
     # Main loop
@@ -2400,6 +2455,40 @@ def checkMouseDrag(pos,event):
         prevMouseDragPos=pos
     else:
         prevMouseDragPos=None
+
+drawQueue=[]
+def storeDrawQueue():
+    global drawQueue
+    global layerNr
+
+    # Since store can take a while show a be-patient message
+    popup = ProgressDialog(flipFunc, screen, pos=(140, 140),
+                           title="Please wait...",
+                           message="Photon File Editor is storing your edits.")
+    popup.show()
+
+    # Now traverse all layers and check for each drawcmd if it affects the layer
+    for lNr in range(0,layerNr+1):
+        # Check all drawcmds against this layer
+        layerQueue=[]
+        for drawCmd in drawQueue:
+            (brushShape, brushSize, brushDepth, brushDepth2Bottom, pcolor, pixRect, pixCenter, pixRadius)=drawCmd
+            lowestLayer = -1
+            if not brushDepth2Bottom: lowestLayer = layerNr - ( brushDepth - 1 )
+            if lNr>=lowestLayer and lNr<=layerNr:
+                layerQueue.append(drawCmd)
+
+        # Edit layer if cmds found
+        if len(layerQueue)>0:
+            editLayer = photonfile.getBitmap(lNr, layerForecolor, layerBackcolor, (1, 1))
+            for (brushShape, brushSize, brushDepth, brushDepth2Bottom, pcolor, pixRect, pixCenter, pixRadius) in layerQueue:
+                if brushShape & BSROUND:pygame.draw.circle(editLayer, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
+                if brushShape & BSSQUARE:pygame.draw.rect(editLayer, pcolor, pixRect, (not brushShape & BSFILLED)*6)
+                # Ask PhotonFile object to replace bitmap
+            photonfile.replaceBitmap(lNr, editLayer, False)
+
+    # Clear queue
+    drawQueue.clear()
 
 def poll(event=None):
     """ Entrypoint and controls the rest """
@@ -2446,7 +2535,7 @@ def poll(event=None):
         #for event in pygame.event.get():
         #if not hasOpenGL: event = pygame.event.wait()
 
-        if pyopenglAvailable:
+        if pyopenglAvailable and not disableOpenGL:
             gl.poll(framedScreenOpenGL,event)
 
         pos = pygame.mouse.get_pos()
@@ -2521,7 +2610,6 @@ def poll(event=None):
 
                 if event.key == pygame.K_ESCAPE :
                     print ("Escape key pressed down. Exit!")
-                    saveUserPrefs()
                     running = False
                 else:
                     if not menubar.handleKeyDown(event.key,event.unicode):
@@ -2545,8 +2633,10 @@ def poll(event=None):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     print ("Exit edit mode.")
+                    # Draw Queue to all layers
+                    storeDrawQueue()
                     # Store bitmap
-                    storeLayerBitmap()
+                    # storeLayerBitmap()
                     # Reset pan and zoom
                     dispimg_offset=[0,0]
                     dispimg_zoom=1
@@ -2655,6 +2745,11 @@ def poll(event=None):
                             if event.button == 1:pcolor=layerForecolor
                             elif event.button == 3:pcolor=layerBackcolor
                             #def draw2Layer(layernr,color,shape):
+                            #now queue draw command (for exit edit) and show
+                            global drawQueue
+                            drawCmd=(brushShape,brushSize, brushDepth, brushDepth2Bottom, pcolor,pixRect,pixCenter,pixRadius)
+                            drawQueue.append(drawCmd)
+                            """
                             #now draw
                             toLayer=-1
                             if not brushDepth2Bottom: toLayer=layerNr-brushDepth
@@ -2667,6 +2762,9 @@ def poll(event=None):
                                     # Ask PhotonFile object to replace bitmap
                                     photonfile.replaceBitmap(idx, editLayer)
                                     if idx == layerNr: layerimg = editLayer
+                            """
+                            if brushShape & BSROUND: pygame.draw.circle(layerimg, pcolor, pixCenter, pixRadius,(not brushShape & BSFILLED) * 2)
+                            if brushShape & BSSQUARE: pygame.draw.rect(layerimg, pcolor, pixRect,(not brushShape & BSFILLED) * 6)
 
                         dispimg = layerimg
 
@@ -2698,8 +2796,5 @@ def flipOGL():
 #################################################################################
 
 flipFunc=None
-if pyopenglAvailable:
-    flipFunc=flipOGL
-else:
-    flipFunc=flipSDL
+
 init()

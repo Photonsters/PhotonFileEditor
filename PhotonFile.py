@@ -557,7 +557,6 @@ class PhotonFile:
     ########################################################################################################################
     ## Decoding
     ########################################################################################################################
-
     def getBitmap_withnumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.
             Based on: https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
@@ -565,10 +564,22 @@ class PhotonFile:
                 Highest bit of each byte is color (black or white)
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
+        #tStart=pygame.time.get_ticks()
+
+        # Colors are stored reversed and we count on alpha bit (size of int does not matter for numpy speed)
+        isAlpha=False
+        if len(forecolor)==4 or len(backcolor)==4:isAlpha = True
+        if   len(forecolor) == 3:forecolor = (255,forecolor[0], forecolor[1], forecolor[2])
+        elif len(forecolor) == 4:forecolor = (forecolor[3], forecolor[0], forecolor[1],forecolor[2])
+        if   len(backcolor) == 3:backcolor = (255,backcolor[0], backcolor[1], backcolor[2])
+        elif len(backcolor) == 4:backcolor=(backcolor[3], backcolor[0], backcolor[1],backcolor[2])
+
+        # If no layers return
+        if self.nrLayers()==0:#could occur if loading new file
+            memory=pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])),24)
+            return memory
 
         # Tell PhotonFile we are drawing so GUI can prevent too many calls on getBitmap
-        memory = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
-        if self.nrLayers()==0: return memory #could occur if loading new file
         self.isDrawing = True
 
         # Retrieve raw image data and add last byte to complete the byte array
@@ -585,8 +596,8 @@ class PhotonFile:
         nr = bN & ~(1 << 7)  # turn highest bit of
 
         # Replace 0's en 1's with correct colors
-        forecolor_int = (forecolor[0] << 16) + (forecolor[1] << 8) + forecolor[2]
-        backcolor_int = (backcolor[0] << 16) + (backcolor[1] << 8) + backcolor[2]
+        forecolor_int = (forecolor[0] << 24) + (forecolor[1] << 16) + (forecolor[2] << 8) + forecolor[3]
+        backcolor_int = (backcolor[0] << 24) + (backcolor[1] << 16) + (backcolor[2] << 8) + backcolor[3]
         val = numpy.array([{0: backcolor_int, 1: forecolor_int}[x] for x in valbin])
 
         # Make a 2d array like [ [3,0] [2,1], [nr_i,val_i]...] using the colorvalues (val) and repetitions(nr)
@@ -610,14 +621,22 @@ class PhotonFile:
             x=numpy.append(x,(0,))
 
         # Convert 1-dim array to matrix
-        rgb2d=x.reshape((2560,1440))                # data is stored in rows of 2560
+        rgb2d = x.reshape((2560,1440))              # data is stored in rows of 2560
         rgb2d = numpy.rot90(rgb2d, axes=(1, 0))     # we need 1440x2560
-        rgb2d = numpy.fliplr(rgb2d)                 # however data us mirrored along x axis
-        picture=pygame.surfarray.make_surface(rgb2d)# convert numpy array to pygame surface
-        memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
-
+        rgb2d = numpy.fliplr(rgb2d)                 # however data is mirrored along x axis
+        #picture=pygame.surfarray.make_surface(rgb2d)# convert numpy array to pygame surface
+        #memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
+        if isAlpha:
+            temp = pygame.Surface((1440, 2560), depth=32,flags=pygame.SRCALPHA)
+        else:
+            temp = pygame.Surface((1440, 2560), depth=24)
+        pygame.surfarray.blit_array(temp,rgb2d)
+        memory=pygame.transform.scale(temp, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
         # Done drawing so next caller knows that next call can be made.
         self.isDrawing = False
+
+        #tDelta = pygame.time.get_ticks()-tStart
+        #print ("elaps:",tDelta)
         return memory
 
 
@@ -756,9 +775,12 @@ class PhotonFile:
             b12 = bA[idx + 1] << 8 | bA[idx + 0]
             idx += 2
             # Retrieve colr components and make pygame color tuple
-            red = round(((b12 >> 11) & 0x1F) / 31 * 255)
-            green = round(((b12 >> 6) & 0x1F) / 31 * 255)
-            blue = round(((b12 >> 0) & 0x1F) / 31 * 255)
+            #red = round(((b12 >> 11) & 0x1F) / 31 * 255)
+            red = round(((b12 >> 11) & 0x1F) << 3 )
+            #green = round(((b12 >> 6) & 0x1F) / 31 * 255)
+            green = round(((b12 >> 6) & 0x1F) << 3 )
+            #blue = round(((b12 >> 0) & 0x1F) / 31 * 255)
+            blue = round(((b12 >> 0) & 0x1F) << 3 )
             col = (red, green, blue)
 
             # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
