@@ -24,19 +24,19 @@ from ProgressDialog import *
 #Following tests are done for initial message to user below the disclaimer
 try:
     import numpy
-    numpyAvailable = True
+    numpyIsAvailable = True
 except ImportError:
-    numpyAvailable = False
+    numpyIsAvailable = False
 
 try:
     import OpenGL #pyopengl
-    pyopenglAvailable = True
-    if pyopenglAvailable:
+    pyopenglIsAvailable = True
+    if pyopenglIsAvailable:
         from OGLEngine import *
         from Slicer import *
         from STLFile import *
 except ImportError as err:
-    pyopenglAvailable = False
+    pyopenglIsAvailable = False
 
 #TODO LIST
 #todo: implement pcb plugin.old
@@ -411,7 +411,7 @@ def loadFile(retfilename=None):
 
     # Set extensions, depending on OpenGL is available
     exts = [".photon"]
-    if pyopenglAvailable and not disableOpenGL:exts.append(".stl")
+    if pyopenglIsAvailable and not disableOpenGL:exts.append(".stl")
 
     # Ask user for filename
     if retfilename==None:
@@ -919,7 +919,7 @@ def showPrev1():
     refreshPreviewSettings()
 
 def showFramed3D():
-    if not pyopenglAvailable:
+    if not pyopenglIsAvailable:
         dialog = MessageDialog(flipFunc, screen, pos=(140, 140),
                                title="PyOpenGL not installed",
                                message="This menu item will become \n available after intalling \n pyOpenGL",
@@ -939,7 +939,7 @@ def showFramed3D():
 
 
 def showFull3D():
-    if not pyopenglAvailable:
+    if not pyopenglIsAvailable:
         dialog = MessageDialog(flipFunc, screen, pos=(140, 140),
                                title="PyOpenGL not installed",
                                message="This menu item will become \n available after intalling \n pyOpenGL",
@@ -1047,7 +1047,7 @@ def setFrameMode(fMode):
         #frameAdvanced.visible = True
     windowwidth = settingsleft + settingswidth
 
-    if not pyopenglAvailable or disableOpenGL:
+    if not pyopenglIsAvailable or disableOpenGL:
         window = pygame.display.set_mode((windowwidth, windowheight))
         global menubar
     else:
@@ -1133,7 +1133,7 @@ def createMenu():
     menubar.addItem("View", "Preview 0", showPrev0)
     menubar.addItem("View", "Preview 1",showPrev1)
     menubar.addItem("View", "----")
-    if pyopenglAvailable:
+    if pyopenglIsAvailable:
         if disableOpenGL:
             menubar.addItem("View", "Enable OGL", setOpenGL, True)
         else:
@@ -1765,7 +1765,7 @@ def loadUserPrefs():
     global lastLoadDir
     global recentLoaded
     global disableOpenGL
-    global pyopenglAvailable
+    global pyopenglIsAvailable
 
     lastLoadDir=os.getcwd()
 
@@ -1786,7 +1786,7 @@ def loadUserPrefs():
             #print (lines[idx].strip())
 
         if disableOpenGL:
-            if pyopenglAvailable: print ("OpenGL is available, but is disabled by user.")
+            if pyopenglIsAvailable: print ("OpenGL is available, but is disabled by user.")
 
     except Exception as err:
         print (err)
@@ -1831,7 +1831,8 @@ def createWindow():
     global menubar
     global layerLabel
     global filename
-    global pyopenglAvailable
+    global numpyAvailable
+    global pyopenglIsAvailable
     global layerRect
     global gl
 
@@ -1851,7 +1852,7 @@ def createWindow():
     pygame.display.set_icon(logo)
 
     # Create window
-    if not pyopenglAvailable or disableOpenGL:
+    if not pyopenglIsAvailable or disableOpenGL:
         # Create a window surface we can draw the menubar, controls and layer/preview  bitmaps on
         #window = pygame.display.set_mode((windowwidth, windowheight))
         if frameMode == MODEBASIC:
@@ -1862,7 +1863,7 @@ def createWindow():
         window = pygame.display.set_mode((windowwidth, windowheight))
 
     # Create a surface
-    if not pyopenglAvailable or disableOpenGL:
+    if not pyopenglIsAvailable or disableOpenGL:
         screen = pygame.Surface((windowwidth,windowheight))
     else:
         screen = pygame.Surface((1024, 1024))
@@ -1911,17 +1912,18 @@ def createWindow():
 
     #display warnings about numpy
     libraryString=""
-    if not numpyAvailable or not pyopenglAvailable:
+    if not numpyIsAvailable or not pyopenglIsAvailable:
         libraryString = "_______________________________\n\n"
-    if not numpyAvailable :
+    print ("numpyIsAvailable ",numpyIsAvailable )
+    if not numpyIsAvailable :
         libraryString = libraryString + \
-       "> PhotonFileEditor works faster if you \n" \
-       "   install numpy!\n\n"
-    if not pyopenglAvailable:
+        "> PhotonFileEditor works faster if you \n" \
+        "   install numpy!\n\n"
+    if not pyopenglIsAvailable:
         libraryString = libraryString + \
-       "> If you install pyOpenGl the built-in\n" \
-       "   slicer and voxel viewer will become\n"\
-       "   available in the future!"
+        "> If you install pyOpenGl the built-in\n" \
+        "   slicer and voxel viewer will become\n"\
+        "   available in the future!"
 
     fontDisclaimer = pygame.font.SysFont(defFontName, defFontSize-2)
     for nr,line in enumerate(disclaimerString.split("\n")):
@@ -2195,7 +2197,7 @@ fontFullScreen=None
 
 def redrawWindow(tooltip=None):
     """ Redraws the menubar, settings and displayed layer/preview image """
-    global pyopenglAvailable
+    global pyopenglIsAvailable
     global screen
     global dispimg
     global gridimg
@@ -2395,13 +2397,13 @@ running = True
 gl=None
 
 def init():
-    global gl,flipFunc, pyopenglAvailable, disableOpenGL
+    global gl,flipFunc, pyopenglIsAvailable, disableOpenGL
 
     # Load user preferences
     loadUserPrefs()
 
     # Link to correct display flip function
-    if pyopenglAvailable and not disableOpenGL:
+    if pyopenglIsAvailable and not disableOpenGL:
         flipFunc = flipOGL
     else:
         flipFunc = flipSDL
@@ -2537,7 +2539,7 @@ def poll(event=None):
         #for event in pygame.event.get():
         #if not hasOpenGL: event = pygame.event.wait()
 
-        if pyopenglAvailable and not disableOpenGL:
+        if pyopenglIsAvailable and not disableOpenGL:
             gl.poll(framedScreenOpenGL,event)
 
         pos = pygame.mouse.get_pos()
