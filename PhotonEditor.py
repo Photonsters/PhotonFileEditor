@@ -40,7 +40,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
-#todo: await reaction to peeltime calculation
+#todo: check if cum. layerheight is calculated on single layerheight * nr layers
+#todo: in linux circle is drawn as square
 #todo: implement pcb plugin.old
 
 #todo: continuous draw on mouse drag
