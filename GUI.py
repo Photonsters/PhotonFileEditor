@@ -398,7 +398,7 @@ class MenuList():
         # Enlarge width and height if text does not fit
         width, height = self.font.size("MinimalText")
         l_width = width + self.margins.x + self.margins.width
-        l_height= 1*height++ self.margins.y + self.margins.height
+        l_height= height+ self.margins.y + self.margins.height
         self.pos=GRect(l_x,l_y,l_width,l_height)
         self.rowheight = height
 
