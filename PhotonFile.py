@@ -713,7 +713,7 @@ class PhotonFile:
         nrPixels=0
         #numpyAvailable=False
         for layerNr in range(0,nLayers):
-            img=self.getBitmap(layerNr,forecolor=(255,255,255),backcolor=(0,0,0),scale=(1,1))
+            img=self.getBitmap(layerNr,forecolor=(255,255,255,255),backcolor=(0,0,0,0),scale=(1,1))
             pixarray = pygame.surfarray.pixels2d(img)
             pixelsInLayer=0
 

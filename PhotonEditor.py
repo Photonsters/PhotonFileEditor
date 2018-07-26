@@ -40,7 +40,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
-#todo: check if cum. layerheight is calculated on single layerheight * nr layers
+#todo: add tool to validate cum. layerheight and suggest correction of different from stepper capabilites
+#       is it calculated on single layerheight * nr layers
 #todo: in linux circle is drawn as square
 #todo: implement pcb plugin.old
 
@@ -1007,6 +1008,69 @@ def calcVolume():
     del popup
 
 
+def validateLayerHeight():
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    global photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!", "A .photon file is needed to calculate the volume."): return
+
+    # Get current layer Height
+    lHeight=PhotonFile.bytes_to_float(photonfile.Header["Layer height (mm)"])
+    lHmicro=1000*lHeight
+
+    # Hardware resolution 10µ (0.01mm)
+    # Due to how python works round (0.031,2) but also 0.03 will be stored as 0.029999999
+    # If we multiply 0.02999999 x 1000 python calcs this as 30.0
+    # To be safe we calc proposed layerheight in µm and round
+    nHmicro=10*round(100*lHeight,0)
+    print (lHeight,lHmicro,nHmicro)
+
+    # Check deviation of General Layer Height from optimum
+    msg1=""
+    deviation=lHmicro % 10
+    if deviation> 2: # This deviation is not due to rounding errors of Anycubic Photon Slicer, but user caused
+        msg1="You selected an incompatible layer height!\n"
+
+    # Check cumulative layerheights in Layer Defs against optimal layerheight
+    msg2=""
+    for lNr in range(0,photonfile.nrLayers()):
+        cumHeight = PhotonFile.bytes_to_float(photonfile.LayerDefs[lNr]["Layer height (mm)"])
+        cumHmicro = cumHeight * 1000
+        calcHmicro=lNr*nHmicro
+        deviation=cumHmicro-calcHmicro
+        if deviation>2: # Due to storage error (think 0.02999999) this added up to large deviation in this layer
+            msg2="Your General Layerheight was propogated with rounding errors in the print!\n"
+
+    # Ask user wat to do
+    msg12=msg1+msg2
+    if len(msg12)==0:
+        msg = "Results of height validation: \n\n No errors found!\n"
+        dialog = MessageDialog(flipFunc, screen, pos=(140, 140), width=400,
+                               title="No errors found!",
+                               message=msg,
+                               center=True,
+                               buttonChoice=MessageDialog.OK,
+                               parentRedraw=redrawWindow)
+        ret = dialog.show()
+    else:
+        msg="Results of height validation: \n\n"+msg12+"\nDo you want to correct this?"
+        dialog = MessageDialog(flipFunc, screen, pos=(140, 140), width=400,
+                               title="Please confirm!",
+                               message=msg,
+                               center=True,
+                               buttonChoice=MessageDialog.OKCANCEL,
+                               parentRedraw=redrawWindow)
+        ret = dialog.show()
+        # if user selected ok, the users want to overwrite file so set okUser to True
+        if ret == "OK":
+            if len(msg1)>0:
+                photonfile.Header["Layer height (mm)"]=PhotonFile.float_to_bytes(nHmicro/1000)
+            if len(msg2)>0:
+                for lNr in range(0, photonfile.nrLayers()):
+                    calcHmicro = lNr * nHmicro
+                    photonfile.LayerDefs[lNr]["Layer height (mm)"]=PhotonFile.float_to_bytes(calcHmicro/1000)
+        refreshHeaderSettings()
+        refreshLayerSettings()
+
 def readPlugins():
     """ Returns content plugin directory. """
     # Read directory
@@ -1152,6 +1216,7 @@ def createMenu():
     menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
     menubar.addItem("View", "Advanced settings",setFrameMode,MODEADVANCED)
     menubar.addMenu("Tools","T")
+    menubar.addItem("Tools", "Layer Height", validateLayerHeight)
     menubar.addItem("Tools", "Volume", calcVolume)
     menubar.addItem("Tools", "Print Time", calcTime)
 
@@ -2025,7 +2090,7 @@ def propHeader2LayerDefs(pTitle,newbytes):
         if pTitle == "Off time (s)": photonfile.LayerDefs[lNr]["Off time (s)"]=newbytes
         if pTitle == "Layer height (mm)":
             photonfile.LayerDefs[lNr]["Layer height (mm)"]=PhotonFile.float_to_bytes(currHeight)
-            currHeight+=newHeight
+            currHeight=lNr*newHeight
 
     # Next traverse the normal layers
     for lNr in range(nrBottomLayers,photonfile.nrLayers()):
@@ -2033,7 +2098,7 @@ def propHeader2LayerDefs(pTitle,newbytes):
         if pTitle == "Off time (s)": photonfile.LayerDefs[lNr]["Off time (s)"] = newbytes
         if pTitle == "Layer height (mm)":
             photonfile.LayerDefs[lNr]["Layer height (mm)"]=PhotonFile.float_to_bytes(currHeight)
-            currHeight+=newHeight
+            currHeight=lNr*newHeight
 
     #We need to upate data in displayer layer setting
     if pTitle == "Exp. bottom (s)" or \
@@ -2173,7 +2238,7 @@ def refreshLayerSettings():
         controlsLayers[row].setText(snr)
 
     #finally we update layerLabel in between the up and down ^ on the top left of the screen
-        layerLabel.setText(str(layerNr))
+    layerLabel.setText(str(layerNr))
 
 
 def openPhotonFile(filename):
@@ -2625,7 +2690,7 @@ def poll(event=None):
                                 controlsSettings[idx].setFocus(True)
                                 fnd=True
                             idx=idx+dir
-                            if idx>=len(controls): idx=0
+                            if idx>=len(controlsSettings): idx=0
                             if idx<0: idx= len(controlsSettings) - 1
 
                 if event.key == pygame.K_ESCAPE :
