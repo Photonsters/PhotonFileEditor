@@ -2203,8 +2203,10 @@ def refreshPreviewSettings():
 
     # put it in imgbox, however image box will stretch img to fit
     prevImg=photonfile.getPreviewBitmap(0,(settingslabelwidth+settingstextboxwidth))
+    w,h=prevImg.get_size()
+    dy=(prevImgBox.rect.height-h)/2
     prevImgBox.img.fill(defFormBackground)
-    prevImgBox.img.blit(prevImg,dest=(0, 0))
+    prevImgBox.img.blit(prevImg,dest=(0, dy))
     prevImgBox.drawBorder=True
     #alternative implementation
     #canvas=pygame.Surface((prevImgBox.rect.width, prevImgBox.rect.height))
