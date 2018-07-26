@@ -12,29 +12,6 @@
 import os
 import sys
 from cx_Freeze import setup, Executable
-from OpenGL.GL import *
-from OpenGL.GLUT import *
-from OpenGL.GLU import *
-import OpenGL.arrays.numpymodule
-import numpy
-import OpenGL.platform.win32
-import OpenGL.arrays.ctypesarrays
-import OpenGL.arrays.ctypesparameters
-import OpenGL.arrays.ctypespointers
-import OpenGL.arrays.lists
-import OpenGL.arrays.nones
-import OpenGL.arrays.numbers
-import OpenGL.arrays.strings
-import OpenGL.platform.win32
-import OpenGL.raw.GL
-import OpenGL.GL
-import OpenGL.GLU
-import OpenGL.GLUT
-#import dummy.Process
-#import email.Generator
-#import email.Iterators
-
-
 
 # https://stackoverflow.com/questions/15734703/use-cx-freeze-to-create-an-msi-that-adds-a-shortcut-to-the-desktop
 # http://msdn.microsoft.com/en-us/library/windows/desktop/aa371847(v=vs.85).aspx
@@ -47,7 +24,7 @@ shortcut_table = [
      None,															# Arguments
      None,															# Description
      None,															# Hotkey
-     "C:\PhotonFileEditor\photonsters.ico",							# Icon
+     "C:\Program Files (x86)\PhotonFileEditor\photonsters.ico",		# Icon
      None,															# IconIndex
      None,															# ShowCmd
      'TARGETDIR'               										# WkDir
@@ -61,7 +38,7 @@ msi_data = {"Shortcut": shortcut_table}
 bdist_msi_options = {'data': msi_data}
 
 # Dependencies are automatically detected, but it might need fine tuning.
-build_exe_options = {"packages": ["os", "OpenGL", "numpy"],"include_files": [""], "include_msvcr" : True}
+build_exe_options = {"packages": ["os", "OpenGL", "numpy"],"include_files": [""],"include_msvcr" : True}
 
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
 os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tcl8.6')
@@ -72,10 +49,7 @@ os.environ['TK_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tk8.6')
 base = None
 if sys.platform == "win32":
     base = "Win32GUI"
-	
-if 'bdist_msi' in sys.argv:
-    sys.argv += ['--initial-target-dir', 'c:\PhotonFileEditor']
-	
+
 setup(  name = "PhotonFileEditor",
         version = "0.1",
 		author= "Photonsters",
@@ -83,5 +57,3 @@ setup(  name = "PhotonFileEditor",
         description = "Photon File Editor",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
         executables = [Executable("PhotonEditor.py", base=base,)])
-		
-# Added missing dependencies
