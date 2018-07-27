@@ -1941,7 +1941,7 @@ def createWindow():
     pygame.font.init()
     # Set window frame properties
     pygame.display.set_caption("Photon File Editor")
-    logo = pygame.image.load("PhotonEditor32x32.png")
+    logo = pygame.image.load("PhotonEditor.png")
     pygame.display.set_icon(logo)
 
     # Create window
