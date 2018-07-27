@@ -1841,12 +1841,18 @@ def loadUserPrefs():
     global peelTime
     global pyopenglIsAvailable
 
+    # If we are not in Win32 we load locally, else we save in Documents
+    dir=os.getcwd()
+    if sys.platform == "win32": dir=os.path.expanduser("~\\Documents\PhotonFileEditor\\")
+    path=os.path.join(dir,"settings.ini")
+
+    # Set default lastLoadDir
     lastLoadDir=os.getcwd()
 
     # Settings.ini could be absent or wrongly edited by user
     try:
         parser = configparser.ConfigParser()
-        parser.read("settings.ini")
+        parser.read(path)
         if parser.has_option("General","UserMode"): frameMode=parser.getint("General","UserMode")
         settingsMode = frameMode
         if parser.has_option("General", "DisableOpenGL"):disableOpenGL=parser.getboolean("General","DisableOpenGL")
@@ -1883,7 +1889,17 @@ def saveUserPrefs():
         recStr="Recent"+str(idx)
         parser.set("General", recStr, recent)
 
-    file=open("settings.ini",'w')
+    # If we are not in Win32 we save locally, else we save in Documents
+    dir=os.getcwd()
+    if sys.platform == "win32":
+        dir = os.path.expanduser("~\\Documents\PhotonFileEditor\\")
+        if not os.path.isdir(dir):
+            try:
+                os.mkdir(dir)
+            except Exception as err:
+                print (err)
+    path=os.path.join(dir,"settings.ini")
+    file=open(path,'w')
     parser.write(file)
     file.close()
 
