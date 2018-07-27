@@ -8,7 +8,10 @@ PhotonFileEditor is programmed in Python 3.6 and uses one mandatory library, pyg
   
 ## Installation
 You can run PhotonFileEditor in Windows, OSX and Linux.
-All the releases can be found at https://github.com/Photonsters/PhotonFileEditor/releases. For Windows an easy install package is available. For Linux and OSX you have to install python and some libraries.
+
+All the releases can be found at https://github.com/Photonsters/PhotonFileEditor/releases 
+
+For Windows an easy install package is available. For Linux and OSX you have to install python and some libraries.
 
 ### Windows:
 - Download the MSI file and run it.
