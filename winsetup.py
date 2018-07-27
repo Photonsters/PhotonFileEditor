@@ -35,25 +35,23 @@ import OpenGL.GLUT
 #import email.Iterators
 
 
-
-# https://stackoverflow.com/questions/15734703/use-cx-freeze-to-create-an-msi-that-adds-a-shortcut-to-the-desktop
-# http://msdn.microsoft.com/en-us/library/windows/desktop/aa371847(v=vs.85).aspx
 shortcut_table = [
     ("DesktopShortcut",												# Shortcut
      "DesktopFolder",												# Directory_
      "PhotonFileEditor",											# Name
      "TARGETDIR",													# Component_
-     "[TARGETDIR]PhotonEditor.exe",									# Target
+     "[TARGETDIR]\PhotonEditor.exe",								# Target
      None,															# Arguments
      None,															# Description
      None,															# Hotkey
-     "C:\PhotonFileEditor\photonsters.ico",							# Icon
-     None,															# IconIndex
+     "",															# Icon
+     0,																# IconIndex
      None,															# ShowCmd
-     'TARGETDIR'               										# WkDir
+     "TARGETDIR",              										# WkDir
      )
     ]
 
+	
 # Now create the table dictionary
 msi_data = {"Shortcut": shortcut_table}
 
@@ -82,6 +80,8 @@ setup(  name = "PhotonFileEditor",
 		url="https://github.com/Photonsters",
         description = "Photon File Editor",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
-        executables = [Executable("PhotonEditor.py", base=base,)])
-		
-# Added missing dependencies
+        executables = [Executable(script="PhotonEditor.py", base=base,icon="photonsters.ico",)]
+	 )
+
+
+
