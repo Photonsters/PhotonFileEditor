@@ -50,7 +50,7 @@ class Slicer:
         stl=STLFile()
         if filename==None:
             #stl.load_binary_stl('resources/SliceTester.stl', 1)
-            filename='SamplePhotonFiles/STLs/test_cube.stl'
+            filename='SamplePhotonFiles/HollowCube.stl'
             #stl.load_binary_stl('resources/HollowCube.stl', 1)
             # self.load_stl('resources/Door-handle-ascii.stl',0.03)
             # self.load_stl('resources/Door-handle.stl', 0.03)
