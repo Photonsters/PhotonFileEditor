@@ -2821,6 +2821,7 @@ def poll(event=None):
                                 pixCenter = (int(pixCoord[0] + brushSize / 2-d),
                                              int(pixCoord[1] + brushSize / 2-d))
                                 pixRadius = int(brushSize / 2-d)
+                                if pixRadius <1: pixRadius=1
                             else:
                                 d = 4 - dispimg_zoom  # magic needed for circle, had no time to find out the cause
                                 pixCoord = [dispimg_offset[0] + (pos[0]+displace[0]) * 4 / dispimg_zoom,
@@ -2829,6 +2830,7 @@ def poll(event=None):
                                 pixCenter=(int(pixCoord[0] + brushSize * 2 / dispimg_zoom-d),
                                            int(pixCoord[1]+brushSize * 2 / dispimg_zoom-d))
                                 pixRadius=int(brushSize * 2 / dispimg_zoom-d)
+                                if pixRadius < 1: pixRadius=1
                             if event.button == 1:pcolor=layerForecolor
                             elif event.button == 3:pcolor=layerBackcolor
                             #def draw2Layer(layernr,color,shape):
@@ -2836,20 +2838,6 @@ def poll(event=None):
                             global drawQueue
                             drawCmd=(brushShape,brushSize, brushDepth, brushDepth2Bottom, pcolor,pixRect,pixCenter,pixRadius)
                             drawQueue.append(drawCmd)
-                            """
-                            #now draw
-                            toLayer=-1
-                            if not brushDepth2Bottom: toLayer=layerNr-brushDepth
-                            for idx in range(layerNr, toLayer, -1):
-                                    #print ("draw on layer",idx)
-                                    editLayer = photonfile.getBitmap(idx, layerForecolor, layerBackcolor, (1,1))
-                                    if brushShape & BSROUND:pygame.draw.circle(editLayer, pcolor, pixCenter,pixRadius, (not brushShape & BSFILLED)*2)
-                                    if brushShape & BSSQUARE:pygame.draw.rect(editLayer, pcolor, pixRect, (not brushShape & BSFILLED)*6)
-                                    print ("pixRect",pixRect)
-                                    # Ask PhotonFile object to replace bitmap
-                                    photonfile.replaceBitmap(idx, editLayer)
-                                    if idx == layerNr: layerimg = editLayer
-                            """
                             if brushShape & BSROUND: pygame.draw.circle(layerimg, pcolor, pixCenter, pixRadius,(not brushShape & BSFILLED) * 2)
                             if brushShape & BSSQUARE: pygame.draw.rect(layerimg, pcolor, pixRect,(not brushShape & BSFILLED) * 6)
 
