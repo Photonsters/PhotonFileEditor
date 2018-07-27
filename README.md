@@ -84,7 +84,7 @@ The following functionality will be implemented soon:
 ### Basic settings view 
 ![image](https://user-images.githubusercontent.com/11459480/43247680-b7f1c86c-90b5-11e8-866b-9d33bb9e8b77.png)
 ### Advanced settings view 
-![image](https://user-images.githubusercontent.com/11459480/41983949-b2a3c7b2-7a2f-11e8-9168-6176c4a9b16b.png)
+![image](https://user-images.githubusercontent.com/11083514/41735866-babb511a-7582-11e8-8e4e-37a96751b097.png)
 ![image](https://user-images.githubusercontent.com/11459480/43247697-caaa262a-90b5-11e8-94ff-bd2e1ecc1317.png)
 ### Layer editing 
 ![image](https://user-images.githubusercontent.com/11459480/43247903-68160b40-90b6-11e8-9eb8-82f383970911.png)
