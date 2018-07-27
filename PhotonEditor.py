@@ -1027,7 +1027,7 @@ def validateLayerHeight():
     # Check deviation of General Layer Height from optimum
     msg1=""
     deviation=lHmicro % 10
-    if deviation> 2: # This deviation is not due to rounding errors of Anycubic Photon Slicer, but user caused
+    if deviation> 1: # This deviation is not due to rounding errors of Anycubic Photon Slicer, but user caused
         msg1="You selected an incompatible layer height!\n"
 
     # Check cumulative layerheights in Layer Defs against optimal layerheight
@@ -1037,7 +1037,7 @@ def validateLayerHeight():
         cumHmicro = cumHeight * 1000
         calcHmicro=lNr*nHmicro
         deviation=cumHmicro-calcHmicro
-        if deviation>2: # Due to storage error (think 0.02999999) this added up to large deviation in this layer
+        if deviation>1: # Due to storage error (think 0.02999999) this added up to large deviation in this layer
             msg2="Your General Layerheight was propogated with rounding errors in the print!\n"
 
     # Ask user wat to do
