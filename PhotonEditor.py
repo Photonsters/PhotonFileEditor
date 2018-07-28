@@ -2312,7 +2312,14 @@ def redrawWindow(tooltip=None):
             fontFullScreen =pygame.font.SysFont(defFontName, defFontSize - 2)
 
         pygame.draw.rect(screen,defFormBackground,(0,windowheight-24,windowwidth,24),0)
-        text = "[b]Move[b]:\u2190\u2191\u2193\u2192, [mouse][left]  [b]|[b]  [b]Rotate[b]: [shift]\u2190\u2191\u2193\u2192, [mouse][right]  [b]|[b]  [b]Zoom[b]: [ctrl]\u2191\u2193, [mouse][scroll]  [b]|[b]  [b]Reset[b]: [Q]  [b]|[b]  [b]Slice[b]: [F5]"
+        arrowlr="[img]resources/KeyLeft.png[/img][img]resources/KeyRight.png[/img]"
+        arrowud="[img]resources/KeyUp.png[/img][img]resources/KeyDown.png[/img]"
+        mouse="[img]resources/Mouse.png[/img]"
+        mouseLeft= "[img]resources/MouseL.png[/img]"
+        mouseRight= "[img]resources/MouseR.png[/img]"
+        mouseScroll= "[img]resources/MouseS.png[/img]"
+        #text = "[b]Move[b]:\u2190\u2191\u2193\u2192, [mouse][left]  [b]|[b]  [b]Rotate[b]: [shift]\u2190\u2191\u2193\u2192, [mouse][right]  [b]|[b]  [b]Zoom[b]: [ctrl]\u2191\u2193, [mouse][scroll]  [b]|[b]  [b]Reset[b]: [Q]  [b]|[b]  [b]Slice[b]: [F5]"
+        text = "[b]Move[b]:"+arrowud+arrowlr+", "+mouseLeft+" [b]|[b] [b]Rotate[b]: [shift]"+arrowud+arrowlr+", "+mouseRight+" [b]|[b] [b]Zoom[b]: [ctrl]"+arrowud+", "+mouseScroll+" [b]|[b] [b]Reset[b]: [Q] [b]|[b] [b]Slice[b]: [F5]"
         drawTextMarkdown(text,fontFullScreen,defFormForeground,screen,(8,windowheight-20))
         return
 

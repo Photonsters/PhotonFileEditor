@@ -43,6 +43,8 @@ def drawTextMarkdown(markdown, font, color, surface, pos):
     BOLD = chr(1)
     ITALIC = chr(2)
     UNDERLINE = chr(3)
+    IMAGESTART=chr(4)
+    IMAGESTOP = chr(5)
 
     markdown =markdown.replace("[b]",BOLD)
     markdown =markdown.replace("[/b]", BOLD)
@@ -50,9 +52,12 @@ def drawTextMarkdown(markdown, font, color, surface, pos):
     markdown =markdown.replace("[/i]", ITALIC)
     markdown =markdown.replace("[u]", UNDERLINE)
     markdown =markdown.replace("[/u]", UNDERLINE)
+    markdown =markdown.replace("[img]", IMAGESTART)
+    markdown =markdown.replace("[/img]", IMAGESTOP)
 
     l=pos[0]
     t=pos[1]
+    imgfilename = None
     for char in markdown:
         if char==BOLD:
             font.set_bold(not font.get_bold())
@@ -60,10 +65,29 @@ def drawTextMarkdown(markdown, font, color, surface, pos):
             font.set_italic(not font.get_italic())
         elif char==UNDERLINE:
             font.set_underline(not font.get_underline())
+        elif char==IMAGESTART:
+            imgfilename=""
+        elif char==IMAGESTOP:
+            img=pygame.image.load(imgfilename)
+            wi,hi=img.get_size()
+            wf,hf=font.size("M")
+            hf = font.get_linesize()
+            #ret=font.metrics("M")[0]
+            #hf=ret[3]-ret[2]
+            f=hf/hi
+            wi=round(wi*f)
+            hi=round(hi*f)
+            imgs=pygame.transform.smoothscale(img,(wi,hi))
+            surface.blit(imgs, (l, t))
+            l+=wi
+            imgfilename=None
         else:
-            textsurface = font.render(char, True, color, )
-            surface.blit(textsurface, (l, t))
-            l += font.size(char)[0]
+            if not imgfilename==None:# else we are waiting for image name to be completed
+                imgfilename = imgfilename + char
+            else:
+                textsurface = font.render(char, True, color, )
+                surface.blit(textsurface, (l, t))
+                l += font.size(char)[0]
     return (l,t)
 
 ########################################################################################################################

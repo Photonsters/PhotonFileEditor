@@ -80,7 +80,7 @@ setup(  name = "PhotonFileEditor",
 		url="https://github.com/Photonsters",
         description = "Photon File Editor",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
-        executables = [Executable(script="PhotonEditor.py", base=base,icon="photonsters.ico",)]
+        executables = [Executable(script="PhotonEditor.py", base=base,icon="PhotonEditor.ico",)]
 	 )
 
 
