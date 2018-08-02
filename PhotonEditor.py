@@ -40,6 +40,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: slicer has bug where outside of contour is painted
+#todo: use multiprocessing to import layers and apply layerEdits
 #todo: add tool to validate cum. layerheight and suggest correction of different from stepper capabilites
 #       is it calculated on single layerheight * nr layers
 #todo: in linux circle is drawn as square
@@ -2896,3 +2898,12 @@ def flipOGL():
 flipFunc=None
 
 init()
+#from PIL import Image, ImageDraw
+#im=Image.open("slicer/slice__0001.png")
+#draw = ImageDraw.Draw(im)
+#ImageDraw.floodfill(im,(720, 1280), (255,0,0))
+#draw.line((0, im.size[1], im.size[0], 0), fill=128)
+#del draw
+
+# write to stdout
+#im.save("slicer/slice__0001b.png", "PNG")

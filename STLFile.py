@@ -4,6 +4,9 @@ import pygame.gfxdraw
 from Helpers3D import *
 import numpy
 
+import cv2
+import os
+
 
 # load stl file detects if the file is a text file or binary file
 
@@ -283,31 +286,31 @@ class STLFile:
         if fullpoints==None or fullmodel==None or len(fullpoints)==0 or len(fullmodel)==0:
             return points,slice
 
-        print ("fullpoints[0]",fullpoints[0].strN())
-        print("fullpoints[1]", fullpoints[1].strN())
-        print("fullpoints[2]", fullpoints[2].strN())
-        print("fullmodel[0]", fullmodel[0].pindex(0), fullmodel[0].pindex(1), fullmodel[0].pindex(2))
+        #print ("fullpoints[0]",fullpoints[0].strN())
+        #print("fullpoints[1]", fullpoints[1].strN())
+        #print("fullpoints[2]", fullpoints[2].strN())
+        #print("fullmodel[0]", fullmodel[0].pindex(0), fullmodel[0].pindex(1), fullmodel[0].pindex(2))
 
         for idx,triangle in enumerate(fullmodel):
-            print ("====",idx)
+            #print ("====",idx)
             triList=triangle.splitOnPlaneY(Y,ret_side,ret_onplane=True,cloud=fullpoints)
             #triList=[triangle.toTuples()]
-            print ("trilist",triList)
+            #print ("trilist",triList)
             for tri,norm in triList:
-                print("----")
-                print ("tri",tri)
+                #print("----")
+                #print ("tri",tri)
                 for pnr in range(0,3):
                     coord=tri[pnr]
                     normal=Vector(norm[pnr])
-                    print ("tric", coord,normal)
+                    #print ("tric", coord,normal)
                     points.append(Point3D(coord,n=normal))
                 p0 = len(points) - 3
                 p1 = len(points) - 2
                 p2 = len(points) - 1
                 tri=Triangle3D(points,p0,p1,p2)
-                print ("tri",tri)
+                #print ("tri",tri)
                 slice.append(tri)
-                print ("len", len(slice))
+                #print ("len", len(slice))
         return points,slice
 
 
@@ -328,12 +331,12 @@ class STLFile:
         slice=sliceBelow+innersliceBelow
         #print(points)
         #quit()
-        print ("=====================================")
+        #print ("=====================================")
 
         for idx,tri in enumerate( innersliceBelow):
-            print ("bef",idx, str(tri))
+            #print ("bef",idx, str(tri))
             tri.remap(points,len(pointsBelow))
-            print ("rem",str(tri))
+            #print ("rem",str(tri))
 
         return points,slice
 
@@ -345,28 +348,16 @@ class STLFile:
                 int(v.z > 0) - int(v.z < 0))
 
 
-    def fillBmp(self, pixarray, fromPoint,fromColor,toColor):
-        #array has bounds pixarray[1439,2559]
 
-        stack=[]
-        stack.append(fromPoint)
-        while len(stack)>0:
-            fromPoint=stack.pop()
-            fromX,fromY=fromPoint
-            color = pixarray[fromX,fromY]
-            if color == fromColor:
-                pixarray[fromPoint]=toColor
-                if fromX-1>0:    stack.append((fromX-1,fromY))
-                if fromX+1<1439: stack.append((fromX+1, fromY))
-                if fromY-1>0:    stack.append((fromX, fromY-1))
-                if fromY+1<2559: stack.append((fromX, fromY+1))
+    def slice2bmp_ocv(self,points,slice,filename, doFill=False):
+        #print("Executing our Task on Process {}".format(os.getpid()))
 
-    def slice2bmp(self,points,slice,filename):
         offset=Vector((67.5/2,0,120/2))
         scale=Vector((1440/67.5,1,2560/120))
-        img = pygame.Surface((1440 , 2560 ))
-        black = pygame.Color(0, 0, 0, 0)
-        img.fill(black)
+        #img = numpy.zeros((1440,2560,3),numpy.uint8)
+        img = numpy.zeros((2560, 1440, 3), numpy.uint8)
+        #black = pygame.Color(0, 0, 0, 255)
+        #img.fill(black)
         fillPoints=[]
         for tri in slice:
             #Draw/project (filled) triangles
@@ -408,31 +399,45 @@ class STLFile:
             p2.toInt()
             #print ("save: ",p0,p1,p2)
 
-            white=pygame.Color(255,255,0,255)
+            white=(255,255,255) #alpha 255 is NOT transparent
 
             w=1
-            pygame.gfxdraw.filled_trigon(img,p0.x,p0.z,p1.x,p1.z,p2.x,p2.z,white)
-            pygame.draw.line(img, white, (p0.x, p0.z), (p1.x, p1.z),w)
-            pygame.draw.line(img, white, (p1.x, p1.z), (p2.x, p2.z),w)
-            pygame.draw.line(img, white, (p2.x, p2.z), (p0.x, p0.z),w)
+            vrx=numpy.array([[p0.x,p0.z],[p1.x,p1.z],[p2.x,p2.z]],numpy.int32)
+            img = cv2.fillPoly(img,pts=[vrx],color=white)
+            img = cv2.line(img,(p0.x, p0.z), (p1.x, p1.z),color=white,thickness=1)
+            img = cv2.line(img,(p1.x, p1.z), (p2.x, p2.z),color=white,thickness=1)
+            img = cv2.line(img,(p2.x, p2.z), (p0.x, p0.z),color=white,thickness=1)
 
             fillPoints.append( (pn0.x, pn0.z))
             fillPoints.append ((pn1.x, pn1.z))
             fillPoints.append ((pn2.x, pn2.z))
 
-        pixarray = pygame.surfarray.pixels2d(img)
-
-        red = pygame.Color(255, 0, 0, 255)
-        redi=int(red)
-        blacki=int(black)
-        for fillPoint in fillPoints:
-            self.fillBmp(pixarray,(fillPoint),blacki,redi)
-            pygame.draw.line(img, red, fillPoint, fillPoint, 1)
-
-
-        img=pygame.transform.rotate(img,0)
+        doFill=True
+        if doFill:
+            nr=0
+            red = (0, 0,255)
+            for fillPoint in fillPoints:
+                pxColor=(img[fillPoint[1],fillPoint[0],0],
+                         img[fillPoint[1],fillPoint[0],1],
+                         img[fillPoint[1],fillPoint[0],2])
+                if pxColor==(0,0,0):
+                    cv2.floodFill(img,mask=None,seedPoint=fillPoint,newVal=red)
+                    nr=nr+1
+            #print ("nr Times:",nr)
         try:
-            pygame.image.save(img,filename)
-            print ("Sliced: ",filename)
+            if (img[0,0,0],img[0,0,1],img[0,0,2])==(0,0,0):
+                cv2.imwrite(filename,img)
+                print ("Sliced: ",filename)
+            else:
+                print ("Slice Error: ",filename)
         except Exception as err:
             print ("Error while writing slice image! \n",filename,err)
+
+
+    def test(self,l):
+        nr,p=l
+        print ("stl.test" ,nr,p)
+
+    def test2(self,nr,p,q=False):
+        #(nr, p)=l
+        print ("stl.test" ,nr,p,q)
