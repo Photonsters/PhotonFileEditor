@@ -37,7 +37,7 @@ class GL():
     #polygonlines = []
     #polygonpoints = []
     #polygonpoints_anglevectors=[]
-    sliceheight=0
+    sliceheight=0.05
     mousedownpos=None
     mousedownbutton=0
     drawmodel = True
@@ -387,7 +387,7 @@ class GL():
         self.model_trans= [0,0,0]
         self.model_scale = 1
         print ("Use arrow keys and ctrl/shift or mouse to move,rotate,zoom")
-        print ("Use arrow keys and alt to move model, alt+shift to rotate model, alt+ctrl to scale model")
+        print ("Use arrow keys and left-alt to move model, left-alt+shift to rotate model, right-alt to scale model")
         print ("Use numpad + and - to set slice height.")
         print ("Use enter to toggle 3d model and f5 to save slice")
 
@@ -431,16 +431,16 @@ class GL():
                             if event.key == pygame.K_DOWN:
                                 glTranslatef(-pan * yaxis[0], -pan * yaxis[1], -pan * yaxis[2])
                             if event.key==pygame.K_KP_PLUS:
-                                self.sliceheight=self.sliceheight+1#0.02
-                                print ("Slice Height:",self.sliceheight)
+                                self.sliceheight=self.sliceheight+0.01#0.02
+                                #print ("Slice Height:",self.sliceheight)
                                 #self.get_slice(self.sliceheight,self.sliceheight+1)
                             if event.key==pygame.K_KP_MINUS:
-                                self.sliceheight=self.sliceheight-1#0.02
-                                print ("Slice Height:",self.sliceheight)
+                                self.sliceheight=self.sliceheight-0.01#0.02
+                                #print ("Slice Height:",self.sliceheight)
                             if event.key == pygame.K_RETURN:
                                 self.drawmodel=not self.drawmodel
                             if event.key == pygame.K_F5:
-                                print ("saving")
+                                print ("slicing")
                                 if not self.callback==None:
                                     self.callback.slice()
                             if event.key == pygame.K_q:
