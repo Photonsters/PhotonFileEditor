@@ -13,6 +13,7 @@ from math import *
 
 import pygame
 from pygame.locals import *
+import concurrent
 
 try:
     import numpy
@@ -983,6 +984,14 @@ class PhotonFile:
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
 
+    cancelReplace=False
+    def replaceBitmapData(self,args):
+        """ Helper for procespoolexecutor to call """
+        if self.cancelReplace: return None
+        (layerNr, filename)=args
+        rawData = PhotonFile.encodedBitmap_Bytes(surfOrFile=filename)
+        return (layerNr,rawData)
+
     def replaceBitmaps(self, dirPath, progressDialog=None):
         """ Delete all images in PhotonFile object and add images in directory."""
 
@@ -996,9 +1005,9 @@ class PhotonFile:
                     files.append(fullpath)
         files.sort()
 
-        print("Following files will be inserted:")
-        for fullpath in files:
-            print("  ", fullpath)
+        #print("Following files will be inserted:")
+        #for fullpath in files:
+        #    print("  ", fullpath)
 
         # Check if there are files available and if so check first file for correct dimensions
         if len(files) == 0: raise Exception("No files of type png are found!")
@@ -1006,10 +1015,45 @@ class PhotonFile:
 
         # Remove old data in PhotonFile object
         nLayers = len(files)
+        self.LayerData = [dict() for x in range(nLayers)] # make room for all images
+
+        # Read all files in parallel and wait for result
+        args=[]
+        for i in range(0,len(files)):
+            args.append([i,files[i]])
+        nrL=0
+        self.cancelReplace=False
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for ret in executor.map(self.replaceBitmapData,args):
+                #print (layerNr)
+                if not ret==None: # In case of cancel
+                    (layerNr, rawData) = ret
+                    rawDataTrunc = rawData[:-1]
+                    rawDataLastByte = rawData[-1:]
+                    self.LayerData[layerNr]["Raw"] = rawDataTrunc
+                    self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+                    # If not processed in order, we need to check which reallayerNr this is
+                    nrL=nrL+1
+                # Check if user canceled
+                if not progressDialog==None:
+                    progressDialog.setProgress(100*nrL/nLayers)
+                    progressDialog.setProgressLabel(str(nrL) + "/" + str(nLayers))
+                    progressDialog.handleEvents()
+                    if progressDialog.cancel:
+                        #  Reset total number of layers to last layer we processes
+                        self.cancelReplace=True
+                        print ("Abort with ",nrL,"layers.")
+
+            # Wait for all done
+            executor.shutdown(wait=True)
+
+        print ("imported ",nrL)
+
+        # Resize depending on number of layers imported (abort could have deminished nr of layers)
+        nLayers=nrL # if cancel this nr can differ from nr of images
         self.Header[self.nrLayersString] = self.int_to_bytes(nLayers)
-        #oldLayerDef = self.LayerDefs[0]
         self.LayerDefs = [dict() for x in range(nLayers)]
-        self.LayerData = [dict() for x in range(nLayers)]
+        self.LayerData = self.LayerData[:nLayers]
 
         # Depending on nr of new images, set nr of bottom layers and total layers in Header
         #   If only one image is supplied the file should be set as 0 base layers and 1 normal layer
@@ -1034,19 +1078,19 @@ class PhotonFile:
         for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_LayerDef:
             rawDataStartPos = rawDataStartPos + bNr * nLayers
 
-        # For each image file, get encoded raw image data and store in Photon File object, copying layer settings from Header/General settings.
-        curLayerHeight=0.0
+        # For each layer copying layer settings from Header/General settings.
         deltaLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
         print("Processing:")
-        for layerNr, file in enumerate(files):
-            print("  ", layerNr,"/",nLayers, file)
-            # Get encoded raw data
-            rawData = PhotonFile.encodedBitmap_Bytes(file)
-            rawDataTrunc = rawData[:-1]
-            rawDataLastByte = rawData[-1:]
+        for layerNr in range(nLayers):
+            #print("  ", layerNr,"/",nLayers, file)
+            # Get rawdata to determine size
+            rawDataTrunc = self.LayerData[layerNr]["Raw"]
+            rawDataLastByte = self.LayerData[layerNr]["EndOfLayer"]
+            rawDataLen=len(rawDataTrunc)+len(rawDataLastByte)
 
             # Update layer settings (LayerDef)
             # todo: following should be better coded
+            curLayerHeight = layerNr * deltaLayerHeight
             self.LayerDefs[layerNr]["Layer height (mm)"] = self.float_to_bytes(curLayerHeight)
             if layerNr<nrBottomLayers:
                 self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. bottom (s)"]
@@ -1054,28 +1098,15 @@ class PhotonFile:
                 self.LayerDefs[layerNr]["Exp. time (s)"] = self.Header["Exp. time (s)"]
             self.LayerDefs[layerNr]["Off time (s)"] = self.Header["Off time (s)"]
             self.LayerDefs[layerNr]["Image Address"] = self.int_to_bytes(rawDataStartPos)
-            self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(len(rawData))
+            self.LayerDefs[layerNr]["Data Length"] = self.int_to_bytes(rawDataLen)
             self.LayerDefs[layerNr]["padding"] = self.hex_to_bytes("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00") # 4 *4bytes
 
-            # Store raw image data (LayerData)
-            self.LayerData[layerNr]["Raw"] = rawDataTrunc
-            self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
-
-            # Keep track of address of raw imagedata and current height of 3d model to use in next layer
+            # Keep track of address of raw imagedata
             print ("Layer, DataPos, DataLength ",layerNr,rawDataStartPos,len(rawData))
-            rawDataStartPos = rawDataStartPos + len(rawData)
-            curLayerHeight= curLayerHeight+deltaLayerHeight
-            print("                New DataPos", rawDataStartPos)
+            # Get encoded raw data
+            rawDataStartPos = rawDataStartPos + rawDataLen
+            print("New DataPos", rawDataStartPos)
 
-            # Check if user canceled
-            if not progressDialog==None:
-                progressDialog.setProgress(100*layerNr/nLayers)
-                progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
-                progressDialog.handleEvents()
-                if progressDialog.cancel:
-                    #  Reset total number of layers to last layer we processes
-                    self.Header["# Layers"] = self.int_to_bytes(layerNr+1)
-                    return False
         return True
 
 

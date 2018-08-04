@@ -197,12 +197,12 @@ class STLFile:
             # store normal in point
             self.points[pointIdx].n=normal
 
-
-
         print("Loaded file.")
         print("  Nr points:", len(self.points))
         print("  Nr triangles:", len(self.model))
         print("  min-max", self.cmin, self.cmax)
+
+        # Center model and put on base
         trans = [0, 0, 0]
         trans[0] = -(self.cmax[0] - self.cmin[0]) / 2 - self.cmin[0]
         trans[2] = -(self.cmax[2] - self.cmin[2]) / 2 - self.cmin[2]
@@ -211,12 +211,6 @@ class STLFile:
             p.x = p.x + trans[0]
             p.y = p.y + trans[1]
             p.z = p.z + trans[2]
-
-        #for triangle in self.model:
-        #    for point in triangle.points:
-        #        point.x = point.x + trans[0]
-        #        point.y = point.y + trans[1]
-        #        point.z = point.z + trans[2]
 
         return self.points,self.model
 

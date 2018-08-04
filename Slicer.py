@@ -2,7 +2,6 @@ from OGLEngine import *
 from STLFile import *
 from Helpers3D import *
 
-from functools import partial
 from concurrent.futures import ProcessPoolExecutor
 
 """

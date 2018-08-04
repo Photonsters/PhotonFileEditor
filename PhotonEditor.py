@@ -40,10 +40,9 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: in 3D display slice height
 #todo: slicer has bug where outside of contour is painted
-#todo: use multiprocessing to import layers and apply layerEdits
-#todo: add tool to validate cum. layerheight and suggest correction of different from stepper capabilites
-#       is it calculated on single layerheight * nr layers
+#todo: use multiprocessing to apply layerEdits
 #todo: in linux circle is drawn as square
 #todo: implement pcb plugin.old
 
@@ -110,10 +109,12 @@ controlsGeneral=None
 controlsPreviews=None
 controlsLayers=None
 controlsSettings=None
+frame3D=None
 
 MODEBASIC=0
 MODEADVANCED=1
 MODEEDIT=2
+MODEEDIT=3
 frameMode=MODEBASIC
 settingsMode=frameMode #disregards change to framemode MODEEDIT, used for saving preference
 layercontrols = []
@@ -751,6 +752,9 @@ def importBitmaps():
                             title="Please wait...",
                             message="Photon File Editor is importing your images.")
         popup.show()
+        #debug (2 lines)
+        #photonfile.replaceBitmaps(directory, popup)
+        #return
         try:
             # Ask PhotonFile object to replace bitmaps
             if not photonfile.replaceBitmaps(directory, popup):
@@ -1607,6 +1611,130 @@ def createSidebarSettings():
     controlsSettings = controlsLayers+controlsGeneral
 
 
+def createSidebar3D():
+    """ Create all labels and input boxes to slice an STL """
+    global screen
+    global frame3D
+    global settingscolwidth
+    global settingslabelwidth
+    global settingslabelmargin
+    global settingstextboxmargin
+    global settingsrowheight
+    global settingsrowspacing
+    global settingstextboxwidth
+    global settingswidth
+    global settingsleft
+
+    # The controls are placed below the menubar
+    viewport_yoffset=menubar.getHeight()
+
+    # Setup Frames for settings
+    # We have 2 frames: Basic and Advanced
+    # Basic is 1 column and consist of two rows: General and Layer
+    # Advanced is 2 columns, first column consist of General, second column consists of Preview and Layer
+    margin=GRect(2,2,0,0)
+    settingsrowheight=26
+
+    debugFrames=False # for debugging we want to see each frame with a different color
+
+    # Make Layer Edit sidebar
+    frame3D=Frame(screen,
+                     rect=GRect(settingsleft+settingscolwidth/2, viewport_yoffset, settingscolwidth/2,windowheight - viewport_yoffset),
+                     text="Slice Settings",topoffset=0,
+                     drawbackground=debugFrames,backcolor=(255,0,0),
+                     drawborder=debugFrames,margin=GRect(settingslabelmargin,settingslabelmargin,0,0),
+                     layout=Frame.TOPDOWN,spacing=14,gridsize=-1,
+                     )
+
+    # Number of transparent layer below current to show
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Slice height", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=100, curScroll=1,func_on_click=readShadowLayers))
+    frameEdit.append(frow)
+
+    # Brush shape (square/round/filled/open/text)
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush shape", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+
+    frowsub = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingsrowheight*2)
+    group=[]
+    # Full circle
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 0)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                         type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundFilled,group=group))
+    # Full Square
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    pygame.draw.rect(img, (0, 0, 0), (2,2,settingsrowheight-4, settingsrowheight-4), 0)
+    frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+                            type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareFilled,group=group))
+    # Open circle
+    #img = pygame.Surface((settingsrowheight, settingsrowheight))
+    #pygame.draw.circle(img, (0, 0, 0), (settingsrowheight//2, settingsrowheight//2), settingsrowheight//2-2, 2)
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                     type=Checkbox.image,borderwidth=0,selectborderwidth=3, img=img,func_on_click=setBrushShapeRoundOpen,group=group))
+    # Open Square
+    #img = pygame.Surface((settingsrowheight, settingsrowheight))
+    #pygame.draw.rect(img, (0, 0, 0), (2, 2, settingsrowheight - 4, settingsrowheight - 4), 2)
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                        type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=setBrushShapeSquareOpen,group=group))
+
+    # ABC
+    img = pygame.Surface((settingsrowheight, settingsrowheight))
+    font = pygame.font.SysFont(defFontName, defFontSize)
+    font.set_bold(True)
+    font.set_underline(True)
+    textsurface = font.render("Abc", True, (0,0,0))
+    img.blit(textsurface, (0,0),(0, 0, img.get_width(), img.get_height() ))
+    #frowsub.append(Checkbox(screen, GRect(0, 0, settingsrowheight, settingsrowheight),
+    #                        type=Checkbox.image, borderwidth=0,selectborderwidth=3, img=img, func_on_click=None,group=group))
+
+    frow.append(frowsub)
+    frameEdit.append(frow)
+
+    # Brush size
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush size", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen,GRect(0,0,settingstextboxwidth*2,settingsrowheight),minScroll=1, maxScroll=50, curScroll=1,func_on_click=setBrushSize))
+    frameEdit.append(frow)
+
+    # Brush depth
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="Brush depth", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frow.append(ScrollBarH(screen, GRect(0, 0, settingstextboxwidth * 2, settingsrowheight), minScroll=1, maxScroll=10,curScroll=1, func_on_click=setBrushDepth))
+    frameEdit.append(frow)
+
+    # Brush depth until bottom reached?
+    frow = Frame(screen,
+                 rect=GRect(0, 0, settingslabelwidth + settingstextboxmargin + settingstextboxwidth, settingsrowheight),
+                 text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                 layout=Frame.LEFTRIGHT, spacing=4, gridsize=settingslabelwidth)
+    frow.append(Label(screen, text="", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frowsub = Frame(screen,
+                    rect=GRect(0, 0, settingstextboxmargin + settingstextboxwidth,settingsrowheight),
+                    text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
+                    layout=Frame.LEFTRIGHT, spacing=4, gridsize=-1)
+    frowsub.append(Label(screen, text="To bottom", rect=GRect(0, 0, settingslabelwidth + settingstextboxwidth - 120, 20)))
+    frowsub.append(Checkbox(screen,GRect(0,0,settingsrowheight,settingsrowheight),type=Checkbox.checkbox,func_on_click=setBrushDepth2Bottom))
+    frow.append(frowsub)
+    frameEdit.append(frow)
+
+
 def createSidebarEdit():
     """ Create all labels and input boxes to edit the layer image. """
     global screen
@@ -1732,6 +1860,7 @@ def createSidebarEdit():
 
     # Multiple brushes, e.q. cylinder to bottom, small to large diameter towards bottom, draw angled to bottom
     # Undo
+
 
 # Some call backs from EditFrame
 def setBrushDepth(depth):
@@ -2321,7 +2450,19 @@ def redrawWindow(tooltip=None):
         mouseRight= "[img]resources/MouseR.png[/img]"
         mouseScroll= "[img]resources/MouseS.png[/img]"
         #text = "[b]Move[b]:\u2190\u2191\u2193\u2192, [mouse][left]  [b]|[b]  [b]Rotate[b]: [shift]\u2190\u2191\u2193\u2192, [mouse][right]  [b]|[b]  [b]Zoom[b]: [ctrl]\u2191\u2193, [mouse][scroll]  [b]|[b]  [b]Reset[b]: [Q]  [b]|[b]  [b]Slice[b]: [F5]"
-        text = "[b]Move[b]:"+arrowud+arrowlr+", "+mouseLeft+" [b]|[b] [b]Rotate[b]: [shift]"+arrowud+arrowlr+", "+mouseRight+" [b]|[b] [b]Zoom[b]: [ctrl]"+arrowud+", "+mouseScroll+" [b]|[b] [b]Reset[b]: [Q] [b]|[b] [b]Slice[b]: [F5]"
+        text = "[b]Move[b]:"+arrowud+arrowlr+", "+mouseLeft+\
+               " [b]|[b] "+\
+               "[b]Rotate[b]: [shift]"+arrowud+arrowlr+", "+mouseRight+\
+               " [b]|[b] "+\
+               "[b]Zoom[b]: [ctrl]"+arrowud+", "+mouseScroll+\
+               " [b]|[b] "+\
+               "[b]Reset[b]: [Q]"+\
+               " [b]|[b] "+\
+               "[b]Model[b]: [Alt]"+\
+               " [b]|[b] "+\
+               "[b]Slice[b]: [F5]"+\
+               " [b]|[b] "+\
+               "[b]Layer height[b]: [+,-]"
         drawTextMarkdown(text,fontFullScreen,defFormForeground,screen,(8,windowheight-20))
         return
 

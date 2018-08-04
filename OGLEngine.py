@@ -43,7 +43,9 @@ class GL():
     drawmodel = True
     displayListIdx = 0
     scDisplay=2
-
+    model_angles=[0,0,0]
+    model_trans=[0,0,0]
+    model_scale = 1
 
     def drawSquare(self,pos,axis,width,height,type):
         if axis==0:
@@ -339,8 +341,8 @@ class GL():
         self.display_size=display_size
         self.callback=callback
         self.model_angle = 0  # 30
-        self.model_rotaxis = (1, 0, 0)
-        self.model_trans = (0, 0, 0)  # (0,5,0
+        self.model_rotaxis = [1, 0, 0]
+        self.model_trans = [0, 0, 0]  # (0,5,0
 
         #(860,640)
 
@@ -380,7 +382,12 @@ class GL():
         glTranslatef(0.0, 0.0, -150)
         glRotatef(30,1,0,0)
 
+
+        self.model_angles=[0,0,0]
+        self.model_trans= [0,0,0]
+        self.model_scale = 1
         print ("Use arrow keys and ctrl/shift or mouse to move,rotate,zoom")
+        print ("Use arrow keys and alt to move model, alt+shift to rotate model, alt+ctrl to scale model")
         print ("Use numpad + and - to set slice height.")
         print ("Use enter to toggle 3d model and f5 to save slice")
 
@@ -395,6 +402,8 @@ class GL():
             #event=pygame.event.wait() # uses a lot less resources than continously looping with evet.get!
             isLCtrl = (pygame.key.get_mods() & pygame.KMOD_LCTRL)
             isLShift = (pygame.key.get_mods() & pygame.KMOD_LSHIFT)
+            isLAlt = (pygame.key.get_mods() & pygame.KMOD_LALT)
+            isRAlt = (pygame.key.get_mods() & pygame.KMOD_RALT)
 
             glGetFloatv(GL_PROJECTION_MATRIX, matrix)
             xaxis = (matrix[0],matrix[4],matrix[8])
@@ -403,53 +412,91 @@ class GL():
 
             pan=50
             rot=15
-            if not isLShift: # translate or slice height
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_LEFT:
-                        glTranslatef(-pan*xaxis[0], -pan*xaxis[1], -pan*xaxis[2])
-                    if event.key == pygame.K_RIGHT:
-                        glTranslatef(pan*xaxis[0], pan*xaxis[1], pan*xaxis[2])
-                    if not isLCtrl:
-                        if event.key == pygame.K_UP:
-                            glTranslatef(+pan * yaxis[0], +pan * yaxis[1], +pan * yaxis[2])
-                        if event.key == pygame.K_DOWN:
-                            glTranslatef(-pan * yaxis[0], -pan * yaxis[1], -pan * yaxis[2])
-                    else:
-                        if event.key == pygame.K_UP:
-                            glTranslatef(+pan * zaxis[0], +pan * zaxis[1], +pan * zaxis[2])
-                        if event.key == pygame.K_DOWN:
-                            glTranslatef(-pan * zaxis[0], -pan * zaxis[1], -pan * zaxis[2])
-                    if event.key==pygame.K_KP_PLUS:
-                        self.sliceheight=self.sliceheight+1#0.02
-                        print ("Slice Height:",self.sliceheight)
-                        #self.get_slice(self.sliceheight,self.sliceheight+1)
-                    if event.key==pygame.K_KP_MINUS:
-                        self.sliceheight=self.sliceheight-1#0.02
-                        print ("Slice Height:",self.sliceheight)
-                        #self.get_slice(self.sliceheight)
-                    #if event.key == pygame.K_SPACE:
-                    #    print ("Switch to sliceloop")
-                    #    self.sliceLoop()
-                    if event.key == pygame.K_RETURN:
-                        self.drawmodel=not self.drawmodel
-                    if event.key == pygame.K_F5:
-                        print ("saving")
-                        if not self.callback==None:
-                            self.callback.slice()
-                    if event.key == pygame.K_q:
-                        self.initDraw()
 
-            else: #rotate
-                if event.type == pygame.KEYDOWN:
+            if not isLAlt and not isRAlt:# translate or slice height
+                if isLCtrl: # slice height
                     if event.key == pygame.K_UP:
-                        glRotatef(-rot, xaxis[0], xaxis[1], xaxis[2])
+                        glTranslatef(+pan * zaxis[0], +pan * zaxis[1], +pan * zaxis[2])
                     if event.key == pygame.K_DOWN:
-                        glRotatef(+rot, xaxis[0], xaxis[1], xaxis[2])
-                    if not isLCtrl:
+                        glTranslatef(-pan * zaxis[0], -pan * zaxis[1], -pan * zaxis[2])
+                elif not isLCtrl: # pan / rotate view
+                    if not isLShift: # pan view
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_LEFT:
+                                glTranslatef(-pan*xaxis[0], -pan*xaxis[1], -pan*xaxis[2])
+                            if event.key == pygame.K_RIGHT:
+                                glTranslatef(pan*xaxis[0], pan*xaxis[1], pan*xaxis[2])
+                            if event.key == pygame.K_UP:
+                                glTranslatef(+pan * yaxis[0], +pan * yaxis[1], +pan * yaxis[2])
+                            if event.key == pygame.K_DOWN:
+                                glTranslatef(-pan * yaxis[0], -pan * yaxis[1], -pan * yaxis[2])
+                            if event.key==pygame.K_KP_PLUS:
+                                self.sliceheight=self.sliceheight+1#0.02
+                                print ("Slice Height:",self.sliceheight)
+                                #self.get_slice(self.sliceheight,self.sliceheight+1)
+                            if event.key==pygame.K_KP_MINUS:
+                                self.sliceheight=self.sliceheight-1#0.02
+                                print ("Slice Height:",self.sliceheight)
+                            if event.key == pygame.K_RETURN:
+                                self.drawmodel=not self.drawmodel
+                            if event.key == pygame.K_F5:
+                                print ("saving")
+                                if not self.callback==None:
+                                    self.callback.slice()
+                            if event.key == pygame.K_q:
+                                self.initDraw()
+
+                    elif isLShift: # rotate view
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_UP:
+                                glRotatef(-rot, xaxis[0], xaxis[1], xaxis[2])
+                            if event.key == pygame.K_DOWN:
+                                glRotatef(+rot, xaxis[0], xaxis[1], xaxis[2])
+                            if not isLCtrl:
+                                if event.key == pygame.K_LEFT:
+                                    glRotatef(-rot, yaxis[0], yaxis[1], yaxis[2])
+                                if event.key == pygame.K_RIGHT:
+                                    glRotatef(+rot, yaxis[0], yaxis[1], yaxis[2])
+
+            elif isRAlt and not isLAlt: # if RAlt we scale model
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_KP_MINUS:
+                        self.model_scale=self.model_scale/1.2
+                    if event.key == pygame.K_KP_PLUS:
+                        self.model_scale=self.model_scale*1.2
+
+            elif isLAlt and not isRAlt: # if LAlt then translate/rotate model
+                if event.type == pygame.KEYDOWN:
+                    if not isLShift: # translate
+                        # Translate will be parallel/perpendicular to build volume
                         if event.key == pygame.K_LEFT:
-                            glRotatef(-rot, yaxis[0], yaxis[1], yaxis[2])
+                            self.model_trans[0] = self.model_trans[0] - pan / 10
                         if event.key == pygame.K_RIGHT:
-                            glRotatef(+rot, yaxis[0], yaxis[1], yaxis[2])
+                            self.model_trans[0] = self.model_trans[0] + pan / 10
+                        if event.key == pygame.K_UP:
+                            self.model_trans[2] = self.model_trans[2] - pan / 10
+                        if event.key == pygame.K_DOWN:
+                            self.model_trans[2] = self.model_trans[2] + pan / 10
+                        if event.key == pygame.K_KP_PLUS:
+                            self.model_trans[1] = self.model_trans[1] + pan / 10
+                        if event.key == pygame.K_KP_MINUS:
+                            self.model_trans[1] = self.model_trans[1] - pan / 10
+
+                    elif isLShift and not isLCtrl: # rotate model
+                        # Translate will be parallel/perpendicular to build volume
+                        if event.key == pygame.K_LEFT:
+                            self.model_angles[1]+=15
+                        if event.key == pygame.K_RIGHT:
+                            self.model_angles[1] -= 15
+                        if event.key == pygame.K_UP:
+                            self.model_angles[0] -= 15
+                        if event.key == pygame.K_DOWN:
+                            self.model_angles[0] += 15
+                        if event.key == pygame.K_KP_PLUS:
+                            self.model_angles[2] -= 15
+                        if event.key == pygame.K_KP_MINUS:
+                            self.model_angles[2] += 15
+
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 print ("Mousedown", pygame.time.get_ticks() )
@@ -516,20 +563,21 @@ class GL():
             glLight(GL_LIGHT0, GL_POSITION, posl)
             glLight(GL_LIGHT0, GL_SPOT_DIRECTION, (-zaxis[0],-zaxis[1],-zaxis[2]))
 
-            #draw
+            # Draw build area
             self.draw_buildarea()
 
             #Draw slice
-
             #self.draw_slice()
 
             #apply model angle and translation)
-            glRotatef(self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
-            glTranslatef(self.model_trans[0],self.model_trans[1],self.model_trans[2])
-            if self.drawmodel: self.draw_model()
-            #if not self.voxelIdx==-1:self.draw_voxels()
-            glTranslatef(-self.model_trans[0],-self.model_trans[1],-self.model_trans[2])
-            glRotatef(-self.model_angle,self.model_rotaxis[0],self.model_rotaxis[1],self.model_rotaxis[2])
+            glPushMatrix()
+            glTranslatef(self.model_trans[0], self.model_trans[1], self.model_trans[2])
+            glRotatef(self.model_angles[0], 0, 0, 1)
+            glRotatef(self.model_angles[1], 0, 1, 0)
+            glRotatef(self.model_angles[2], 1, 0, 0)
+            glScalef(self.model_scale,self.model_scale,self.model_scale)
+            self.draw_model()
+            glPopMatrix()
 
             #lights finished
             glDisable(GL_LIGHT0)
