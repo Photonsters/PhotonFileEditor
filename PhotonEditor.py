@@ -21,6 +21,7 @@ from FileDialog import *
 from MessageDialog import *
 from PopupDialog import *
 from ProgressDialog import *
+from Voxels import *
 
 #Following tests are done for initial message to user below the disclaimer
 try:
@@ -40,8 +41,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
-#todo: make sure slicer accounts for model translate, rotation and scale...
-#todo: slicer has bug where outside of contour is painted
+#todo: erosion in Voxel.py
+#todo: STLFile.applyModifiers: make sure slicer accounts for model translate, rotation and scale...
 #todo: load of benchy.stl is slow... do we really need to calc normals for just filled slices?
 #todo: use multiprocessing to apply layerEdits
 #todo: in linux circle is drawn as square
@@ -375,6 +376,8 @@ class handleGLCallback:
         global layerNr
         global dispimg
         global layerimg
+        global gl
+        global frameMode
 
         # Check if photonfile is loaded to prevent errors when operating on empty photonfile
         if photonfile==None:
@@ -387,7 +390,8 @@ class handleGLCallback:
         saveLayerSettings2PhotonFile()
 
         # Slice and save images
-        slicer.slice()
+        print ("IMPLEMENT rotate,translate,scale")
+        slicer.slice(sliceHeight=gl.sliceheight)
 
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
         popup = ProgressDialog(flipFunc, screen, pos=(140, 140),
@@ -410,6 +414,7 @@ class handleGLCallback:
             layerimg = photonfile.getBitmap(layerNr, layerForecolor, layerBackcolor)
             # Exit 3D
             fullScreenOpenGL=False
+            frameMode = settingsMode
             dispimg = layerimg
 
         except Exception as err:
@@ -2769,6 +2774,7 @@ def poll(event=None):
             if event.type == pygame.KEYDOWN:
                 if event.key==pygame.K_ESCAPE:
                     fullScreenOpenGL = False
+                    frameMode = settingsMode
                     return
             gl.poll(True, event)
             refresh3DSettings()

@@ -3,7 +3,7 @@ import pygame
 import pygame.gfxdraw
 from Helpers3D import *
 import numpy
-
+import math
 import cv2
 import os
 
@@ -215,6 +215,42 @@ class STLFile:
         return self.points,self.model
 
 
+    def make_rotation_transformation(angle):
+        cos_theta, sin_theta = math.cos(angle), math.sin(angle)
+        def xform(point):
+            x, y = point[0] , point[1]
+            return (x * cos_theta - y * sin_theta ,
+                    x * sin_theta + y * cos_theta )
+        return xform
+
+    def applyModifiers(self,trans,rotate_angles,scale):
+        """ Applies trans (x,y,z), rotation (x,y,z) and scale (float)
+        """
+        #rotate
+        xform0 = self.make_rotation_transformation(rotate_angles[0])
+        xform1 = self.make_rotation_transformation(rotate_angles[1])
+        xform2 = self.make_rotation_transformation(rotate_angles[2])
+        for p in enumerate(self.points):
+            q=xform0([p.x,p.y]) # around z
+            p.x=q.x
+            p.y=q.y
+
+            q=xform1([p.x,p.z]) # around y
+            p.x=q.x
+            p.z=q.z
+
+            q=xform2([p.y,p.z]) # around x
+            p.y=q.y
+            p.z=q.z
+
+        #translate and scale
+        ptrans=Point3D(trans)
+        for p in enumerate(self.points):
+            p=p*scale
+            p=p+ptrans
+
+
+
     def createInnerWall(self, wallThickness):
         setNrDecimals(1)
 
@@ -393,14 +429,14 @@ class STLFile:
             p2.toInt()
             #print ("save: ",p0,p1,p2)
 
-            white=(255,255,255) #alpha 255 is NOT transparent
+            contourColor=(255,255,255) #alpha 255 is NOT transparent
 
             w=1
             vrx=numpy.array([[p0.x,p0.z],[p1.x,p1.z],[p2.x,p2.z]],numpy.int32)
-            img = cv2.fillPoly(img,pts=[vrx],color=white)
-            img = cv2.line(img,(p0.x, p0.z), (p1.x, p1.z),color=white,thickness=1)
-            img = cv2.line(img,(p1.x, p1.z), (p2.x, p2.z),color=white,thickness=1)
-            img = cv2.line(img,(p2.x, p2.z), (p0.x, p0.z),color=white,thickness=1)
+            img = cv2.fillPoly(img,pts=[vrx],color=contourColor)
+            img = cv2.line(img,(p0.x, p0.z), (p1.x, p1.z),color=contourColor,thickness=1)
+            img = cv2.line(img,(p1.x, p1.z), (p2.x, p2.z),color=contourColor,thickness=1)
+            img = cv2.line(img,(p2.x, p2.z), (p0.x, p0.z),color=contourColor,thickness=1)
 
             fillPoints.append( (pn0.x, pn0.z))
             fillPoints.append ((pn1.x, pn1.z))
@@ -409,29 +445,72 @@ class STLFile:
         doFill=True
         if doFill:
             nr=0
-            red = (0, 0,255)
+            innerColor = (0, 0,255)
             for fillPoint in fillPoints:
+                # First make backup of image in case fill fails and outside is filled
+                bkp=img.copy()
+                # Check if fill is necessary at fillpoint
                 pxColor=(img[fillPoint[1],fillPoint[0],0],
                          img[fillPoint[1],fillPoint[0],1],
                          img[fillPoint[1],fillPoint[0],2])
                 if pxColor==(0,0,0):
-                    cv2.floodFill(img,mask=None,seedPoint=fillPoint,newVal=red)
-                    nr=nr+1
-            #print ("nr Times:",nr)
+                    cv2.floodFill(img,mask=None,seedPoint=fillPoint,newVal=innerColor)
+                # Check if fill caused outside contour to be filled
+                outerColor=(img[0,0,0],img[0,0,1],img[0,0,2])
+                if not outerColor==(0,0,0):
+                    img=bkp
+                    nr+=1
+            # Debug: print nr of retries
+            if nr>1:
+                print (filename,"nr Times:",nr)
         try:
             if (img[0,0,0],img[0,0,1],img[0,0,2])==(0,0,0):
                 cv2.imwrite(filename,img)
                 print ("Sliced: ",filename)
             else:
+                cv2.imwrite(filename+".err",img)
                 print ("Slice Error: ",filename)
         except Exception as err:
             print ("Error while writing slice image! \n",filename,err)
 
 
-    def test(self,l):
-        nr,p=l
-        print ("stl.test" ,nr,p)
+    def erode(self,img,outfilename):
+        erosion_size = 15
+        erosion_type = 0
+        val_type = 0
+        if val_type == 0:
+            erosion_type = cv2.MORPH_RECT
+        elif val_type == 1:
+            erosion_type = cv2.MORPH_CROSS
+        elif val_type == 2:
+            erosion_type = cv2.MORPH_ELLIPSE
+        element = cv2.getStructuringElement(erosion_type, (2 * erosion_size + 1, 2 * erosion_size + 1),
+                                           (erosion_size, erosion_size))
+        # if element=None, use 3x3 matrix
+        img_new = cv2.erode(img, element)
 
-    def test2(self,nr,p,q=False):
-        #(nr, p)=l
-        print ("stl.test" ,nr,p,q)
+        # Now create a mask of logo and create its inverse mask also
+        img2gray = cv2.cvtColor(img_new, cv2.COLOR_BGR2GRAY)
+        ret, mask = cv2.threshold(img2gray, 10, 255, cv2.THRESH_BINARY)
+        img_msk = cv2.bitwise_not(mask)
+
+        """ 
+        # make img_new as b_w
+        #replace red color
+        img_new[numpy.where((img_new == [0, 0, 255]).all(axis=2))] = [255, 255, 255]
+
+        #invert image
+        img_msk=[]
+        cv2.bitwise_not(img_msk,img_new)
+        cv2.bitwise_not()
+        """
+
+        # Not mask the image
+        img_new2 = cv2.bitwise_and(img, img, mask=img_msk)
+
+        #cv2.imwrite(outfilename[:-4]+".msk.png" , img_msk)
+        cv2.imwrite(outfilename[:-4] + ".walls.png", img_new2)
+        #return img_new
+
+
+
