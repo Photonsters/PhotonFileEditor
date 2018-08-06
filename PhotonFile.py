@@ -558,7 +558,7 @@ class PhotonFile:
     ########################################################################################################################
     ## Decoding
     ########################################################################################################################
-    def getBitmap_withnumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
+    def getBitmap_withnumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25),retNumpyArray=False):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.
             Based on: https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
             Encoding scheme:
@@ -569,7 +569,7 @@ class PhotonFile:
 
         # Colors are stored reversed and we count on alpha bit (size of int does not matter for numpy speed)
         isAlpha=False
-        if len(forecolor)==4 or len(backcolor)==4:isAlpha = True
+        if   len(forecolor) == 4 or len(backcolor) == 4: isAlpha = True
         if   len(forecolor) == 3:forecolor = (255,forecolor[0], forecolor[1], forecolor[2])
         elif len(forecolor) == 4:forecolor = (forecolor[3], forecolor[0], forecolor[1],forecolor[2])
         if   len(backcolor) == 3:backcolor = (255,backcolor[0], backcolor[1], backcolor[2])
@@ -623,8 +623,10 @@ class PhotonFile:
 
         # Convert 1-dim array to matrix
         rgb2d = x.reshape((2560,1440))              # data is stored in rows of 2560
+        if retNumpyArray:return rgb2d               # if numpy array is returned, rotation not needed
         rgb2d = numpy.rot90(rgb2d, axes=(1, 0))     # we need 1440x2560
         rgb2d = numpy.fliplr(rgb2d)                 # however data is mirrored along x axis
+
         #picture=pygame.surfarray.make_surface(rgb2d)# convert numpy array to pygame surface
         #memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
         if isAlpha:

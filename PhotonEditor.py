@@ -41,8 +41,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: import images locks pc, probably by using all available threads.
 #todo: erosion in Voxel.py
-#todo: STLFile.applyModifiers: make sure slicer accounts for model translate, rotation and scale...
 #todo: load of benchy.stl is slow... do we really need to calc normals for just filled slices?
 #todo: use multiprocessing to apply layerEdits
 #todo: in linux circle is drawn as square

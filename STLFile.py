@@ -216,7 +216,8 @@ class STLFile:
 
 
     def make_rotation_transformation(angle):
-        cos_theta, sin_theta = math.cos(angle), math.sin(angle)
+        rad=math.pi*angle/180
+        cos_theta, sin_theta = math.cos(rad), math.sin(rad)
         def xform(point):
             x, y = point[0] , point[1]
             return (x * cos_theta - y * sin_theta ,
@@ -227,27 +228,31 @@ class STLFile:
         """ Applies trans (x,y,z), rotation (x,y,z) and scale (float)
         """
         #rotate
-        xform0 = self.make_rotation_transformation(rotate_angles[0])
-        xform1 = self.make_rotation_transformation(rotate_angles[1])
-        xform2 = self.make_rotation_transformation(rotate_angles[2])
-        for p in enumerate(self.points):
+        xform0 = STLFile.make_rotation_transformation(rotate_angles[0])
+        xform1 = STLFile.make_rotation_transformation(-rotate_angles[1])
+        xform2 = STLFile.make_rotation_transformation(rotate_angles[2])
+        for p in self.points:
             q=xform0([p.x,p.y]) # around z
-            p.x=q.x
-            p.y=q.y
+            p.x=q[0]
+            p.y=q[1]
 
             q=xform1([p.x,p.z]) # around y
-            p.x=q.x
-            p.z=q.z
+            p.x=q[0]
+            p.z=q[1]
 
             q=xform2([p.y,p.z]) # around x
-            p.y=q.y
-            p.z=q.z
+            p.y=q[0]
+            p.z=q[1]
+
 
         #translate and scale
         ptrans=Point3D(trans)
-        for p in enumerate(self.points):
-            p=p*scale
-            p=p+ptrans
+        for p in self.points:
+            q=p*scale
+            q=q+ptrans
+            p.x = q.x
+            p.y = q.y
+            p.z = q.z
 
 
 

@@ -45,7 +45,7 @@ class GL():
     scDisplay=2
     model_angles=[0,0,0]
     model_trans=[0,0,0]
-    model_scale = 1
+    model_scale = 1.0
 
     def drawSquare(self,pos,axis,width,height,type):
         if axis==0:

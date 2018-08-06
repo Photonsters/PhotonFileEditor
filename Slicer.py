@@ -30,6 +30,7 @@ Ter controle kunnen alle bitmaps geladen worden in een voxelviewer
 
 class Slicer:
     stl=None
+    oglengine=None
 
     def __init__(self,oglengine,filename=None):
         cloud=[Point3D((0,0,0)),Point3D((0,0,3)),Point3D((0,3,0))]
@@ -47,6 +48,7 @@ class Slicer:
         #quit()
 
         aGL = oglengine
+        self.oglengine=oglengine
         stl=self.stl
         stl=STLFile()
         if filename==None:
@@ -144,6 +146,7 @@ class Slicer:
         return True
 
     def slice(self,sliceHeight=0.1):
+
         # Clear slice directory
         dir = os.path.join(os.getcwd(), "slicer")
 
@@ -151,8 +154,13 @@ class Slicer:
         for f in filelist:
             os.remove(os.path.join(dir, f))
 
-        # Fill slice directory
+        # Apply model modifiers (translate,rotate,scale) to model
         stl=self.stl
+        stl.applyModifiers(self.oglengine.model_trans,
+                           self.oglengine.model_angles,
+                           self.oglengine.model_scale)
+
+        # Fill slice directory
 
         sliceNr=0
         sliceBottom=0
