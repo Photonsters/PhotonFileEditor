@@ -12,6 +12,7 @@ Voxel class:
 """
 
 #todo: make a 1 voxel wide shell of voxelmodel so we can display this with OpenGL engine
+#      https://stackoverflow.com/questions/33742098/border-edge-operations-on-numpy-arrays
 #todo: a boolean array can be packed binary (packbits)and thus save file could be 8x smaller
 #todo: improve infill patterns
 
@@ -22,6 +23,8 @@ import cv2
 import time
 import json
 from PhotonFile import *
+from OpenGL.GL import *
+from OGLEngine import *
 
 # try; https://twistedpairdevelopment.wordpress.com/2011/06/09/creating-voxel-volumes-quicky-in-python/
 
@@ -74,7 +77,7 @@ class Voxels():
             file.write(self.voxels.tostring())
             #self.voxels.tofile(file)
 
-        print ("elapsed",time.time()-tstart)
+        print ("Save elapsed",time.time()-tstart)
 
     def loadVoxels(self,filename):
         tstart=time.time()
@@ -94,9 +97,9 @@ class Voxels():
             print (shape,self.bboxMin,self.bboxMax,self.bboxSize)
             self.voxels=numpy.fromstring(file.read(),dtype=numpy.bool)
             self.voxels.reshape(shape)
-        print ("elapsed",time.time()-tstart)
+        print ("Load elapsed",time.time()-tstart)
 
-    def __init__(self, photonfile=None, reducef=1):
+    def __init__(self, photonfile=None, reducef=1,fromLayer=0,toLayer=-1):
         """
         """
         # Check if user wants clean/empty Voxel instance
@@ -112,12 +115,16 @@ class Voxels():
         nLayers = photonfile.nrLayers()
         print ("nLayers",nLayers)
 
+        if fromLayer<0: fromLayer=0
+        if toLayer==-1: toLayer=nLayers
+        if toLayer>nLayers: toLayer=nLayers
+
         newshape2D = (2560//reducef,1440//reducef)
         newshape3D = (nLayers//reducef+1, newshape2D[0],newshape2D[1])
         self.voxels = numpy.zeros(newshape3D, dtype=numpy.bool)
 
         # Read each layer and rescale
-        for intLayerNr in range(0,nLayers,reducef):
+        for intLayerNr in range(fromLayer, toLayer,reducef):
             # print (arr.shape)
             # rescale
             # print ("newshape",newshape)
@@ -335,19 +342,94 @@ class Voxels():
         # Erode model to create inner model to cut away
         vx.erode(wallthickness)
 
+        # Make grid pattern
+        pat=None
         if pattern=='grid':
-            pat=vx.makeGridPattern(size=patternsize, thickness=patternthickness)
+            pat = vx.makeGridPattern(size=patternsize, thickness=patternthickness)
         elif pattern=='hex':
             pat = vx.makeHexPattern(size=patternsize, thickness=patternthickness)
 
         # Overlay pattern on cutmodel
-        vx.overlayPattern(pat)
+        if isinstance(pat, (numpy.ndarray, numpy.generic)):
+            vx.overlayPattern(pat)
 
         # Cut voxel model from each layer in file
         vx.cutFromFile(doLayerNr=-1)
 
         return vx
 
+    def shellPhotonFile(photonfile):
+        # Construct scaled down voxel model /cut model (inner core which is to be cut from photonfile)
+        # Load photonfile if we got a filename
+        if isinstance(photonfile, str):
+            photonfile = PhotonFile(photonfile)
+            photonfile.readFile()
+
+        nLayers=photonfile.nrLayers()
+        print ("nLayers",nLayers)
+
+        nrVoxels=0
+        tstart=time.time()
+        stepsize=100
+        if stepsize>nLayers: stepsize=nLayers-1
+        glLists=[]
+        for fromLayer in range (0,nLayers-stepsize,stepsize):
+            fLayer=fromLayer-1
+            tLayer=fromLayer+stepsize+1
+            vx = Voxels(photonfile,reducef=1,fromLayer=fLayer,toLayer=tLayer)
+            allVoxels = vx.voxels.copy()
+
+            # Erode model with 1 pixel to create inner model to cut away
+            vx.erode(1) # erode 1 cycle
+            innerVoxels=vx.voxels
+
+            # Get shell
+            wx= Voxels()
+            shellVoxels= numpy.logical_xor(allVoxels, innerVoxels)
+
+            # Cut away first and last layer if we got a have a slice in middle of the model
+            if fromLayer==0:f=0
+            else: f=1
+            if fromLayer==nLayers-stepsize:t=0
+            else: t=-1
+            wx.voxels=shellVoxels[f:t]
+
+            #print ("nrLayers"   , wx.voxels.shape[0])
+            #print ("Nr of Voxels before", allVoxels[1:-1].sum())
+            print ("Nr of Voxels after ", wx.voxels.sum())
+            print ("shape",wx.voxels.shape)
+            nrVoxels=nrVoxels+wx.voxels.sum()
+
+            # Append voxels to glList
+            glLists.append(wx.glList(fromLayer))
+
+            #for layerNr in range (0,wx.voxels.shape[0]):
+                #filename="slicer/filled/shell"+str(fromLayer+layerNr)+".png"
+                #print ("write",filename)
+                #wx.saveLayer(layerNr,filename)
+
+        print("Elapsed", time.time() - tstart)
+        print ("Total voxels in shell",nrVoxels)
+        print ("Elapsed",time.time()-tstart)
+
+
+    def glList(self,layerOffset):
+        voxelIdx = -1
+        gl=GL((0,0))
+        voxelIdx = glGenLists(1)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0, 0, 0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0, 0, 0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 0.0)
+        glNewList(self.voxelIdx, GL_COMPILE)
+        maxf = 60 / 720 / 2
+        for layer in self.voxels.shape[0]:
+            for row in self.voxels.shape[1]:
+                for col in self.voxels.shape[2]:
+                    if self.voxels[layer,row,col]:
+                        gl.drawBox((row*maxf, col*maxf, (layerOffset+layer)*maxf), (maxf,maxf,maxf),GL_TRIANGLES)
+                    #count = count + 1
+        glEndList()
+        return voxelIdx
 
     def encodedRLE(self):
         """ Converts voxel data to RLE encoded byte string.
@@ -396,9 +478,25 @@ class Voxels():
         return bytes(rleData)
 
 """
+# TEST READ/WRITE SPEED SINGLE VOXEL FILE
+vx=Voxels("SamplePhotonFiles/3DBenchy.photon",2)
+vx.saveVoxels("slicer/filled/voxels.dat")
+#vx=Voxels()
+vx.loadVoxels("slicer/filled/voxels.dat")
+#print (vx.voxels.shape)
+quit()
+
+
+
 #vx=Voxels(None,2)
 #pat=vx.makeHexPattern(10,2)
 #quit()
+
+vx=Voxels.shellPhotonFile("SamplePhotonFiles/Smilie.photon")
+#vx=Voxels.shellPhotonFile("SamplePhotonFiles/3DBenchy.photon")
+#vx.shellPhotonFile()
+quit()
+
 
 photonfile=PhotonFile("SamplePhotonFiles/Smilie.photon")
 #photonfile=PhotonFile("SamplePhotonFiles/3DBenchy.photon")
@@ -409,20 +507,13 @@ Voxels.hollowAndFillPhotonFile(photonfile,0.1,'grid',3,0.1)
 quit()
 
 # TEST EROSION AND INFILL
-#vx=Voxels(photonfile,4)
+vx=Voxels(photonfile,4)
 #print (vx.encodedRLE())
-#vx.erode(4)
+vx.erode(4)
 #pat=vx.makeGridPattern(10,2)
 pat=vx.makeHexPattern(size=20,thickness=2)
 vx.overlayPattern(pat)
 vx.cutFromFile(doLayerNr=-1)
 quit()
 
-# TEST READ/WRITE SPEED SINGLE VOXEL FILE
-vx=Voxels(photonfile,2)
-vx.saveVoxels("slicer/filled/voxels.dat")
-#vx=Voxels()
-vx.loadVoxels("slicer/filled/voxels.dat")
-#print (vx.voxels.shape)
-quit()
 """

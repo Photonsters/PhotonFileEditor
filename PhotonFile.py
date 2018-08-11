@@ -372,28 +372,40 @@ class PhotonFile:
     ## Encoding
     ########################################################################################################################
 
-    def encodedBitmap_Bytes_withnumpy(surfOrFile):
-        """ Converts image data from file on disk to RLE encoded byte string.
+    def encodedBitmap_Bytes_withnumpy(image):
+        """ Converts image (filename/pygame.surface/numpy.array2d) to RLE encoded byte string.
             Uses Numpy library - Fast
             Based on https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
             Encoding scheme:
                 Highest bit of each byte is color (black or white)
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
+        print ("ENCODE")
+        imgarr=None
 
         # Check if we got a string and if so load image
-        if isinstance(surfOrFile, str):
-            imgsurf = pygame.image.load(surfOrFile)
+        if isinstance(image, str): # received name of file to load
+            imgsurf = pygame.image.load(image)
+            (width, height) = imgsurf.get_size()
+        elif isinstance(image,pygame.Surface):
+            imgsurf = image  # reveived pygame.surface
+            (width, height) = imgsurf.get_size()
+        elif isinstance(image, (numpy.ndarray, numpy.generic)): # received opencv / numpy image array
+            print ("shape",image.shape)
+            (width, height)=image.shape
+            imgarr=image
         else:
-            imgsurf = surfOrFile
+            raise Exception("Only image filename, pygame.Surface or numpy.array (2D) are excepted")
 
         # Check if size is correct size (1440 x 2560)
-        (width, height) = imgsurf.get_size()
         if not (width, height) == (1440, 2560):
             raise Exception("Your image dimensions are off and should be 1440x2560")
 
         # Convert image data to Numpy 1-dimensional array
-        imgarr = pygame.surfarray.array2d(imgsurf)
+        if not isinstance(image, (numpy.ndarray, numpy.generic)): # Not needed if we got an numpy array as input
+            imgarr = pygame.surfarray.array2d(imgsurf)
+
+        # Rotate,flip image and flatten array
         imgarr = numpy.rot90(imgarr,axes=(1,0))
         imgarr = numpy.fliplr(imgarr)  # reverse/mirror array
         x = numpy.asarray(imgarr).flatten(0)
@@ -951,6 +963,7 @@ class PhotonFile:
         self.clipboardData=self.LayerData[layerNr].copy()
 
 
+
     def replaceBitmap(self, layerNr,filePath, saveToHistory=True):
         """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
 
@@ -987,43 +1000,63 @@ class PhotonFile:
 
 
     cancelReplace=False
-    def replaceBitmapData(self,args):
-        """ Helper for procespoolexecutor to call """
-        if self.cancelReplace: return None
-        (layerNr, filename)=args
-        rawData = PhotonFile.encodedBitmap_Bytes(surfOrFile=filename)
-        return (layerNr,rawData)
+    def replaceBitmapData(self,layerNr,filename,rlestack):
+        """ Helper for procespoolexecutor in replaceBitmaps to call """
+        #if self.cancelReplace: return None
+        rlestack[layerNr] = PhotonFile.encodedBitmap_Bytes(surfOrFile=filename)
 
-    def replaceBitmaps(self, dirPath, progressDialog=None):
+    def replaceBitmaps(self, bitmaps, progressDialog=None):
         """ Delete all images in PhotonFile object and add images in directory."""
 
-        # Get all files, filter png-files and sort them alphabetically
-        direntries = os.listdir(dirPath)
-        files = []
-        for entry in direntries:
-            fullpath = os.path.join(dirPath, entry)
-            if entry.endswith("png"):
-                if not entry.startswith("_"): # on a export of images from a photon file, the preview image starts with _
-                    files.append(fullpath)
-        files.sort()
+        # Check if bitmaps is a string with dirpath
+        rlestack=None
+        if isinstance(bitmaps, list):
+            rlestack = bitmaps
+            print ("replaceBitmap - got image data")
+        elif isinstance(bitmaps,str):
+            dirPath=bitmaps
+            print("replaceBitmap - got image directory")
+        else:
+            raise Exception("replaceBitmaps excepts a directorypath string or an array of rle encoded slices.")
 
-        #print("Following files will be inserted:")
-        #for fullpath in files:
-        #    print("  ", fullpath)
+        # If bitmaps was directory string we need to encode all files in directory
+        if isinstance(bitmaps,str):
+            # Get all files, filter png-files and sort them alphabetically
+            direntries = os.listdir(dirPath)
+            files = []
+            for entry in direntries:
+                fullpath = os.path.join(dirPath, entry)
+                if entry.endswith("png"):
+                    if not entry.startswith("_"): # on a export of images from a photon file, the preview image starts with _
+                        files.append(fullpath)
+            files.sort()
 
-        # Check if there are files available and if so check first file for correct dimensions
-        if len(files) == 0: raise Exception("No files of type png are found!")
-        rawData = PhotonFile.encodedBitmap_Bytes(files[0])
+            # Check if there are files available and if so check first file for correct dimensions
+            if len(files) == 0: raise Exception("No files of type png are found!")
+            rawData = PhotonFile.encodedBitmap_Bytes(files[0])
+
+            # Read all files in parallel and wait for result
+            args=[]
+            rlestack=len(files)*[None]
+            for i in range(0,len(files)):
+                args.append([i,files[i]])
+                self.replaceBitmapData(layerNr=i,filename=files[i],rlestack=rlestack)
 
         # Remove old data in PhotonFile object
-        nLayers = len(files)
+        nLayers = len(rlestack)
         self.LayerData = [dict() for x in range(nLayers)] # make room for all images
 
-        # Read all files in parallel and wait for result
-        args=[]
-        for i in range(0,len(files)):
-            args.append([i,files[i]])
+        # Put rlestack in LayerData
         nrL=0
+        for layerNr,rawData in enumerate(rlestack):
+            if not rawData == None:
+                rawDataTrunc = rawData[:-1]
+                rawDataLastByte = rawData[-1:]
+                self.LayerData[layerNr]["Raw"] = rawDataTrunc
+                self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
+                nrL+=1
+
+        """
         self.cancelReplace=False
         with concurrent.futures.ProcessPoolExecutor() as executor:
             for ret in executor.map(self.replaceBitmapData,args):
@@ -1050,6 +1083,7 @@ class PhotonFile:
             executor.shutdown(wait=True)
 
         print ("imported ",nrL)
+        """
 
         # Resize depending on number of layers imported (abort could have deminished nr of layers)
         nLayers=nrL # if cancel this nr can differ from nr of images

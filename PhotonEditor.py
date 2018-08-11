@@ -41,8 +41,19 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: photonfile.OGLCallback.slice does not show progress in dialogbox
+#todo: can we discard normal calculation if we do not make a inner model?
+#todo: reactive threading in photonfile.replacebitmaps and slicer.slice
+#todo: improve RLE encoding speed, slowdown is in section where we limit nr of repetitions to 0x7D
+"""Apply in PhotonFiile and Voxels. Some ideas:
+        https://www.kaggle.com/hackerpoet/even-faster-run-length-encoder
+        https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
+        https://stackoverflow.com/questions/1066758/find-length-of-sequences-of-identical-values-in-a-numpy-array-run-length-encodi
+        can we use np.where om >240 te splitten?
+"""
 #todo: import images locks pc, probably by using all available threads.
 #todo: erosion in Voxel.py
+#todo: slice is slow because we encode and save. Can we not skip some of this when using erode?
 #todo: load of benchy.stl is slow... do we really need to calc normals for just filled slices?
 #todo: use multiprocessing to apply layerEdits
 #todo: in linux circle is drawn as square
@@ -389,9 +400,6 @@ class handleGLCallback:
         savePreviewSettings2PhotonFile()
         saveLayerSettings2PhotonFile()
 
-        # Slice and save images
-        print ("IMPLEMENT rotate,translate,scale")
-        slicer.slice(sliceHeight=gl.sliceheight)
 
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
         popup = ProgressDialog(flipFunc, screen, pos=(140, 140),
@@ -399,10 +407,8 @@ class handleGLCallback:
                                message="Photon File Editor is importing your images.")
         popup.show()
         try:
-            # Ask PhotonFile object to replace bitmaps
-            directory=os.path.join(os.getcwd(),"slicer")
-            if not photonfile.replaceBitmaps(directory, popup):
-                print("User Canceled while importing.")
+            # Slice and save images
+            slicer.slice(sliceHeight=gl.sliceheight, photonfile=photonfile)
             # Refresh header settings which contains number of layers
             refreshHeaderSettings()
             # No preview data is changed

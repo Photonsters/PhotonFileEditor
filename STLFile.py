@@ -468,15 +468,12 @@ class STLFile:
             # Debug: print nr of retries
             if nr>1:
                 print (filename,"nr Times:",nr)
-        try:
-            if (img[0,0,0],img[0,0,1],img[0,0,2])==(0,0,0):
-                cv2.imwrite(filename,img)
-                print ("Sliced: ",filename)
-            else:
-                cv2.imwrite(filename+".err",img)
-                print ("Slice Error: ",filename)
-        except Exception as err:
-            print ("Error while writing slice image! \n",filename,err)
+
+        if (img[0,0,0],img[0,0,1],img[0,0,2])==(0,0,0):
+            print ("Sliced: ",filename)
+        else:
+            print ("Slice Error: ",filename)
+        return img
 
 
     def erode(self,img,outfilename):
