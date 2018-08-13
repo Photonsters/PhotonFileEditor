@@ -27,6 +27,7 @@ Ter controle kunnen alle bitmaps geladen worden in een voxelviewer
 ########################################################################################################################
 ## Class Slicer
 ########################################################################################################################
+import time
 
 class Slicer:
     stl=None
@@ -55,8 +56,8 @@ class Slicer:
             #stl.load_binary_stl('resources/SliceTester.stl', 1)
             #filename='SamplePhotonFiles/HollowCube.stl'
             #filename = 'SamplePhotonFiles/Cube.stl'
-            #filename = 'SamplePhotonFiles/STLs/bunny.stl'
-            filename = 'SamplePhotonFiles/STLs/smilie.stl'
+            filename = 'SamplePhotonFiles/STLs/bunny.stl'
+            #filename = 'SamplePhotonFiles/STLs/smilie.stl'
 
             #stl.load_binary_stl('resources/HollowCube.stl', 1)
             # self.load_stl('resources/Door-handle-ascii.stl',0.03)
@@ -135,7 +136,7 @@ class Slicer:
     def test(self,nr):
         print (nr)
 
-    def slicefillLayer(self,sliceNr,sliceBottom,sliceTop,filename=None,rledict=None):
+    def slicefillLayer(self,sliceNr,sliceBottom,sliceTop,filename=None):
         """ Retrieves a filled slice from the stl model and save it to single images or photonfile instance.
         """
 
@@ -148,7 +149,9 @@ class Slicer:
         imgarr8= imgarrRGB[:,:,2]
 
         # If above model we don't have anything to return
-        if len(points)==0: return None
+        if len(points)==0:
+            print ("Slice has no points")
+            return None
 
         # Save numpy imgarr to image using OpenCV
         if not filename==None:
@@ -158,23 +161,24 @@ class Slicer:
             return imgarr8
 
         # Save numpy imgarr to ENCODED layer in photonfile
-        elif not rledict==None:
+        else:
             # we need to rotate img 90 degrees
             imgarr8 = numpy.rot90(imgarr8, axes=(1, 0))  # we need 1440x2560
             # encode bitmap numpy array to rle
             rle=PhotonFile.encodedBitmap_Bytes_withnumpy(imgarr8)
             # add rle to photonfile.LayerData[slicenr]
-            rledict[sliceNr] = rle
-            return rle
+            return [sliceNr,rle]
 
 
-    def slice(self,sliceHeight=0.1,photonfile=None):
+    def slice(self,sliceHeight=0.1,progressDialog=None,photonfile=None):
 
-        # Clear slice directory
-        dir = os.path.join(os.getcwd(), "slicer")
-        filelist = [f for f in os.listdir(dir) if f.endswith(".png")]
-        for f in filelist:
-            os.remove(os.path.join(dir, f))
+        # If no photonfile we export to images
+        if photonfile==None:
+            # Clear slice directory
+            dir = os.path.join(os.getcwd(), "slicer")
+            filelist = [f for f in os.listdir(dir) if f.endswith(".png")]
+            for f in filelist:
+                os.remove(os.path.join(dir, f))
 
         # Apply model modifiers (translate,rotate,scale) to model
         stl=self.stl
@@ -188,46 +192,74 @@ class Slicer:
         # So rledict is intermediary)
         rledict={}
 
-        # Fill slice directory
-        sliceNr=0
+        # Use ProcessPoolExecutor to process slicefillLayer in parallel
+        # See https://pymotw.com/3/concurrent.futures/
+        #maxworkers=concurrent. multiprocessing.cpu_count()-1
         sliceBottom=0
-        executor=ProcessPoolExecutor()
         res=[]
-        topReached=False
-        while not topReached:
-            sliceTop=sliceBottom+sliceHeight
-            if photonfile==None:
-                nrStr = "%04d" % sliceNr
-                filename=os.path.join(os.getcwd(),"slicer/slice__"+nrStr+".png")
-            else:
-                filename=None
-            print ("-----------")
-            print ("Slice: ",sliceNr," from-to: ",str(int(sliceBottom*1000))+"um",str(int(sliceTop*1000))+"um", "save as:",filename)
-            #points,slice=stl.takeSlice(sliceBottom,sliceTop)
-            ret=executor.submit(self.slicefillLayer, sliceNr=sliceNr, sliceBottom=sliceBottom, sliceTop=sliceTop,filename=filename,rledict=rledict)
-            print ("ret",ret)
-            # Check if we get return False and thus an empty image (top of model reached)
-            if not ret.result()==None:
-                if not photonfile == None: rledict[sliceNr]=ret.result()
-                if not filename == None: None # we do nothing, file was already saves
-                sliceNr+=1
-                sliceBottom+=sliceHeight
-            else:
-                topReached = True
+        approxNrSlices=int(stl.modelheight/sliceHeight)+1
+        tstart=time.time()
 
-        # Wait for all to execute
-        executor.shutdown(wait=True)
+        # slice bunny.stl on Linux Toshiba NJ: 0.21 sec/slice (184sec for 858 slices - 42mm with 0.05 slice height)
+        """
+        points, slice = stl.takeSlice(0.10, 0.15)
+        nr=10
+        for i in range(nr):
+            #points, slice = stl.takeSlice(0.10, 0.15)
+            imgarrRGB = stl.slice2bmp_ocv(points, slice, None)
+        print ("Elapsed %0.1f ms" % ((time.time()-tstart)/nr*1000))
+        quit()
+        """
 
-        # Copy reldict to rlestack in right order and without empty layers
-        nrSlices=sliceNr
-        rlestack=nrSlices*[None]
-        for sliceNr in range(nrSlices):
-            rlestack[sliceNr]=rledict[sliceNr]
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Submit all jobs to ProcessPoolExecutor
+            for sliceNr in range(approxNrSlices):
+                sliceTop=sliceBottom+sliceHeight
+                if photonfile==None:
+                    nrStr = "%04d" % sliceNr
+                    filename=os.path.join(os.getcwd(),"slicer/slice__"+nrStr+".png")
+                else:
+                    filename=None
+                print ("-----------")
+                print ("Slice: ",sliceNr," from-to: ",str(int(sliceBottom*1000))+"um",str(int(sliceTop*1000))+"um", "save as:",filename)
+                job = executor.submit(self.slicefillLayer, sliceNr=sliceNr, sliceBottom=sliceBottom, sliceTop=sliceTop,filename=filename)
+                res.append(job)
+                sliceBottom += sliceHeight
 
-        # Replace layers in photonfile with images in rlestack
-        photonfile.replaceBitmaps(rlestack)
+            # Handle all results as they come available
+            sliceNr=0
+            for ret in concurrent.futures.as_completed(res):
+                # Check if we get return False and thus an empty image (top of model reached)
+                if not ret.result()==None: # result is None if no slice was drawn
+                    if not photonfile == None:
+                        sliceNr,rle=ret.result()
+                        rledict[sliceNr]=rle
+                        sliceNr+=1
+                    if not filename == None: None # we do nothing, file was already saves
+                if not progressDialog==None:
+                    perc=100*sliceNr/approxNrSlices
+                    if perc>100: perc=100
+                    progressDialog.setProgress(perc)
+                    progressDialog.setProgressLabel(str(sliceNr) + "/" + str(approxNrSlices))
+                    progressDialog.handleEvents()
+                    if progressDialog.cancel:
+                        #  Reset total number of layers to last layer we processes
+                        self.cancelReplace=True
+                        executor.shutdown(False)
+                        print ("Abort with ",sliceNr,"layers.")
 
-        print ("Results", res)
+        print ("Elapsed %0.2f sec" % (time.time()-tstart))
+
+        # Import to photonfile
+        if not photonfile==None:
+            # Copy reldict to rlestack in right order and without empty layers
+            nrSlices=approxNrSlices
+            rlestack=nrSlices*[None]
+            for sliceNr in range(nrSlices):
+                rlestack[sliceNr]=rledict[sliceNr]
+
+            # Replace layers in photonfile with images in rlestack
+            photonfile.replaceBitmaps(rlestack)
 
 
 

@@ -6,13 +6,14 @@ import numpy
 import math
 import cv2
 import os
-
+import time
 
 # load stl file detects if the file is a text file or binary file
 
 class STLFile:
     cmin = [100, 100, 100]
     cmax = [-100, -100, -100]
+    modelheight=0
     points = []
     model = []
     innerpoints=[]
@@ -211,6 +212,7 @@ class STLFile:
             p.x = p.x + trans[0]
             p.y = p.y + trans[1]
             p.z = p.z + trans[2]
+        self.modelheight=self.cmax[1]-self.cmin[1]
 
         return self.points,self.model
 
@@ -316,6 +318,8 @@ class STLFile:
     RET_BELOW=2      # Return below line
 
     def __takeSlice(self, fullpoints,fullmodel,Y, ret_side):
+        """ Returns
+        """
         slice=[]
         points=[]
         if fullpoints==None or fullmodel==None or len(fullpoints)==0 or len(fullmodel)==0:
@@ -447,27 +451,51 @@ class STLFile:
             fillPoints.append ((pn1.x, pn1.z))
             fillPoints.append ((pn2.x, pn2.z))
 
+        # Above takes 31.2ms
+        # Below takes 2970 ms
+        #   nr of fillPoints really slows it down
+        #   img.copy                                        10%
+        #   outerColor == (1, 1, 0)                         0%
+        #   outerColor=(img[0,0,0],img[0,0,1],img[0,0,2])   0%
+        #   bpk=img.copy()                                  65%
+        """
+        we moeten minder keer img.copy doen of sneller alternatief
+        of we moeten fillpoints maken die geen onjuiste fills doen...
+
+        ook: is 1000xfloodfill misschien goedkoper dan 1x img.copy()
+        let wel numpy op linux is trager en daarmee img.copy()
+        """
+
+        tester=img.copy()
         doFill=True
+        nrTests=0
+        nrFills=0
+        nrRedos=0
         if doFill:
             nr=0
             innerColor = (0, 0,255)
             for fillPoint in fillPoints:
-                # First make backup of image in case fill fails and outside is filled
-                bkp=img.copy()
-                # Check if fill is necessary at fillpoint
+                # Check if fill is necessary at fillpoint (if fillpoint still has background color = 0,0,0)) and not fill color (=innerColor)
                 pxColor=(img[fillPoint[1],fillPoint[0],0],
                          img[fillPoint[1],fillPoint[0],1],
                          img[fillPoint[1],fillPoint[0],2])
                 if pxColor==(0,0,0):
-                    cv2.floodFill(img,mask=None,seedPoint=fillPoint,newVal=innerColor)
-                # Check if fill caused outside contour to be filled
-                outerColor=(img[0,0,0],img[0,0,1],img[0,0,2])
-                if not outerColor==(0,0,0):
-                    img=bkp
-                    nr+=1
+                    # Do a testfill on tester
+                    cv2.floodFill(tester,mask=None,seedPoint=fillPoint,newVal=innerColor)
+                    nrTests+=1
+                    # And check if fill (on tester) reaches (0,0) and thus we are filling outside of model contour
+                    outerColor=(tester[0,0,0],tester[0,0,1],tester[0,0,2])
+                    # If fill was necessary and fill in tester stayed inside model, then we apply fill on img
+                    if outerColor==(0,0,0):
+                        cv2.floodFill(img, mask=None, seedPoint=fillPoint, newVal=innerColor)
+                        nrFills+=1
+                    else: # we destroyed tester and have to repair it by making a copy of img
+                        tester=img.copy()
+                        nrRedos+=1
             # Debug: print nr of retries
             if nr>1:
                 print (filename,"nr Times:",nr)
+        print ("nrTests, nrFills, nrRedos",nrTests,nrFills,nrRedos)
 
         if (img[0,0,0],img[0,0,1],img[0,0,2])==(0,0,0):
             print ("Sliced: ",filename)

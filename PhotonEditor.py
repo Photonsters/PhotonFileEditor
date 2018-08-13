@@ -41,7 +41,8 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
-#todo: photonfile.OGLCallback.slice does not show progress in dialogbox
+#todo: stlfile.slice2bmp is very slow due to bkp=img.copy() i.c.w. nr of fillpoint (1000)
+#todo: abort slicer.slice is not working
 #todo: can we discard normal calculation if we do not make a inner model?
 #todo: reactive threading in photonfile.replacebitmaps and slicer.slice
 #todo: improve RLE encoding speed, slowdown is in section where we limit nr of repetitions to 0x7D
@@ -408,7 +409,7 @@ class handleGLCallback:
         popup.show()
         try:
             # Slice and save images
-            slicer.slice(sliceHeight=gl.sliceheight, photonfile=photonfile)
+            slicer.slice(sliceHeight=gl.sliceheight, progressDialog=popup, photonfile=photonfile)
             # Refresh header settings which contains number of layers
             refreshHeaderSettings()
             # No preview data is changed
@@ -1233,7 +1234,7 @@ def createMenu():
             menubar.addItem("View", "Enable OGL", setOpenGL, True)
         else:
             menubar.addItem("View", "Disable OGL", setOpenGL, False)
-            menubar.addItem("View", "3D", showFramed3D)
+            #menubar.addItem("View", "3D", showFramed3D)
             menubar.addItem("View", "Full 3D", showFull3D)
         menubar.addItem("View", "----")
     menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
