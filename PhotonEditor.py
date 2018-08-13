@@ -41,11 +41,19 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
-#todo: stlfile.slice2bmp is very slow due to bkp=img.copy() i.c.w. nr of fillpoint (1000)
 #todo: abort slicer.slice is not working
+#todo: use multiprocessing to apply layerEdits
+#todo: in linux circle is drawn as square
+
 #todo: can we discard normal calculation if we do not make a inner model?
-#todo: reactive threading in photonfile.replacebitmaps and slicer.slice
-#todo: improve RLE encoding speed, slowdown is in section where we limit nr of repetitions to 0x7D
+#todo: MAKE (parts of) STL LOADING FASTER
+#todo:      load of benchy.stl is slow... do we really need to calc normals for just filled slices?
+#todo:      calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
+#todo: SPEED IMPROVEMENTS:
+#todo:      analyze if we can make stlfile.slice2bmp faster
+#todo:      improve RLE encoding speed
+#todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
+
 """Apply in PhotonFiile and Voxels. Some ideas:
         https://www.kaggle.com/hackerpoet/even-faster-run-length-encoder
         https://www.kaggle.com/stainsby/fast-tested-rle-and-input-routines
@@ -54,14 +62,9 @@ except ImportError as err:
 """
 #todo: import images locks pc, probably by using all available threads.
 #todo: erosion in Voxel.py
-#todo: slice is slow because we encode and save. Can we not skip some of this when using erode?
-#todo: load of benchy.stl is slow... do we really need to calc normals for just filled slices?
-#todo: use multiprocessing to apply layerEdits
-#todo: in linux circle is drawn as square
 #todo: implement pcb plugin.old
 
 #todo: continuous draw on mouse drag
-#todo: calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: Header LayerDef Address should be updated if importing/replacing bitmaps
 #todo: check on save if layerheighs are consecutive and printer does not midprint go down
 #todo: PhotonFile float_to_bytes(floatVal) does not work correct if floatVal=0.5 - now struct library used
@@ -70,7 +73,6 @@ except ImportError as err:
 #todo: beautify layer bar at right edge of slice image
 #todo: Exe/distribution made with
 #todo: drag GUI-ScrollbarH and ScrollbarV is not implementend
-#todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
 
 
 ########################################################################################################################
@@ -2323,7 +2325,7 @@ def refreshPreviewSettings():
     # If no photonfile nothing to save, so exit
     if photonfile == None: return
 
-    print ("prevNr: ",prevNr)
+    #print ("prevNr: ",prevNr)
     # Travers all preview settings and update values in textboxes
     labelPrevNr.setText(str(prevNr)+"/2") # Update preview counter
     for row, (bTitle, bNr, bType,bEditable, bHint) in enumerate(PhotonFile.pfStruct_Previews):

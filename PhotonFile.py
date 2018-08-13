@@ -14,6 +14,7 @@ from math import *
 import pygame
 from pygame.locals import *
 import concurrent
+import time
 
 try:
     import numpy
@@ -380,7 +381,6 @@ class PhotonFile:
                 Highest bit of each byte is color (black or white)
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
-        print ("ENCODE")
         imgarr=None
 
         # Check if we got a string and if so load image
@@ -401,14 +401,21 @@ class PhotonFile:
         if not (width, height) == (1440, 2560):
             raise Exception("Your image dimensions are off and should be 1440x2560")
 
+        #t0=time.time()
+
         # Convert image data to Numpy 1-dimensional array
         if not isinstance(image, (numpy.ndarray, numpy.generic)): # Not needed if we got an numpy array as input
             imgarr = pygame.surfarray.array2d(imgsurf)
+
+        #t1 = time.time()
 
         # Rotate,flip image and flatten array
         imgarr = numpy.rot90(imgarr,axes=(1,0))
         imgarr = numpy.fliplr(imgarr)  # reverse/mirror array
         x = numpy.asarray(imgarr).flatten(0)
+
+        #t2 = time.time()
+        #print ("rotate/flip/flatten:",(t2-t1))
 
         # Encoding magic
         where = numpy.flatnonzero
@@ -421,16 +428,24 @@ class PhotonFile:
         values = x[starts]
         #ret=np.dstack((lengths, values))[0]
 
+        #t3 = time.time()
+        #print ("encoding magic:",(t3-t2))
+
         # Reduce repetitions of color to max 0x7D/125 and store in bytearray
         rleData = bytearray()
         for (nr, col) in zip(lengths,values):
-            color = (abs(col)>1)
+            #color = (abs(col)>1) # slow
+            color=1 if col else 0 # fast
             while nr > 0x7D:
                 encValue = (color << 7) | 0x7D
                 rleData.append(encValue)
                 nr = nr - 0x7D
             encValue = (color << 7) | nr
             rleData.append(encValue)
+
+        #t4 = time.time()
+        #print ("max rep 0x7D:",(t4-t3))
+        #quit()
 
         # Needed is an byte string, so convert
         return bytes(rleData)
@@ -1000,10 +1015,10 @@ class PhotonFile:
 
 
     cancelReplace=False
-    def replaceBitmapData(self,layerNr,filename,rlestack):
-        """ Helper for procespoolexecutor in replaceBitmaps to call """
-        #if self.cancelReplace: return None
-        rlestack[layerNr] = PhotonFile.encodedBitmap_Bytes(surfOrFile=filename)
+    def par_encodedBitmap_Bytes(self,layerNr,filename):
+        # Helper for procespoolexecutor in replaceBitmaps to call 
+        if self.cancelReplace: return None
+        return [layerNr,PhotonFile.encodedBitmap_Bytes(surfOrFile=filename)]
 
     def replaceBitmaps(self, bitmaps, progressDialog=None):
         """ Delete all images in PhotonFile object and add images in directory."""
@@ -1033,14 +1048,48 @@ class PhotonFile:
 
             # Check if there are files available and if so check first file for correct dimensions
             if len(files) == 0: raise Exception("No files of type png are found!")
-            rawData = PhotonFile.encodedBitmap_Bytes(files[0])
 
             # Read all files in parallel and wait for result
-            args=[]
-            rlestack=len(files)*[None]
-            for i in range(0,len(files)):
-                args.append([i,files[i]])
-                self.replaceBitmapData(layerNr=i,filename=files[i],rlestack=rlestack)
+            res=[]
+            nLayers=len(files)
+            rlestack = nLayers * [None]
+            self.cancelReplace=False
+            tstart=time.time()
+            with concurrent.futures.ProcessPoolExecutor() as executor: # In this case ProcessPoolExecutor is 2.5 x faster then ThreadPoolExecutor
+                # Submit all jobs to ProcessPoolExecutor
+                for layerNr,filename in enumerate(files):
+                    job = executor.submit(self.par_encodedBitmap_Bytes, layerNr=layerNr, filename=filename)
+                    res.append(job)
+                    if not progressDialog==None:
+                        perc = 50 * layerNr / nLayers
+                        if perc > 50: perc = 50
+                        progressDialog.setProgress(perc)
+                        #progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
+                        progressDialog.handleEvents()
+                        if progressDialog.cancel:
+                            #  Reset total number of layers to last layer we processes
+                            self.cancelReplace=True
+                            print ("Abort.")
+                            return
+
+                # Handle all results as they come available
+                nrLayersDone = 0
+                for ret in concurrent.futures.as_completed(res):
+                    layerNr,rawData=ret.result()
+                    rlestack[layerNr] = rawData
+                    nrLayersDone+=1
+                    if not progressDialog==None:
+                        perc = 50+50 * nrLayersDone / nLayers
+                        if perc > 100: perc = 100
+                        progressDialog.setProgress(perc)
+                        #progressDialog.setProgressLabel(str(nrLayersDone) + "/" + str(nLayers))
+                        progressDialog.handleEvents()
+                        if progressDialog.cancel:
+                            #  Reset total number of layers to last layer we processes
+                            self.cancelReplace=True
+                            print ("Abort.")
+                            return
+            print ("Import images in %0.2f msec." % (int(1000*(time.time()-tstart))))
 
         # Remove old data in PhotonFile object
         nLayers = len(rlestack)
@@ -1055,35 +1104,6 @@ class PhotonFile:
                 self.LayerData[layerNr]["Raw"] = rawDataTrunc
                 self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
                 nrL+=1
-
-        """
-        self.cancelReplace=False
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            for ret in executor.map(self.replaceBitmapData,args):
-                #print (layerNr)
-                if not ret==None: # In case of cancel
-                    (layerNr, rawData) = ret
-                    rawDataTrunc = rawData[:-1]
-                    rawDataLastByte = rawData[-1:]
-                    self.LayerData[layerNr]["Raw"] = rawDataTrunc
-                    self.LayerData[layerNr]["EndOfLayer"] = rawDataLastByte
-                    # If not processed in order, we need to check which reallayerNr this is
-                    nrL=nrL+1
-                # Check if user canceled
-                if not progressDialog==None:
-                    progressDialog.setProgress(100*nrL/nLayers)
-                    progressDialog.setProgressLabel(str(nrL) + "/" + str(nLayers))
-                    progressDialog.handleEvents()
-                    if progressDialog.cancel:
-                        #  Reset total number of layers to last layer we processes
-                        self.cancelReplace=True
-                        print ("Abort with ",nrL,"layers.")
-
-            # Wait for all done
-            executor.shutdown(wait=True)
-
-        print ("imported ",nrL)
-        """
 
         # Resize depending on number of layers imported (abort could have deminished nr of layers)
         nLayers=nrL # if cancel this nr can differ from nr of images
@@ -1116,7 +1136,7 @@ class PhotonFile:
 
         # For each layer copying layer settings from Header/General settings.
         deltaLayerHeight=self.bytes_to_float(self.Header["Layer height (mm)"])
-        print("Processing:")
+        #print("Processing:")
         for layerNr in range(nLayers):
             #print("  ", layerNr,"/",nLayers, file)
             # Get rawdata to determine size
@@ -1138,10 +1158,11 @@ class PhotonFile:
             self.LayerDefs[layerNr]["padding"] = self.hex_to_bytes("00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00") # 4 *4bytes
 
             # Keep track of address of raw imagedata
-            print ("Layer, DataPos, DataLength ",layerNr,rawDataStartPos,len(rawData))
+            #print ("Layer, DataPos, DataLength ",layerNr,rawDataStartPos,len(rawData))
+
             # Get encoded raw data
             rawDataStartPos = rawDataStartPos + rawDataLen
-            print("New DataPos", rawDataStartPos)
+            #print("New DataPos", rawDataStartPos)
 
         return True
 
@@ -1180,6 +1201,15 @@ class PhotonFile:
         pygame.image.save(prevSurf, fullfilename)
         return
 
+    cancelReplace=False
+    def par_getBitmap(self,layerNr,forecolor,backcolor,scale,fullfilename):
+        # Helper for procespoolexecutor in replaceBitmaps to call
+        if self.cancelReplace: return None
+        imgSurf=self.getBitmap(layerNr,forecolor,backcolor,scale)
+        pygame.image.save(imgSurf, fullfilename)
+        #print (layerNr,imgsurf)
+        #return [layerNr,imgsurf]
+        return layerNr
 
     def exportBitmaps(self,dirPath,filepre,progressDialog=None):
         """ Save all images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
@@ -1187,24 +1217,54 @@ class PhotonFile:
         nLayers=self.nrLayers()
 
         # Traverse all layers
-        for layerNr in range(0,nLayers):
-            # Make filename
-            nrStr="%04d" % layerNr
-            filename=filepre+"_"+ nrStr+".png"
-            #print ("filename: ",filename)
-            fullfilename=os.path.join(dirPath,filename)
-            # Retrieve decode pygame image surface
-            imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
-            # Save layer image to disk
-            pygame.image.save(imgSurf,fullfilename)
+        self.cancelReplace=False
+        res = []
+        tstart=time.time()
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            # Submit all jobs to ProcessPoolExecutor
+            for layerNr in range(0,nLayers):
+                # Retrieve decode pygame image surface
+                #imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
+                # Make filename
+                nrStr = "%04d" % layerNr
+                filename = filepre + "_" + nrStr + ".png"
+                # print ("filename: ",filename)
+                fullfilename = os.path.join(dirPath, filename)
 
-            print ("Exported slice ",layerNr,"/",nLayers)
-            # Check if user canceled
-            if not progressDialog==None:
-                progressDialog.setProgress(100*layerNr/nLayers)
-                progressDialog.setProgressLabel(str(layerNr)+"/"+str(nLayers))
-                progressDialog.handleEvents()
-                if progressDialog.cancel: return False
+                job = executor.submit(self.par_getBitmap, layerNr=layerNr, forecolor=(255,255,255),backcolor=(0,0,0),scale=(1,1),fullfilename=fullfilename)
+                res.append(job)
+                # Check if user canceled
+                if not progressDialog == None:
+                    perc = 50 * layerNr / nLayers
+                    if perc > 50: perc = 50
+                    progressDialog.setProgress(perc)
+                    # progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
+                    progressDialog.handleEvents()
+                    if progressDialog.cancel:
+                        #  Reset total number of layers to last layer we processes
+                        self.cancelReplace = True
+                        print("Abort.")
+                        return
+
+            # Handle all results as they come available
+            #   We can't store pygame.Surface in ret, they will come up as dead surface
+            #   So saving images to files is also done in par_getBitmap
+            nrLayersDone=0
+            for ret in concurrent.futures.as_completed(res):
+                layerNr=ret.result()
+                nrLayersDone+=1
+                if not progressDialog == None:
+                    perc = 50 + 50 * nrLayersDone / nLayers
+                    if perc > 100: perc = 100
+                    progressDialog.setProgress(perc)
+                    # progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
+                    progressDialog.handleEvents()
+                    if progressDialog.cancel:
+                        #  Reset total number of layers to last layer we processes
+                        self.cancelReplace = True
+                        print("Abort.")
+                        return
+            print("Export images in %0.2f msec." % (int(1000 * (time.time() - tstart))))
 
         # Also save the preview images
         for i in range (0,2):
@@ -1446,4 +1506,6 @@ pfStruct_LayerDef = [
 ("padding", 4 * 4, tpByte, False)  # 4 ints
 """
 
+#quit()
+#PhotonFile.encodedBitmap_Bytes_withnumpy("SamplePhotonFiles/Smilie.bitmaps/slice__0005.png")
 #quit()

@@ -318,7 +318,7 @@ class MenuBar():
                 pygame.event.clear()
                 self.activeMenu["menulist"].visible = False
                 self.activeMenu = None
-                print ("close menu True")
+                #print ("close menu True")
                 return True
 
         # If we are below menubar and nothing in menulists (not returned True) then user clicks on workarea of window to hide all menus
@@ -328,7 +328,7 @@ class MenuBar():
                 pygame.event.clear()
                 self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
-                print("close menu False")
+                #print("close menu False")
 
 
     def handleMouseMove(self, pos):
@@ -556,7 +556,7 @@ class MenuList():
         """ Calls on user function if clicked on menu item."""
         if not button == 1: return
         if not self.visible: return
-        print ("menulist.mouseUp", self.title)
+        #print ("menulist.mouseUp", self.title)
 
         # Handle submenus
         for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
@@ -569,13 +569,13 @@ class MenuList():
             pygame.event.clear()
             for row, (item, func_on_click,arg,subMenuList) in enumerate(self.items):
                 if row == self.activeItem:
-                    print ("handleMouseUp",self.title, item, func_on_click)
+                    #print ("handleMouseUp",self.title, item, func_on_click)
                     if not func_on_click==None:
                         if arg==None:
-                            print("  func_on_click")
+                            #print("  func_on_click")
                             func_on_click()
                         else:
-                            print("  func_on_click + arg")
+                            #print("  func_on_click + arg")
                             func_on_click(arg)
                         self.visible=False
                         return True
