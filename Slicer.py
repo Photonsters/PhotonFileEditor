@@ -70,10 +70,10 @@ class Slicer:
             # self.load_binary_+-stl('resources/knight.stl', 0.3)
 
         print ("load...")
-        stl.load_binary_stl(filename, 0.4)
+        arrpoints,arrnormals=stl.load_stl(filename, 0.4)
 
         print ("setModel...")
-        aGL.setModel(stl.points, stl.model)
+        aGL.setModel(stl.points, stl.triangles,arrpoints,arrnormals)
 
         self.stl=stl
         print ("done...")
@@ -118,13 +118,9 @@ class Slicer:
         dt = pygame.time.get_ticks()-t1
         print ("Elapsed:",dt)
 
-
-
         #aGL.setModel(stl.points,stl.model)
         #aGL.setInnerWallModel(stl.innerpoints)
         #aGL.setModel(points, slice)
-
-
 
         print("-0-------")
 

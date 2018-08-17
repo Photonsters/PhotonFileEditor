@@ -5,6 +5,7 @@ import pygame
 from pygame.locals import *
 from Helpers3D import *
 from PhotonFile import *
+from concurrent.futures import ProcessPoolExecutor
 
 
 def gluPerspective( fovY, aspect, zNear, zFar ):
@@ -269,72 +270,92 @@ class GL():
                 self.model.append(tri1)
                 self.model.append(tri2)
 
-    modelListIdx=-1
-    def store_model(self,points,model,colorFront=(0.1,0.3,1),colorBack=(1,0.3,0.3)):
-        # create one display list
-        self.modelListIdx = glGenLists(1)
 
-        print ("self.displayListIdx",self.modelListIdx)
+    modelBufferIdx=-1
+    modelBufferLen=-1
+    normalBufferIdx=-1
+    normalBufferLen=-1
+    def store_model_asbuffer(self,points,normals):
+        # https://www.opengl.org/discussion_boards/showthread.php/183305-How-to-use-glDrawArrays%28%29-with-VBO-Vertex-Buffer-Object-to-display-stl-geometry
 
-        glNewList(self.modelListIdx, GL_COMPILE)
+        # ===============================================
+        # First add points to buffer
+        # ===============================================
+        points=points.flatten()
+        points = points.astype(numpy.float32)
+        self.modelBufferLen=len(points)//3
 
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,50.0)
+        #print("points", points)
+        #print ("len",self.modelBufferLen)
+        glEnableClientState(GL_VERTEX_ARRAY)
+        self.modelBufferIdx = glGenBuffers(1)
+        dataSize = arrays.ArrayDatatype.arrayByteCount(points)
 
-        #first color back face of triangles
-        glEnable(GL_CULL_FACE)
+        #print ("datasize",dataSize)
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelBufferIdx )
+        glBufferData(GL_ARRAY_BUFFER, dataSize,points, GL_STATIC_DRAW)
 
-        glCullFace(GL_BACK)
-        glBegin(GL_TRIANGLES)
-        glColor3fv(colorBack)
-        for tri in model:
-            glNormal3fv(tri.normal.toTuple())
-            glVertex3fv(tri.coord(0,points).toTuple())
-            glVertex3fv(tri.coord(1,points).toTuple())
-            glVertex3fv(tri.coord(2,points).toTuple())
-        glEnd()
+        # ===============================================
+        # Second add normals for each triangle to buffer
+        # ===============================================
 
-        # next color front face of triangles
-        glCullFace(GL_FRONT)
-        glBegin(GL_TRIANGLES)
-        glColor3fv(colorFront)
-        for tri in model:
-            glNormal3fv(tri.normal.toTuple())
-            glVertex3fv(tri.coord(0,points).toTuple())
-            glVertex3fv(tri.coord(1,points).toTuple())
-            glVertex3fv(tri.coord(2,points).toTuple())
-        glEnd()
+        normals = normals.flatten()
+        normals = normals.astype(numpy.float32)
+        self.normalBufferLen=len(normals)
 
-        # Draw normals for debuggin
-        self.draw_pointnormals()
+        glEnableClientState(GL_NORMAL_ARRAY)
+        self.normalBufferIdx = glGenBuffers(1)
+        dataSize = arrays.ArrayDatatype.arrayByteCount(normals)
 
-        glDisable(GL_CULL_FACE)
+        glBindBuffer(GL_ARRAY_BUFFER, self.normalBufferIdx )
+        glBufferData(GL_ARRAY_BUFFER, dataSize,normals, GL_STATIC_DRAW)
 
-        glEndList()
-
-        return self.modelListIdx
 
     def draw_model(self,type=GL_FILL): #or GL_LINE
+
+        if self.modelBufferIdx==-1: return
+
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelBufferIdx)
+        glVertexPointer(3,GL_FLOAT,0,None)
+
+        glEnableClientState(GL_NORMAL_ARRAY)
+        glBindBuffer(GL_ARRAY_BUFFER, self.normalBufferIdx)
+        glNormalPointer(GL_FLOAT, 0, None)
+
+        colorFront = (0.1, 0.3, 1)
+        colorBack = (1, 0.3, 0.3)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2, 0.2, 0.2))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 50.0)
+
         glPolygonMode(GL_FRONT_AND_BACK, type)
-        if len(self.model)>0:
-            glCallList(self.modelListIdx)
+        glCullFace(GL_FRONT)
+        glColor3fv(colorFront)
+
+        glDrawArrays(GL_TRIANGLES,0,self.modelBufferLen)
+
+        glDisable(GL_CULL_FACE)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
+        glDisableClientState(GL_NORMAL_ARRAY)
+        glDisableClientState(GL_VERTEX_ARRAY)
+
 
         #if not self.innerpoints==None:
         #    glCallList(self.innerwallListIdx)
-
         #self.draw_pointnormals()
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
 
-    def setModel(self,points,model):
+
+
+    def setModel(self,points,model,arrpoints=None,arrnormals=None):
         self.points=points
         self.model=model
-        self.modelListIdx=self.store_model(self.points,self.model)
+        self.store_model_asbuffer(arrpoints,arrnormals)
 
     def setInnerWallModel(self,innerpoints):
         self.innerpoints=innerpoints
         self.innerwallListIdx=self.store_model(self.innerpoints,self.model,(0,1,1),(1,1,0))
-
 
     def __init__(self,display_size,callback=None):
 
@@ -555,7 +576,7 @@ class GL():
             yaxis = (matrix[1], matrix[5], matrix[9])
             zaxis = (matrix[2], matrix[6], matrix[10])
             l=-150
-            h=-l/4
+            h=-100*l#-l/4
             posl = (zaxis[0] * l + yaxis[0] * h, zaxis[1] * l + yaxis[1] * h, zaxis[2] * l + yaxis[2] * h)
 
             glEnable(GL_LIGHT0)
@@ -583,7 +604,7 @@ class GL():
             glDisable(GL_LIGHT0)
             #glDisable(GL_LIGHT1)
 
-        #draw overlay
+        #draw GUI overlay
         glPushMatrix()
         glLoadIdentity()
         #gluPerspective(45, (display[0] / display[1]), 0.1, 8)  # 10.0,10.05)

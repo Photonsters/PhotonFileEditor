@@ -63,7 +63,10 @@ class ProgressDialog():
                                    self.footerTop + self.margins.x, self.buttonWidth, self.buttonHeight)
 
 
-    def __init__(self, flipFunc,pyscreen, pos, width=300,title="Progress Dialog",message="Wait or... \n ...press Cancel!", dfontname=defFontName, dfontsize=defFontSize):
+    def __init__(self, flipFunc,pyscreen, pos, width=300,title="Progress Dialog",
+                 message="Wait or... \n ...press Cancel!",
+                 dfontname=defFontName, dfontsize=defFontSize,
+                 showCancel=True):
         """ Saves all values to internal variables and calculates some extra internal vars. """
         self.flipFunc=flipFunc
         self.pyscreen = pyscreen
@@ -72,6 +75,7 @@ class ProgressDialog():
         self.title=title
         self.message=message
         self.font = pygame.font.SysFont(dfontname, dfontsize)
+        self.showCancel=showCancel
 
         # Calculate extra variables
         dummy, textheight = self.font.size("MinimalText")
@@ -133,7 +137,7 @@ class ProgressDialog():
         self.label.redraw()
         self.progbar.redraw()
         self.proglabel.redraw()
-        self.btnCancel.redraw()
+        if self.showCancel: self.btnCancel.redraw()
         self.flipFunc()
 
     def handleEvents(self):

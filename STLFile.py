@@ -7,6 +7,14 @@ import math
 import cv2
 import os
 import time
+#import concurrent.futures
+from threading import Thread
+
+try:
+    from scipy.sparse import csr_matrix
+    scipyIsAvailable = True
+except ImportError:
+    scipyIsAvailable = False
 
 # load stl file detects if the file is a text file or binary file
 
@@ -15,13 +23,13 @@ class STLFile:
     cmax = [-100, -100, -100]
     modelheight=0
     points = []
-    model = []
+    triangles = []
     innerpoints=[]
-    innermodel=[]
-    testTris=[35,33] # opposite walls
-    testTris = [35,31]
-    testTris = [0, 2,3]
-    testTris = []
+    #innermodel=[]
+    #testTris=[35,33] # opposite walls
+    #testTris = [35,31]
+    #testTris = [0, 2,3]
+    #testTris = []
 
 
     def load_stl(self, filename, scale):
@@ -30,15 +38,18 @@ class STLFile:
         h = fp.read(80)
         type = h[0:5]
         fp.close()
-        # print ("filename",filename)
-        # print ("type",type)
 
+        return self.load_binary_stl(filename, scale)
+
+        # Old code, but it seems e.g. benchy3D.stl also starts with 'solid'
         if type == b'solid':
             print("reading text file " + str(filename))
-            self.load_text_stl(filename, scale)
+            raise Exception ("Text STL files cannot be read!")
+            #self.load_text_stl(filename, scale)
+            return
         else:
             print("reading binary stl file " + str(filename, ))
-            self.load_binary_stl(filename, scale)
+            return self.load_binary_stl(filename, scale)
         print("...loaded")
 
 
@@ -65,38 +76,39 @@ class STLFile:
                 if words[0] == 'endloop':
                     # make sure we got the correct number of values before storing
                     if len(triangle) == 3:
-                        self.model.append(Triangle3D(triangle[0], triangle[1], triangle[2], normal))
+                        self.triangles.append(Triangle3D(triangle[0], triangle[1], triangle[2], normal))
         fp.close()
-        print("Nr triangles:", len(self.model))
-        return self.model
+        print("Nr triangles:", len(self.triangles))
+        return self.triangles
 
 
     # load binary stl file check wikipedia for the binary layout of the file
     # we use the struct library to read in and convert binary data into a format we can use
-    def appendFast(self,object,list,idx):
-        #print ("in list: ",len(list),id(list))
-        if idx>=len(list):
-            list=list+[None]*1000
-            print ("resized: ",len(list), id(list))
-        list[idx]=object
-        return list
 
     def clearModel(self):
         self.points = []
-        self.model = []
+        self.triangles = []
         self.cmin = []
         self.cmax = []
 
-    def load_binary_stl(self, filename, scale=1):
-        fp = open(filename, 'rb')
-        h = fp.read(80)
+    modelProcessed=False
 
+    def load_binary_stl(self, filename, scale=1):
+        print ("Reading binary")
+        #filebytes = os.path.getsize(filename)
+
+        fp = open(filename, 'rb')
+
+        h = fp.read(80)
         l = struct.unpack('I', fp.read(4))[0]
         count = 0
 
-        pidx=0
+        t0=time.time()
 
         self.clearModel()
+        points=[]
+        normals=[]
+        filepos=0
         while True:
             try:
                 p = fp.read(12)
@@ -125,19 +137,11 @@ class STLFile:
                     p2 = [p2[a], p2[b], p2[c]]
                     p3 = [p3[a], p3[b], p3[c]]
 
-                    # scale model
-                    if not scale==1:
-                        p1s = [i * scale for i in p1]
-                        p2s = [i * scale for i in p2]
-                        p3s = [i * scale for i in p3]
-                    else:
-                        p1s=p1
-                        p2s=p2
-                        p3s=p3
-
-                    self.points.append(p1s)
-                    self.points.append(p2s)
-                    self.points.append(p3s)
+                    # add points to array
+                    points.append(p1)
+                    points.append(p2)
+                    points.append(p3)
+                    normals.append(n)
 
                 count += 1
                 fp.read(2)
@@ -149,24 +153,74 @@ class STLFile:
                 break
         fp.close()
 
-        # convert to numpy
-        npoints=numpy.array(self.points)
+        #t1=time.time()
+        #print ("t1-t0",t1-t0)
+
+        # use numpy for easy and fast center and scale model
+        np_points=numpy.array(points)
+        np_normals=numpy.array(normals)
+
+        # scale model
+        if not scale == 1:
+            np_points = np_points * scale
 
         #find max and min of x, y and z
-        x = npoints[:, 0]
-        y = npoints[:, 1]
-        z = npoints[:, 2]
+        x = np_points[:, 0]
+        y = np_points[:, 1]
+        z = np_points[:, 2]
         self.cmin = (x.min(), y.min(), z.min())
         self.cmax = (x.max(), y.max(), z.max())
+        self.modelheight=self.cmax[1]-self.cmin[1]
+
+        # Center model and put on base
+        trans = [0, 0, 0]
+        trans[0] = -(self.cmax[0] - self.cmin[0]) / 2 - self.cmin[0]
+        trans[2] = -(self.cmax[2] - self.cmin[2]) / 2 - self.cmin[2]
+        trans[1] = -self.cmin[1]
+
+        # Center numpy array of points which is returned for fast OGL model loading
+        np_points=np_points+trans
+
+        # align coordinates on grid
+        # this will reduce number of points and speed up loading
+        # with benchy grid-screenres/1:  total time 28 sec, nr points remain 63k , but large artifacts
+        # with benchy grid-screenres/50: total time 39 sec, nr points remain 112k, no artifacts
+        # w/o benchy :                   total time 40 sec, nr points remain 113k, no artifacts
+        screenres = 0.047
+        grid = screenres / 50 # we do not want artifacts but reduce rounding errors in the file to cause misconnected triangles
+        np_points = grid * (np_points // grid)
+
+        # we will start further processing in background
+        self.modelProcessed=False
+        t = Thread(target=self.process_raw_model, args=(np_points,))
+        t.start()
+
+        # return points and normal for OGLEngine to display
+        print ("Return")
+        return np_points,np_normals
+
+
+    def process_raw_model(self, npoints):
+        """ Convert numpy array of points to triangle and point classes.
+        """
+
+        print ("Enter background raw model")
+        t0=time.time()
 
         # Create list of unique points and a list indices which translates npoints to indices in list of unique points
         upoints, indices=numpy.unique(npoints,axis=0,return_inverse=True)
+        print ("Nr of unique points in model: ",len(upoints))
 
+        #t2=time.time()
+        #print ("t2-t1",t2-t1)
 
         # convert tuple coordinates to point3D instances
         self.points=[]
         for p in upoints:
             self.points.append(Point3D(p))
+
+        #t3=time.time()
+        #print ("t3-t2",t3-t2)
 
         # construct triangles
         for i in range(0,len(indices),3):
@@ -174,19 +228,46 @@ class STLFile:
             p1 = indices[i+1]
             p2 = indices[i+2]
             tri = Triangle3D(self.points, p0, p1, p2)
-            self.model.append(tri)
+            self.triangles.append(tri)
+
+        #t4=time.time()
+        #print ("t4-t3",t4-t3)
+
+        # We want to calculate average normal of each point
+        #   by averaging the normals of the triangles wich connect to this point.
+        #   These average normals are used to paint inside of model slices
+
+        # Fast alternative to numpy.where using scipy
+        # https://stackoverflow.com/questions/33281957/faster-alternative-to-numpy-where
+        if scipyIsAvailable:
+            def compute_M(data):
+                cols = numpy.arange(data.size)
+                return csr_matrix((cols, (data.ravel(), cols)),
+                                  shape=(data.max() + 1, data.size))
+
+            def get_indices_sparse(data):
+                M = compute_M(data)
+                return [numpy.unravel_index(row.data, data.shape) for row in M]
+
+            # Make list of occurence of each upoint (needed to calculate point normals
+            occurences_arr = get_indices_sparse(indices) #10 sec with benchy
 
         # Make list of occurence of each upoint (needed to calculate point normals
+        # This one takes a long time!
         print ("Calc normals")
         for pointIdx in range(0,len(upoints)):
-            # make list of places in indices which point to this upoint
-            occurences=numpy.where(indices==pointIdx)[0]
+            if scipyIsAvailable:
+                occurences=occurences_arr[pointIdx][0]
+            else:
+                # make list of places in indices which point to this upoint
+                occurences=numpy.where(indices==pointIdx)[0]
             # convert to triangle indexes (each triangle consists of three (u)points
             occurences=occurences//3
             # put all triangle normals in list, to filter later
             normals=[]
             for triIdx in occurences:
-                normals.append(self.model[triIdx].normal.toTuple())
+                normals.append(self.triangles[triIdx].normal.toTuple())
+
             normals=numpy.array(normals)
             # remove duplicates (square is made up of 2 triangles, but only 1 normal should be used
             normals=numpy.unique(normals,axis=0)
@@ -198,23 +279,19 @@ class STLFile:
             # store normal in point
             self.points[pointIdx].n=normal
 
+        #t5=time.time()
+        #print ("t5-t4",t5-t4)
+
         print("Loaded file.")
         print("  Nr points:", len(self.points))
-        print("  Nr triangles:", len(self.model))
+        print("  Nr triangles:", len(self.triangles))
         print("  min-max", self.cmin, self.cmax)
 
-        # Center model and put on base
-        trans = [0, 0, 0]
-        trans[0] = -(self.cmax[0] - self.cmin[0]) / 2 - self.cmin[0]
-        trans[2] = -(self.cmax[2] - self.cmin[2]) / 2 - self.cmin[2]
-        trans[1] = -self.cmin[1]
-        for p in self.points:
-            p.x = p.x + trans[0]
-            p.y = p.y + trans[1]
-            p.z = p.z + trans[2]
-        self.modelheight=self.cmax[1]-self.cmin[1]
+        t6=time.time()
+        #print ("t6-t5",t6-t5)
+        print ("total loading stl",t6-t0)
 
-        return self.points,self.model
+        self.modelProcessed=True
 
 
     def make_rotation_transformation(angle):
@@ -261,7 +338,7 @@ class STLFile:
     def createInnerWall(self, wallThickness):
         setNrDecimals(1)
 
-        for nr,tri in enumerate(self.model):
+        for nr,tri in enumerate(self.triangles):
             print("tri ", nr," : ",str(tri))
 
         self.innerpoints=len(self.points)*[None]
@@ -273,7 +350,7 @@ class STLFile:
             print("line ", str(line3d))
             # Calculate first triangle we encounter and set as maximum distance to extrude
             minDist=wallThickness
-            for nrt,tri in enumerate(self.model):
+            for nrt,tri in enumerate(self.triangles):
                 if not tri.hasPoint(p):
                     print ("TRI #",str(nrt)," | ",str(tri))
                     plane=Plane3D.fromTriangle(tri)
@@ -357,9 +434,14 @@ class STLFile:
         """ Returns sliced and joined external model and inner model
         """
 
+        # Check if model is fully loaded
+        if not self.modelProcessed:
+            raise Exception("Please wait, model not yet fully loaded!")
+            return
+
         # First extract all from mode and inner model above fromY
-        pointsAbove,sliceAbove=self.__takeSlice(self.points,self.model,fromY,self.RET_ABOVE)
-        innerpointsAbove, innersliceAbove = self.__takeSlice(self.innerpoints, self.model, fromY, self.RET_ABOVE)
+        pointsAbove,sliceAbove=self.__takeSlice(self.points, self.triangles, fromY, self.RET_ABOVE)
+        innerpointsAbove, innersliceAbove = self.__takeSlice(self.innerpoints, self.triangles, fromY, self.RET_ABOVE)
 
         # Using extraction, extract all from mode and inner model below fromY
         pointsBelow, sliceBelow = self.__takeSlice(pointsAbove, sliceAbove, toY, self.RET_BELOW)

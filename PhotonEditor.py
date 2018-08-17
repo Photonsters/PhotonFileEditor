@@ -41,18 +41,23 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: In STLFILE load binary
+#todo:      add scipy as recommended library to opening screen
+#todo: Voxel viewer
+#todo:      implement with 1 layer shell and coordinates instead of 3d voxel array
+#todo:      After slice we should see result in voxel viewer and have option to implement hollow/gyroid infill
+
 #todo: abort slicer.slice is not working
 #todo: use multiprocessing to apply layerEdits
 #todo: in linux circle is drawn as square
 
-#todo: can we discard normal calculation if we do not make a inner model?
-#todo: MAKE (parts of) STL LOADING FASTER
-#todo:      load of benchy.stl is slow... do we really need to calc normals for just filled slices?
-#todo:      calcnormals is still slow on large STLs, mainly to need to access triangles and append their normals to a list
 #todo: SPEED IMPROVEMENTS:
 #todo:      analyze if we can make stlfile.slice2bmp faster
-#todo:      improve RLE encoding speed
+#todo:      improve RLE encoding speed further
 #todo: Numpy in Linux is slow: https://stackoverflow.com/questions/26609475/numpy-performance-differences-between-linux-and-windows
+
+#todo: 3d viewer / opengl
+#todo:      in linux, the mouse drag to rotate/translate does not work properly (only intermittenly)
 
 """Apply in PhotonFiile and Voxels. Some ideas:
         https://www.kaggle.com/hackerpoet/even-faster-run-length-encoder
@@ -61,7 +66,6 @@ except ImportError as err:
         can we use np.where om >240 te splitten?
 """
 #todo: import images locks pc, probably by using all available threads.
-#todo: erosion in Voxel.py
 #todo: implement pcb plugin.old
 
 #todo: continuous draw on mouse drag
@@ -70,8 +74,6 @@ except ImportError as err:
 #todo: PhotonFile float_to_bytes(floatVal) does not work correct if floatVal=0.5 - now struct library used
 #todo: process cursor keys for menu
 #todo: hex_to_bytes(hexStr) et al. return a bytearray, should we convert this to bytes by using bytes(bytearray)?
-#todo: beautify layer bar at right edge of slice image
-#todo: Exe/distribution made with
 #todo: drag GUI-ScrollbarH and ScrollbarV is not implementend
 
 
@@ -407,7 +409,7 @@ class handleGLCallback:
         # Since import WILL take a while (although faster with numpy library available) show a be-patient message
         popup = ProgressDialog(flipFunc, screen, pos=(140, 140),
                                title="Please wait...",
-                               message="Photon File Editor is importing your images.")
+                               message="Photon File Editor is slicing your model.")
         popup.show()
         try:
             # Slice and save images
@@ -452,12 +454,12 @@ def loadFile(retfilename=None):
         filename = retfilename
         print ("Returned: ",filename)
         try:
-            if filename.endswith(".photon"):
+            if filename.lower().endswith(".photon"):
                 # Open file and update window title to reflect new filename
                 openPhotonFile(filename)
                 barefilename = (os.path.basename(filename))
                 pygame.display.set_caption("Photon File Editor - " + barefilename)
-            elif filename.endswith(".stl"):
+            elif filename.lower().endswith(".stl"):
                 global fullScreenOpenGL
                 global slicer
                 slicer = Slicer(gl,filename)
