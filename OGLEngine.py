@@ -90,70 +90,202 @@ class GL():
             glVertex3fv(pos0)
             glEnd()
 
-    def drawBox(self, pos, dim,type,color=(255,255,255)):
+    def drawBox(self, pos, dim,type):
+        #glColor3f(0,128,0)
         self.drawSquare((pos[0],pos[1],pos[2]), 0, dim[1],dim[2],type)
         self.drawSquare((pos[0]+dim[0], pos[1], pos[2]), 0, dim[1], dim[2],type)
 
+        #glColor3f(128, 0, 0)
         self.drawSquare((pos[0],pos[1],pos[2]), 1, dim[0],dim[2],type)
         self.drawSquare((pos[0], pos[1]+dim[1], pos[2]), 1, dim[0], dim[2],type)
 
+        #glColor3f(0, 0, 128)
         self.drawSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],type)
         self.drawSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],type)
 
-    voxelIdx=-1
-    def store_voxels(self,img,y):
-        # y=0-1
-        self.voxelIdx= glGenLists(1)
-        #print ("layerNr",layerNr)
-        #img = photonfile.getBitmap(layerNr,(0,0,0),(255,255,255),(1,1))
-        pixarray=pygame.surfarray.pixels2d(img)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
-        glNewList(self.voxelIdx, GL_COMPILE)
-        #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2,0.2,0.2))
-        #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
-        #glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,20.0)
+    def storeSquare(self,pos,axis,width,height,points):
+        if axis==0:
+            pos0=pos
+            pos1 = (pos[0], pos[1] + width, pos[2])
+            pos2 = (pos[0], pos[1] + width, pos[2] + height)
+            pos3 = (pos[0], pos[1] , pos[2] + height)
 
-        #nrLayers=photonfile.nrLayers()
-        #print (img.get_width(),img.get_height())
-        #glColor3f(0,128,0)
-        #self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
-        maxf=60/720/2
-        count=0
-        for row in range (500,2000):#2560
-            for col in range (0,1440):
-                rgb=pixarray[col,row]
+        if axis==1:
+            pos0=pos
+            pos1 = (pos[0]+width,pos[1],pos[2])
+            pos2 = (pos[0] + width, pos[1], pos[2]+height)
+            pos3 = (pos[0], pos[1], pos[2]+height)
 
-                x=col-720   # x=0-1
-                z=row-1280  # z=0-1
-                x=x*maxf
-                z=z*maxf
-                y=y*maxf
-                y=10
-                #y=2*layerNr/nrLayers-1
-                #print ("col,row",col,row)
-                #if rgb > 0: self.drawBox   ((x, y, z), (maxf*5,maxf*5,maxf*5),GL_TRIANGLES)
-                if rgb > 0: self.drawSquare((x, y, z), 1,maxf * 5, maxf * 5, GL_TRIANGLES)
-                count=count+1
-                #print (x,y,z)
-                #print (col,row,rgb)
-            #print("======")
-            #print (row)
-        glEndList()
-        print ("nrSquares:",count)
+        if axis==2:
+            pos0=pos
+            pos1 = (pos[0]+width,pos[1],pos[2])
+            pos2 = (pos[0] + width, pos[1]+height, pos[2])
+            pos3 = (pos[0], pos[1] + height, pos[2])
 
-        return self.voxelIdx
+        for i in range(3): points.append(pos0[i])
+        for i in range(3): points.append(pos1[i])
+        for i in range(3): points.append(pos2[i])
+
+        for i in range(3): points.append(pos0[i])
+        for i in range(3): points.append(pos2[i])
+        for i in range(3): points.append(pos3[i])
+
+    def storeBox(self, pos, dim,points,normals):
+        self.storeSquare((pos[0],pos[1],pos[2]), 0, dim[1],dim[2],points)
+        self.storeSquare((pos[0]+dim[0], pos[1], pos[2]), 0, dim[1], dim[2],points)
+        for i in range(6): normals.extend([-1,0,0])
+        for i in range(6): normals.extend([1,0,0])
+
+        self.storeSquare((pos[0],pos[1],pos[2]), 1, dim[0],dim[2],points)
+        self.storeSquare((pos[0], pos[1]+dim[1], pos[2]), 1, dim[0], dim[2],points)
+        for i in range(6): normals.extend([0,-1,0])
+        for i in range(6): normals.extend([0,1,0])
+
+        self.storeSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],points)
+        self.storeSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],points)
+        for i in range(6): normals.extend([0,0,-1])
+        for i in range(6): normals.extend([0,0,1])
+
+    voxelPtBufferIdx = -1
+    voxelPtBufferLen = -1
+    voxelNmBufferIdx = -1
+    voxelNmBufferLen = -1
+
+    def store_voxels_asbuffer(self,photonfile,progressDialog=None):
+        #from collections import deque # more memory efficient list and just as fast (faster than numpy)
+        from array import array # we can make array with signed shorts using "h" but append is slower than list
+
+        # Retrieve raw image data and add last byte to complete the byte array
+        scale = 0.047
+        nLayers=photonfile.nrLayers()
+        layerHeight=PhotonFile.bytes_to_float(photonfile.Header["Layer height (mm)"])
+        print ("layerHeight",layerHeight)
+        #arr=deque()
+        points = numpy.array([], dtype=numpy.int16)
+        normals = numpy.array([], dtype=numpy.int8)
+        for layerNr in range(nLayers):
+            layerpoints = array("h")
+            layernormals = array("b")
+            bA = photonfile.LayerData[layerNr]["Raw"]
+            # add endOfLayer Byte
+            bA = bA + photonfile.LayerData[layerNr]["EndOfLayer"]
+
+            # Decode bytes to colors and draw lines of that color on the pygame surface
+            x = 0
+            y = 0
+            d = 1 # some offset in y will prevent tearing due to collision of base of model with work area
+            nrdraws=0
+            for idx, b in enumerate(bA):
+                # From each byte retrieve color (highest bit) and number of pixels of that color (lowest 7 bits)
+                nr = b & ~(1 << 7)  # turn highest bit of
+                val = b >> 7  # only read 1st bit
+
+                # The surface to draw on is smaller (scale) than the file (1440x2560 pixels)
+                x1 = x
+                xd = nr
+                yd = 1
+                zd = 1
+
+                # Bytes and repetions of pixels with same color can span muliple lines (y-values)
+                if (x + nr) > 1440:
+                    xd = 1440-x1
+                if not val==0:
+                    x1 = x - 1440//2
+                    y1 = y - 2560//2
+                    self.storeBox([x1, layerNr+d, y1], [xd, zd, yd], layerpoints, layernormals)
+                    #print ([x1,y1,z1],[xd,yd,zd])
+                    nrdraws+=1
+                x = x + nr
+                if x >= 1440:
+                    nr = x - 1440
+                    x  = 0
+                    y  = y + 1
+                    xd = nr
+                    if not val == 0:
+                        x1 = x - 1440 // 2
+                        y1 = y - 2560 // 2
+                        self.storeBox([x1, layerNr+d, y1], [xd, zd, yd], layerpoints,layernormals)
+                        nrdraws += 1
+                    x = x + nr
+
+            points=numpy.append(points,layerpoints)
+            normals=numpy.append(normals,layernormals)
+            #print(len(layerpoints), len(layernormals))
+            #print(len(points) , len(normals))
+            #print (len(points)/len(normals))
+            #print(layerNr, "/", nLayers, "arr-size", len(arr), len(points))
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.handleEvents()
+
+        # ===============================================
+        # First add points to buffer
+        # ===============================================
+        points = numpy.array(points,dtype=numpy.float32)
+        points=points * scale
+        self.voxelPtBufferLen = len(points) // 3
+
+        #glEnableClientState(GL_VERTEX_ARRAY)
+        self.voxelPtBufferIdx = glGenBuffers(1)
+        dataSizePt = points.nbytes
+
+        # print ("datasize",dataSize)
+        glBindBuffer(GL_ARRAY_BUFFER, self.voxelPtBufferIdx)
+        glBufferData(GL_ARRAY_BUFFER, dataSizePt, points, GL_STATIC_DRAW)
+        #glDisableClientState(GL_VERTEX_ARRAY)
+
+        # ===============================================
+        # Second add normals for each triangle to buffer
+        # ===============================================
+        normals = numpy.array(normals, dtype=numpy.float32)
+        self.voxelNmBufferLen = len(normals)
+
+        #glEnableClientState(GL_NORMAL_ARRAY)
+        self.voxelNmBufferIdx = glGenBuffers(1)
+        dataSizeNm = normals.nbytes
+
+        glBindBuffer(GL_ARRAY_BUFFER, self.voxelNmBufferIdx)
+        glBufferData(GL_ARRAY_BUFFER, dataSizeNm, normals, GL_STATIC_DRAW)
+        #glDisableClientState(GL_NORMAL_ARRAY)
+
+        print ("nrVoxels",nrdraws)
+        return
 
 
     def draw_voxels(self):
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0,0,0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS,0.0)
+        if self.voxelPtBufferIdx==-1: return
 
-        glColor3f(0,128,0)
-        #self.drawBox((0, 0, 0), (3,3, 3), GL_TRIANGLES)
-        glCallList(self.voxelIdx)
+        colorFront = (0.1, 0.3, 0.6)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (0.3, 0.3, 0.3))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (1.0, 1.0, 1.0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 100.0)
+
+        glEnable(GL_NORMALIZE)
+
+        # ENABLE CULLING / DISCARDING OF BACK FACES
+        glEnable(GL_CULL_FACE)
+        glFrontFace(GL_CW)
+        glCullFace(GL_BACK)
+        glColor3fv(colorFront)
+
+        # DRAW VOXELS
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glBindBuffer(GL_ARRAY_BUFFER, self.voxelPtBufferIdx)
+        glVertexPointer(3,GL_FLOAT,0,None)
+
+        glEnableClientState(GL_NORMAL_ARRAY)
+        glBindBuffer(GL_ARRAY_BUFFER, self.voxelNmBufferIdx)
+        glNormalPointer(GL_FLOAT, 0, None)
+
+        glDrawArrays(GL_TRIANGLES, 0, self.voxelPtBufferLen)
+
+        glDisableClientState(GL_VERTEX_ARRAY)
+        glDisableClientState(GL_NORMAL_ARRAY)
+
+        # DISABLE CULLING
+        glDisable(GL_CULL_FACE)
+
 
     def draw_buildarea(self):
         glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0,0,0))
@@ -227,54 +359,11 @@ class GL():
         glEnd()
         glLineWidth(1)
 
-    def make_model(self):
-        frad=1/180*math.pi
-        stepi = 10
-        stepj = 10
-        r=20
-        for j in range(0,180,stepj):
-            jrad1 = j * frad
-            jrad2 = (j+stepj) * frad
-            for i in range (0,360,stepi):
-                irad1 = i * frad
-                irad2 = (i+stepi) * frad
-                y1 = -cos(jrad1) * r
-                y2 = -cos(jrad2) * r
-                r1 = sin(jrad1) * r
-                r2 = sin(jrad2) * r
 
-                x1 = sin(irad1) * r1
-                z1 = cos(irad1) * r1
-                x2 = sin(irad2) * r1
-                z2 = cos(irad2) * r1
-
-                x3 = sin(irad2) * r2
-                z3 = cos(irad2) * r2
-                x4 = sin(irad1) * r2
-                z4 = cos(irad1) * r2
-
-                p1=Point3D ((x1,y1,z1))
-                p2=Point3D ((x2,y1,z2))
-                p3=Point3D ((x3,y2,z3))
-                p4=Point3D ((x4,y2,z4))
-                nr1 = len(self.points)
-                self.points.append(p1)
-                nr2 = len(self.points)
-                self.points.append(p2)
-                nr3 = len(self.points)
-                self.points.append(p3)
-                nr4 = len(self.points)
-                self.points.append(p4)
-                tri1 = Triangle3D(self.points, nr1, nr2, nr3)
-                tri2 = Triangle3D(self.points, nr1, nr3, nr4)
-                self.model.append(tri1)
-                self.model.append(tri2)
-
-
-    modelBufferIdx=-1
-    modelBufferLen=-1
-    normalBufferIdx=-1
-    normalBufferLen=-1
+    modelPtBufferIdx=-1
+    modelPtBufferLen=-1
+    modelNmBufferIdx=-1
+    modelNmBufferLen=-1
     def store_model_asbuffer(self,points,normals):
         # https://www.opengl.org/discussion_boards/showthread.php/183305-How-to-use-glDrawArrays%28%29-with-VBO-Vertex-Buffer-Object-to-display-stl-geometry
 
@@ -283,16 +372,16 @@ class GL():
         # ===============================================
         points=points.flatten()
         points = points.astype(numpy.float32)
-        self.modelBufferLen=len(points)//3
+        self.modelPtBufferLen = len(points) // 3
 
         #print("points", points)
         #print ("len",self.modelBufferLen)
         glEnableClientState(GL_VERTEX_ARRAY)
-        self.modelBufferIdx = glGenBuffers(1)
-        dataSize = arrays.ArrayDatatype.arrayByteCount(points)
+        self.modelPtBufferIdx = glGenBuffers(1)
+        dataSize = points.nbytes
 
         #print ("datasize",dataSize)
-        glBindBuffer(GL_ARRAY_BUFFER, self.modelBufferIdx )
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelPtBufferIdx)
         glBufferData(GL_ARRAY_BUFFER, dataSize,points, GL_STATIC_DRAW)
 
         # ===============================================
@@ -300,46 +389,58 @@ class GL():
         # ===============================================
 
         normals = normals.flatten()
+        # we have normals per triangle but need normals per vertex ( = tri-point)
+        normals = numpy.repeat(normals, 3)
         normals = normals.astype(numpy.float32)
-        self.normalBufferLen=len(normals)
+        self.modelNmBufferLen = len(normals)
 
         glEnableClientState(GL_NORMAL_ARRAY)
-        self.normalBufferIdx = glGenBuffers(1)
-        dataSize = arrays.ArrayDatatype.arrayByteCount(normals)
+        self.modelNmBufferIdx = glGenBuffers(1)
+        dataSize = normals.nbytes
 
-        glBindBuffer(GL_ARRAY_BUFFER, self.normalBufferIdx )
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelNmBufferIdx)
         glBufferData(GL_ARRAY_BUFFER, dataSize,normals, GL_STATIC_DRAW)
+
+        #print ("p/n",len(points),len(normals))
 
 
     def draw_model(self,type=GL_FILL): #or GL_LINE
 
-        if self.modelBufferIdx==-1: return
+        if self.modelPtBufferIdx==-1: return
 
+        colorFront = (0.1, 0.3, 1)
+        glPolygonMode(GL_FRONT_AND_BACK, type)
+        glColor3fv(colorFront)
+
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (0.3, 0.3, 0.3))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.85, 0.85, 0.85))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 10.0)
+
+        glEnable(GL_NORMALIZE)
+
+        # ENABLE CULLING / DISCARDING OF BACK FACES
+        glEnable(GL_CULL_FACE)
+        glFrontFace(GL_CW)
+        glCullFace(GL_BACK)
+        glColor3fv(colorFront)
+
+        # DRAW MODEL BUFFER ARRAY
         glEnableClientState(GL_VERTEX_ARRAY)
-        glBindBuffer(GL_ARRAY_BUFFER, self.modelBufferIdx)
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelPtBufferIdx)
         glVertexPointer(3,GL_FLOAT,0,None)
 
         glEnableClientState(GL_NORMAL_ARRAY)
-        glBindBuffer(GL_ARRAY_BUFFER, self.normalBufferIdx)
+        glBindBuffer(GL_ARRAY_BUFFER, self.modelNmBufferIdx)
         glNormalPointer(GL_FLOAT, 0, None)
 
-        colorFront = (0.1, 0.3, 1)
-        colorBack = (1, 0.3, 0.3)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (0.2, 0.2, 0.2))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 50.0)
-
-        glPolygonMode(GL_FRONT_AND_BACK, type)
-        glCullFace(GL_FRONT)
-        glColor3fv(colorFront)
-
-        glDrawArrays(GL_TRIANGLES,0,self.modelBufferLen)
-
-        glDisable(GL_CULL_FACE)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        glDrawArrays(GL_TRIANGLES, 0, self.modelPtBufferLen)
 
         glDisableClientState(GL_NORMAL_ARRAY)
         glDisableClientState(GL_VERTEX_ARRAY)
+
+        # DISABLE CULLING
+        glDisable(GL_CULL_FACE)
 
 
         #if not self.innerpoints==None:
@@ -389,7 +490,7 @@ class GL():
         #nshading/color
         #glShadeModel(GL_SMOOTH)
         glShadeModel(GL_FLAT)
-        glClearColor(0,0,0,0)#(0.4, 0.4, 0.4, 0.0)
+        glClearColor(0,0,0,0)
         glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)
         glEnable(GL_COLOR_MATERIAL)
         glEnable(GL_LIGHTING)
@@ -398,7 +499,7 @@ class GL():
 
         #initial position of camera
         glLoadIdentity()
-        gluPerspective(45, (self.display_size[0] / self.display_size[1]), 0.1,8)  # 10.0,10.05)
+        gluPerspective(45, (self.display_size[0] / self.display_size[1]), 0.01,15)  # 10.0,10.05)
         glScalef(0.02, 0.02, 0.02)
         glTranslatef(0.0, 0.0, -150)
         glRotatef(30,1,0,0)
@@ -576,16 +677,21 @@ class GL():
             yaxis = (matrix[1], matrix[5], matrix[9])
             zaxis = (matrix[2], matrix[6], matrix[10])
             l=-150
-            h=-100*l#-l/4
+            h=-l/4
             posl = (zaxis[0] * l + yaxis[0] * h, zaxis[1] * l + yaxis[1] * h, zaxis[2] * l + yaxis[2] * h)
 
             glEnable(GL_LIGHT0)
-            glLight(GL_LIGHT0, GL_AMBIENT, (0.6, 0.6, 0.4, 1))
+            glLight(GL_LIGHT0, GL_AMBIENT, (0.4, 0.4, 0.4, 1))
+            glLight(GL_LIGHT0, GL_DIFFUSE, (0.7, 0.7, 0.7, 1))
+            glLight(GL_LIGHT0, GL_SPECULAR, (0.9, 0.9, 0.9, 1))
             glLight(GL_LIGHT0, GL_POSITION, posl)
             glLight(GL_LIGHT0, GL_SPOT_DIRECTION, (-zaxis[0],-zaxis[1],-zaxis[2]))
 
             # Draw build area
             self.draw_buildarea()
+
+            # Draw voxels
+            self.draw_voxels()
 
             #Draw slice
             #self.draw_slice()

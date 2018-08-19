@@ -41,9 +41,12 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: in OGLEngine destroy buffer when done
 #todo: In STLFILE load binary
 #todo:      add scipy as recommended library to opening screen
 #todo: Voxel viewer
+#todo:      Using RLEdecode, make bars with size runtime-length x sliceheight x 0.047
+#todo:      and load in buffer array Or
 #todo:      implement with 1 layer shell and coordinates instead of 3d voxel array
 #todo:      After slice we should see result in voxel viewer and have option to implement hollow/gyroid infill
 
@@ -982,11 +985,22 @@ def showFull3D():
     global slicer
     global frameMode
     global MODE3D
+    global gl
+    global photonfile
 
     slicer = Slicer(gl)
 
     fullScreenOpenGL=True
     frameMode = MODE3D
+
+    # Since import WILL take a while (although faster with numpy library available) show a be-patient message
+    popup = ProgressDialog(flipFunc,screen, pos=(140, 140),
+                           title="Please wait...",
+                           message="Photon File Editor is loading your voxels.",
+                           showCancel=False)
+    popup.show()
+
+    gl.store_voxels_asbuffer(photonfile,popup)
 
     #update window surface
     redrawWindow(None)

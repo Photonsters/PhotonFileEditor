@@ -540,13 +540,6 @@ class STLFile:
         #   outerColor == (1, 1, 0)                         0%
         #   outerColor=(img[0,0,0],img[0,0,1],img[0,0,2])   0%
         #   bpk=img.copy()                                  65%
-        """
-        we moeten minder keer img.copy doen of sneller alternatief
-        of we moeten fillpoints maken die geen onjuiste fills doen...
-
-        ook: is 1000xfloodfill misschien goedkoper dan 1x img.copy()
-        let wel numpy op linux is trager en daarmee img.copy()
-        """
 
         tester=img.copy()
         doFill=True

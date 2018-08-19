@@ -56,7 +56,7 @@ class Slicer:
             #stl.load_binary_stl('resources/SliceTester.stl', 1)
             #filename='SamplePhotonFiles/HollowCube.stl'
             #filename = 'SamplePhotonFiles/Cube.stl'
-            filename = 'SamplePhotonFiles/STLs/bunny.stl'
+            #filename = 'SamplePhotonFiles/STLs/bunny.stl'
             #filename = 'SamplePhotonFiles/STLs/smilie.stl'
 
             #stl.load_binary_stl('resources/HollowCube.stl', 1)
@@ -68,12 +68,14 @@ class Slicer:
             # self.load_binary_stl('resources/OrientationCube.stl',1)
             # self.load_text_stl('resources/test.stl', 0.03)
             # self.load_binary_+-stl('resources/knight.stl', 0.3)
+            None
 
-        print ("load...")
-        arrpoints,arrnormals=stl.load_stl(filename, 0.4)
+        if not filename==None:
+            print ("load...")
+            arrpoints,arrnormals=stl.load_stl(filename, 0.4)
 
-        print ("setModel...")
-        aGL.setModel(stl.points, stl.triangles,arrpoints,arrnormals)
+            print ("setModel...")
+            aGL.setModel(stl.points, stl.triangles,arrpoints,arrnormals)
 
         self.stl=stl
         print ("done...")
