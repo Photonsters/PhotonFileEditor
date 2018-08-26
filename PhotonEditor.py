@@ -41,6 +41,7 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: Check if faster/newer pc can handle larger stl's (slice) and photonfiles (voxelviewer)
 #todo: Voxel viewer np.unique works with axis argument. 
 #todo: Slicer stalls on slice (F5)
 #todo: in OGLEngine destroy buffer when done
