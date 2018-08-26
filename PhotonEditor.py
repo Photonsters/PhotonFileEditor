@@ -41,6 +41,7 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: Voxel viewer np.unique works with axis argument. 
 #todo: Slicer stalls on slice (F5)
 #todo: in OGLEngine destroy buffer when done
 #todo: in OGLEngine large stl models are very slow
