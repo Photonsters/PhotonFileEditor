@@ -46,7 +46,8 @@ class GL():
     scDisplay=2
     model_angles=[0,0,0]
     model_trans=[0,0,0]
-    model_scale = 1.0
+    model_scale = 1
+    voxel_stepsize=16
 
     def drawSquare(self,pos,axis,width,height,type):
         if axis==0:
@@ -103,7 +104,7 @@ class GL():
         self.drawSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],type)
         self.drawSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],type)
 
-    def storeSquare(self,pos,axis,width,height,points):
+    def storeSquare(self,pos,axis,width,height,points,order=-1):
         if axis==0:
             pos0=pos
             pos1 = (pos[0], pos[1] + width, pos[2])
@@ -122,27 +123,36 @@ class GL():
             pos2 = (pos[0] + width, pos[1]+height, pos[2])
             pos3 = (pos[0], pos[1] + height, pos[2])
 
-        for i in range(3): points.append(pos0[i])
-        for i in range(3): points.append(pos1[i])
-        for i in range(3): points.append(pos2[i])
+        if order==-1:
+            for i in range(3): points.append(pos0[i])
+            for i in range(3): points.append(pos1[i])
+            for i in range(3): points.append(pos2[i])
 
-        for i in range(3): points.append(pos0[i])
-        for i in range(3): points.append(pos2[i])
-        for i in range(3): points.append(pos3[i])
+            for i in range(3): points.append(pos0[i])
+            for i in range(3): points.append(pos2[i])
+            for i in range(3): points.append(pos3[i])
+        else:
+            for i in range(3): points.append(pos2[i])
+            for i in range(3): points.append(pos1[i])
+            for i in range(3): points.append(pos0[i])
+
+            for i in range(3): points.append(pos3[i])
+            for i in range(3): points.append(pos2[i])
+            for i in range(3): points.append(pos0[i])
 
     def storeBox(self, pos, dim,points,normals):
-        self.storeSquare((pos[0],pos[1],pos[2]), 0, dim[1],dim[2],points)
-        self.storeSquare((pos[0]+dim[0], pos[1], pos[2]), 0, dim[1], dim[2],points)
+        self.storeSquare((pos[0],pos[1],pos[2]), 0, dim[1],dim[2],points,-1)
+        self.storeSquare((pos[0]+dim[0], pos[1], pos[2]), 0, dim[1], dim[2],points,1)
         for i in range(6): normals.extend([-1,0,0])
         for i in range(6): normals.extend([1,0,0])
 
-        self.storeSquare((pos[0],pos[1],pos[2]), 1, dim[0],dim[2],points)
-        self.storeSquare((pos[0], pos[1]+dim[1], pos[2]), 1, dim[0], dim[2],points)
+        self.storeSquare((pos[0],pos[1],pos[2]), 1, dim[0],dim[2],points,-1)
+        self.storeSquare((pos[0], pos[1]+dim[1], pos[2]), 1, dim[0], dim[2],points,1)
         for i in range(6): normals.extend([0,-1,0])
         for i in range(6): normals.extend([0,1,0])
 
-        self.storeSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],points)
-        self.storeSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],points)
+        self.storeSquare((pos[0],pos[1],pos[2]), 2, dim[0],dim[1],points,-1)
+        self.storeSquare((pos[0], pos[1], pos[2]+dim[2]), 2, dim[0], dim[1],points,1)
         for i in range(6): normals.extend([0,0,-1])
         for i in range(6): normals.extend([0,0,1])
 
@@ -159,22 +169,93 @@ class GL():
         scale = 0.047
         nLayers=photonfile.nrLayers()
         layerHeight=PhotonFile.bytes_to_float(photonfile.Header["Layer height (mm)"])
+        stepsize=int(self.voxel_stepsize*layerHeight/scale)
+        #layerHeight=int(layerHeight/scale*stepsize)
         print ("layerHeight",layerHeight)
         #arr=deque()
         points = numpy.array([], dtype=numpy.int16)
         normals = numpy.array([], dtype=numpy.int8)
-        for layerNr in range(nLayers):
+        tstart=time.time()
+        nrdraws = 0
+
+        for layerNr in range(0,nLayers,stepsize):
             layerpoints = array("h")
             layernormals = array("b")
             bA = photonfile.LayerData[layerNr]["Raw"]
             # add endOfLayer Byte
             bA = bA + photonfile.LayerData[layerNr]["EndOfLayer"]
 
+            #"""
+            # SolidCube: 428 voxels, 1.41sec
+            # Benchy: 325.357 voxels, 87sec
+            # Decode bytes to colors and draw lines of that color on the pygame surface
+            oldx=0
+            oldy=0
+            offset=1# some offset in y will prevent tearing due to collision of base of model with work area
+            oldval=0
+            oldnr=0
+
+            for idx, b in enumerate(bA):
+
+                nr = b & ~(1 << 7)  # turn highest bit of
+                val = b >> 7  # only read 1st bit
+                oldx_center = oldx - 1440//2
+                oldy_center = oldy - 2560//2
+                #print (oldx,oldy,oldval,oldnr,val,nr)
+
+                # If newcolor is oldcolor and repetitions (nr) can be added (to oldnr) do so
+                if val==oldval and (oldx+oldnr+nr)<1440:
+                    oldnr=oldnr+nr
+                    #print ("add nr",val,nr,oldnr)
+                    if idx==(len(bA)-1):
+                        #print("close layer", oldx, oldy, oldnr, oldval)
+                        self.storeBox([oldx_center, layerNr + offset, oldy_center], [oldnr, stepsize, 1], layerpoints,layernormals)
+                else:
+                    if not val==oldval:
+                        # Draw/store prev run
+                        #print ("new color")
+                        if not oldval==0:
+                            self.storeBox([oldx_center, layerNr+offset, oldy_center], [oldnr, stepsize, 1], layerpoints, layernormals)
+                            #print("draw", oldx,oldy,oldnr,oldval)
+                            nrdraws+=1
+                        #else: print("draw blank")
+                        # Reset for this run
+                        oldx=oldx+oldnr
+                        oldnr=nr
+                        oldval=val
+                        #print("reset", oldx, oldy, oldnr,oldval)
+                    elif oldx+oldnr+nr>=1440:
+                        #print("close line")
+                        newnr=(oldx+oldnr+nr)-1440
+                        oldnr=1440-oldx
+                        # Draw/store prev run
+                        if not oldval==0:
+                            self.storeBox([oldx_center, layerNr+offset, oldy_center], [oldnr, 1, 1], layerpoints, layernormals)
+                            print("draw", oldx,oldy,oldnr,oldval)
+                            nrdraws+=1
+                        #else: print("draw blank")
+                        # Reset for this run
+                        oldx=0
+                        oldy+=1
+                        oldnr=newnr
+                        oldval=val
+                        #print("reset", oldx, oldy, oldnr,oldval)
+                    else:
+                        print ("decoding bug")
+                        print (oldval,val,oldx,oldnr,nr)
+                        #quit()
+
+            #print (oldy,idx,(len(bA)-1)  )
+            #quit()
+
+            """
+            # SolidCube: 1712 voxels, 3.1 sec
+            # Benchy: 400.818 voxels,94 sec
             # Decode bytes to colors and draw lines of that color on the pygame surface
             x = 0
             y = 0
             d = 1 # some offset in y will prevent tearing due to collision of base of model with work area
-            nrdraws=0
+
             for idx, b in enumerate(bA):
                 # From each byte retrieve color (highest bit) and number of pixels of that color (lowest 7 bits)
                 nr = b & ~(1 << 7)  # turn highest bit of
@@ -207,6 +288,7 @@ class GL():
                         self.storeBox([x1, layerNr+d, y1], [xd, zd, yd], layerpoints,layernormals)
                         nrdraws += 1
                     x = x + nr
+            """
 
             points=numpy.append(points,layerpoints)
             normals=numpy.append(normals,layernormals)
@@ -218,6 +300,9 @@ class GL():
                 progressDialog.setProgress(100*layerNr/nLayers)
                 progressDialog.handleEvents()
 
+        print ("Time elapsed",time.time()-tstart)
+
+        #"""
         # ===============================================
         # First add points to buffer
         # ===============================================
@@ -255,11 +340,16 @@ class GL():
     def draw_voxels(self):
         if self.voxelPtBufferIdx==-1: return
 
-        colorFront = (0.1, 0.3, 0.6)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, (0.3, 0.3, 0.3))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, (1.0, 1.0, 1.0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, (0.8, 0.8, 1.0))
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, 100.0)
+        colorFront = (0.1, 0.1, 0.1)
+        glColor3fv(colorFront)
+        #glEnable(GL_COLOR_MATERIAL)
+        #glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE )
+        sides=GL_FRONT_AND_BACK
+        glMaterialfv(sides, GL_AMBIENT, (0.0, 0.0, 0.0))
+        glMaterialfv(sides, GL_DIFFUSE, (0.7, 0.7, 0.7))
+        glMaterialfv(sides, GL_SPECULAR, (1.0, 1.0, 1.0))
+        glMaterialfv(sides, GL_EMISSION, (0.0, 0.0, 0.0))
+        glMaterialfv(sides, GL_SHININESS,  70.0)
 
         glEnable(GL_NORMALIZE)
 
@@ -267,7 +357,6 @@ class GL():
         glEnable(GL_CULL_FACE)
         glFrontFace(GL_CW)
         glCullFace(GL_BACK)
-        glColor3fv(colorFront)
 
         # DRAW VOXELS
         glEnableClientState(GL_VERTEX_ARRAY)
@@ -476,16 +565,15 @@ class GL():
         print("",glGetString(GL_VENDOR).decode('ascii'))
         print("",glGetString(GL_VERSION).decode('ascii'))
 
-        glClearDepth(1.0)
-        glEnable(GL_DEPTH_TEST)
-        glDepthFunc(GL_LEQUAL)
-
         self.initDraw()
         #self.userLoop()
         #self.sliceLoop()
 
     def initDraw(self):
         # setup display
+        glClearDepth(1.0)
+        glEnable(GL_DEPTH_TEST)
+        glDepthFunc(GL_LEQUAL)
 
         #nshading/color
         #glShadeModel(GL_SMOOTH)
@@ -514,8 +602,13 @@ class GL():
         print ("Use enter to toggle 3d model and f5 to save slice")
 
 
-    def poll(self,pollModel=False,event=None):
-        if pollModel:
+    def poll(self):
+        for event in pygame.event.get():
+            # Check for close window
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:return False
+
+            #print ("OGL Mousedown",event.type == pygame.MOUSEBUTTONDOWN)
             matrix = (GLfloat * 16)()
 
             #if not event.type == pygame.MOUSEMOTION:
@@ -537,9 +630,9 @@ class GL():
 
             if not isLAlt and not isRAlt:# translate or slice height
                 if isLCtrl: # slice height
-                    if event.key == pygame.K_UP:
-                        glTranslatef(+pan * zaxis[0], +pan * zaxis[1], +pan * zaxis[2])
                     if event.key == pygame.K_DOWN:
+                        glTranslatef(+pan * zaxis[0], +pan * zaxis[1], +pan * zaxis[2])
+                    if event.key == pygame.K_UP:
                         glTranslatef(-pan * zaxis[0], -pan * zaxis[1], -pan * zaxis[2])
                 elif not isLCtrl: # pan / rotate view
                     if not isLShift: # pan view
@@ -630,7 +723,7 @@ class GL():
                     glTranslatef(+span* zaxis[0], +span * zaxis[1], +span * zaxis[2])
 
                 else:
-                    self.mousedownpos = pos = pygame.mouse.get_pos()
+                    self.mousedownpos = pygame.mouse.get_pos()
                     self.mousedownbutton=event.button
                     #print ("click button: ",self.mousedownbutton)
 
@@ -661,6 +754,7 @@ class GL():
                     glRotatef(-dy/rotf*rot, xaxis[0], xaxis[1], xaxis[2])
                     glRotatef(+dx/rotf*rot, yaxis[0], yaxis[1], yaxis[2])
                 self.mousedownpos = newpos
+        return True
 
 
     def redraw(self, guiSurface, drawModel=False):
@@ -668,24 +762,89 @@ class GL():
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         if drawModel:
-            # correct normals with wrong direction
+            # Correct normals with wrong direction
             glEnable(GL_NORMALIZE)
 
-            #some lights
+            # Add some lights
             #renew matrix after rotation/translation above
             glGetFloatv(GL_PROJECTION_MATRIX, matrix)
             yaxis = (matrix[1], matrix[5], matrix[9])
             zaxis = (matrix[2], matrix[6], matrix[10])
             l=-150
-            h=-l/4
-            posl = (zaxis[0] * l + yaxis[0] * h, zaxis[1] * l + yaxis[1] * h, zaxis[2] * l + yaxis[2] * h)
-
+            h=10
+            directional=1
+            positional=0
+            #posl = (zaxis[0] * l + yaxis[0] * h, zaxis[1] * l + yaxis[1] * h, zaxis[2] * l + yaxis[2] * h)
+            #dirl = (-zaxis[0],-zaxis[1],-zaxis[2])
+            #posl = (-50,-100,50)
+            #dirl = (50,100,-50)
+            posl = (-50, h,0,positional)
+            #dirl = ( 50,-h,0)
             glEnable(GL_LIGHT0)
-            glLight(GL_LIGHT0, GL_AMBIENT, (0.4, 0.4, 0.4, 1))
-            glLight(GL_LIGHT0, GL_DIFFUSE, (0.7, 0.7, 0.7, 1))
-            glLight(GL_LIGHT0, GL_SPECULAR, (0.9, 0.9, 0.9, 1))
+            glLight(GL_LIGHT0, GL_AMBIENT, (0.2, 0.2, 0.4, 1))
+            glLight(GL_LIGHT0, GL_DIFFUSE, (0.0, 0.0, 0.7, 1))
+            glLight(GL_LIGHT0, GL_SPECULAR, (0.0, 0.0, 1.0, 1))
             glLight(GL_LIGHT0, GL_POSITION, posl)
-            glLight(GL_LIGHT0, GL_SPOT_DIRECTION, (-zaxis[0],-zaxis[1],-zaxis[2]))
+            #glLight(GL_LIGHT0, GL_SPOT_DIRECTION, dirl)
+            glColor3f(0,0,0.7)
+            self.drawBox(posl,(3,3,3),GL_LINES)
+
+            posl = ( 50, h,0,positional)
+            #dirl = (-50,-h,0)
+            glEnable(GL_LIGHT3)
+            glLight(GL_LIGHT3, GL_AMBIENT, (0.2, 0.2, 0.4, 1))
+            glLight(GL_LIGHT3, GL_DIFFUSE, (0.0, 0.0, 0.7, 1))
+            glLight(GL_LIGHT3, GL_SPECULAR, (0.0, 0.0, 1.0, 1))
+            glLight(GL_LIGHT3, GL_POSITION, posl)
+            #glLight(GL_LIGHT3, GL_SPOT_DIRECTION, dirl)
+            glColor3f(0,0,0.7)
+            self.drawBox(posl,(3,3,3),GL_LINES)
+
+            posl = (0, h, 50,positional)
+            #dirl = (0,-h,-50)
+            glEnable(GL_LIGHT1)
+            glLight(GL_LIGHT1, GL_AMBIENT, (0.2, 0.2, 0.2, 1))
+            glLight(GL_LIGHT1, GL_DIFFUSE, (0.7, 0.0, 0.0, 1))
+            glLight(GL_LIGHT1, GL_SPECULAR, (1.0, 0.0, 0.0, 1))
+            glLight(GL_LIGHT1, GL_POSITION, posl)
+            #glLight(GL_LIGHT1, GL_SPOT_DIRECTION, dirl)
+            glColor3f(0.7,0,0)
+            self.drawBox(posl,(3,3,3),GL_LINES)
+
+            posl = (0, h,-50,positional)
+            #dirl = (0,-h, 50)
+            glEnable(GL_LIGHT2)
+            glLight(GL_LIGHT2, GL_AMBIENT, (0.2, 0.2, 0.2, 1))
+            glLight(GL_LIGHT2, GL_DIFFUSE, (0.7, 0.0, 0.0, 1))
+            glLight(GL_LIGHT2, GL_SPECULAR, (1.0, 0.0, 0.0, 1))
+            glLight(GL_LIGHT2, GL_POSITION, posl)
+            #glLight(GL_LIGHT2, GL_SPOT_DIRECTION, dirl)
+            glColor3f(0.7,0,0)
+            self.drawBox(posl,(3,3,3),GL_LINES)
+
+            """
+            points2=[]
+            normals2=[]
+            self.storeBox([-10,1,-10],[20,3,20],points2,normals2)
+            #for i in range(6):
+            #    for j in range(6):
+            #        print (points2[0 + j*i * 3:3 + j*i * 3])
+            #    print("---")
+            #quit()
+            glColor3f(0.5,0.5,0.5)
+            glBegin(GL_TRIANGLES)
+            for i in range(6*6):
+               glVertex3fv(points2[0+i*3:3+i*3])
+               glNormal3fv(normals2[0+i*3:3+i*3])
+            glEnd()
+            """
+
+            #glBegin(GL_QUADS)
+            #glVertex3f(-10,1,10)
+            #glVertex3f(10, 1, 10)
+            #glVertex3f(10, 1, -10)
+            #glVertex3f(-10, 1, -10)
+            #glEnd()
 
             # Draw build area
             self.draw_buildarea()
@@ -693,10 +852,7 @@ class GL():
             # Draw voxels
             self.draw_voxels()
 
-            #Draw slice
-            #self.draw_slice()
-
-            #apply model angle and translation)
+            # Draw model (after apply model angle and translation)
             glPushMatrix()
             glTranslatef(self.model_trans[0], self.model_trans[1], self.model_trans[2])
             glRotatef(self.model_angles[0], 0, 0, 1)
@@ -708,7 +864,9 @@ class GL():
 
             #lights finished
             glDisable(GL_LIGHT0)
-            #glDisable(GL_LIGHT1)
+            glDisable(GL_LIGHT1)
+            glDisable(GL_LIGHT2)
+            glDisable(GL_LIGHT3)
 
         #draw GUI overlay
         glPushMatrix()
@@ -803,4 +961,4 @@ class GL():
 
 
 
-#quit()
+

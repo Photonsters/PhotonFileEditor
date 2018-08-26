@@ -41,7 +41,9 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: Slicer stalls on slice (F5)
 #todo: in OGLEngine destroy buffer when done
+#todo: in OGLEngine large stl models are very slow
 #todo: In STLFILE load binary
 #todo:      add scipy as recommended library to opening screen
 #todo: Voxel viewer
@@ -1715,7 +1717,7 @@ def createOverlay3D():
                  text="", drawborder=False, drawbackground=False, margin=GRect(0, 0, 0, 0), topoffset=0,
                  layout=Frame.LEFTRIGHT, spacing=4, gridsize=-1)
     frow.append(Label(screen, text="Scale", rect=GRect(0, 0, labelWidth, 20),textcolor=(255,255,255),istransparent=True))
-    lb=Label(screen, text="100%", rect=GRect(0, 0, labelWidth, 20),textcolor=(255,255,255),istransparent=True)
+    lb=Label(screen, text="x16", rect=GRect(0, 0, labelWidth, 20),textcolor=(255,255,255),istransparent=True)
     frow.append(lb)
     frame3D.append(frow)
     controls3D.append(lb)
@@ -2400,7 +2402,7 @@ def refresh3DSettings():
 
     controls3D[0].setText(str(gl.model_trans)[1:-1])
     controls3D[1].setText(str(gl.model_angles)[1:-1])
-    controls3D[2].setText(str(int(round((gl.model_scale*100))))+" %")
+    controls3D[2].setText(str(gl.voxel_stepsize)+" x")
     controls3D[3].setText(round2Str(gl.sliceheight,3)+" mm")
 
 
@@ -2790,27 +2792,25 @@ def poll(event=None):
     global layercontrols
     global layerSlider_visible
 
+    # Check if fullscreen OpenGL
+    if fullScreenOpenGL:
+        if not gl.poll(): # Handle OGL key/mouse events and check for exit OGL (Esc)
+            fullScreenOpenGL = False
+            frameMode = settingsMode
+        refresh3DSettings()
+        return
+
+    # If not fullscreen
     tooltip=None
     for event in pygame.event.get():
     #event = pygame.event.wait()
-
-        #Check if fullscreen OpenGL
-        if fullScreenOpenGL:
-            if event.type == pygame.KEYDOWN:
-                if event.key==pygame.K_ESCAPE:
-                    fullScreenOpenGL = False
-                    frameMode = settingsMode
-                    return
-            gl.poll(True, event)
-            refresh3DSettings()
-            return
 
         # Event handling, gets all event from the eventqueue
         #for event in pygame.event.get():
         #if not hasOpenGL: event = pygame.event.wait()
 
-        if pyopenglIsAvailable and not disableOpenGL:
-            gl.poll(framedScreenOpenGL,event)
+        #if pyopenglIsAvailable and not disableOpenGL:
+        #    gl.poll(framedScreenOpenGL,event)
 
         pos = pygame.mouse.get_pos()
         lastpos=pos
