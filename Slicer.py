@@ -167,7 +167,6 @@ class Slicer:
             # add rle to photonfile.LayerData[slicenr]
             return [sliceNr,rle]
 
-
     def slice(self,sliceHeight=0.1,progressDialog=None,photonfile=None):
 
         # If no photonfile we export to images
@@ -225,6 +224,7 @@ class Slicer:
                 sliceBottom += sliceHeight
 
             # Handle all results as they come available
+            print ("Waiting for slicer to return...")
             sliceNr=0
             for ret in concurrent.futures.as_completed(res):
                 # Check if we get return False and thus an empty image (top of model reached)
@@ -233,6 +233,7 @@ class Slicer:
                         sliceNr,rle=ret.result()
                         rledict[sliceNr]=rle
                         sliceNr+=1
+                        print ("Slice nr",sliceNr)
                     if not filename == None: None # we do nothing, file was already saves
                 if not progressDialog==None:
                     perc=100*sliceNr/approxNrSlices

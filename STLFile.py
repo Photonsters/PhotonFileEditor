@@ -17,7 +17,6 @@ except ImportError:
     scipyIsAvailable = False
 
 # load stl file detects if the file is a text file or binary file
-
 class STLFile:
     cmin = [100, 100, 100]
     cmax = [-100, -100, -100]
@@ -25,11 +24,7 @@ class STLFile:
     points = []
     triangles = []
     innerpoints=[]
-    #innermodel=[]
-    #testTris=[35,33] # opposite walls
-    #testTris = [35,31]
-    #testTris = [0, 2,3]
-    #testTris = []
+
 
 
     def load_stl(self, filename, scale):
@@ -334,7 +329,7 @@ class STLFile:
             p.z = q.z
 
 
-
+    """
     def createInnerWall(self, wallThickness):
         setNrDecimals(1)
 
@@ -387,14 +382,15 @@ class STLFile:
             self.innerpoints[nr]=innerPoint
 
         return self.innerpoints
+    """
 
 
     #Discard types
-    RET_BOTH=0        # Return all, just split
+    RET_BOTH=0       # Return all, just split
     RET_ABOVE=1      # Return above line
     RET_BELOW=2      # Return below line
 
-    def __takeSlice(self, fullpoints,fullmodel,Y, ret_side):
+    def splitModel(self, fullpoints, fullmodel, Y, ret_side):
         """ Returns
         """
         slice=[]
@@ -440,12 +436,12 @@ class STLFile:
             return
 
         # First extract all from mode and inner model above fromY
-        pointsAbove,sliceAbove=self.__takeSlice(self.points, self.triangles, fromY, self.RET_ABOVE)
-        innerpointsAbove, innersliceAbove = self.__takeSlice(self.innerpoints, self.triangles, fromY, self.RET_ABOVE)
+        pointsAbove,sliceAbove=self.splitModel(self.points, self.triangles, fromY, self.RET_ABOVE)
+        innerpointsAbove, innersliceAbove = self.splitModel(self.innerpoints, self.triangles, fromY, self.RET_ABOVE)
 
         # Using extraction, extract all from mode and inner model below fromY
-        pointsBelow, sliceBelow = self.__takeSlice(pointsAbove, sliceAbove, toY, self.RET_BELOW)
-        innerpointsBelow, innersliceBelow = self.__takeSlice(innerpointsAbove, innersliceAbove, toY, self.RET_BELOW)
+        pointsBelow, sliceBelow = self.splitModel(pointsAbove, sliceAbove, toY, self.RET_BELOW)
+        innerpointsBelow, innersliceBelow = self.splitModel(innerpointsAbove, innersliceAbove, toY, self.RET_BELOW)
 
         # We join the inner and outer model and remap point indices in triangles to match new point cloud
         points=pointsBelow+innerpointsBelow
@@ -462,15 +458,21 @@ class STLFile:
         return points,slice
 
 
-
     def vector2dir(self,v):
         return (int(v.x > 0) - int(v.x < 0),
                 int(v.y > 0) - int(v.y < 0),
                 int(v.z > 0) - int(v.z < 0))
 
 
-
     def slice2bmp_ocv(self,points,slice,filename, doFill=False):
+        """
+        :param points:
+        :param slice:
+        :param filename:
+        :param doFill:
+        :return:
+        """
+
         #print("Executing our Task on Process {}".format(os.getpid()))
 
         offset=Vector((67.5/2,0,120/2))

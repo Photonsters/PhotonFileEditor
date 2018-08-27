@@ -5,6 +5,15 @@ Main program and initializes window, adds controls, contains redraw loop and ret
 __version__ = "Alpha (build 30-6-2018)"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
+""" 
+needed libs
+ pygame
+ pyopengl
+ numpy
+ scipy
+ opencv-python
+"""
+
 import os
 import sys
 import datetime
@@ -43,16 +52,12 @@ except ImportError as err:
 #TODO LIST
 #todo: Check if faster/newer pc can handle larger stl's (slice) and photonfiles (voxelviewer)
 #todo: Voxel viewer np.unique works with axis argument. 
-#todo: Slicer stalls on slice (F5)
+#todo: Slicer stalls with large models on slice (F5)
+#todo: OGL shows model from back or mirrored
 #todo: in OGLEngine destroy buffer when done
 #todo: in OGLEngine large stl models are very slow
 #todo: In STLFILE load binary
 #todo:      add scipy as recommended library to opening screen
-#todo: Voxel viewer
-#todo:      Using RLEdecode, make bars with size runtime-length x sliceheight x 0.047
-#todo:      and load in buffer array Or
-#todo:      implement with 1 layer shell and coordinates instead of 3d voxel array
-#todo:      After slice we should see result in voxel viewer and have option to implement hollow/gyroid infill
 
 #todo: abort slicer.slice is not working
 #todo: use multiprocessing to apply layerEdits

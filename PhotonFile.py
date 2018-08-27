@@ -372,7 +372,6 @@ class PhotonFile:
     ########################################################################################################################
     ## Encoding
     ########################################################################################################################
-
     def encodedBitmap_Bytes_withnumpy(image):
         """ Converts image (filename/pygame.surface/numpy.array2d) to RLE encoded byte string.
             Uses Numpy library - Fast
