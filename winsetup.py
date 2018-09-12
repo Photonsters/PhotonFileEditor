@@ -17,6 +17,8 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import OpenGL.arrays.numpymodule
 import numpy
+import scipy
+import cv2
 import OpenGL.platform.win32
 import OpenGL.arrays.ctypesarrays
 import OpenGL.arrays.ctypesparameters
@@ -59,7 +61,7 @@ msi_data = {"Shortcut": shortcut_table}
 bdist_msi_options = {'data': msi_data}
 
 # Dependencies are automatically detected, but it might need fine tuning.
-build_exe_options = {"packages": ["os", "OpenGL", "numpy"],"include_files": [""], "include_msvcr" : True}
+build_exe_options = {"packages": ["os", "OpenGL", "numpy", "scipy"],"include_files": [""], "include_msvcr" : True}
 
 PYTHON_INSTALL_DIR = os.path.dirname(os.path.dirname(os.__file__))
 os.environ['TCL_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tcl8.6')
@@ -74,14 +76,11 @@ if sys.platform == "win32":
 if 'bdist_msi' in sys.argv:
     sys.argv += ['--initial-target-dir', 'c:\PhotonFileEditor']
 	
-setup(  name = "PhotonFileEditor",
+setup(  name = "Photon File Editor Slicer v2",
         version = "0.1",
 		author= "Photonsters",
 		url="https://github.com/Photonsters",
-        description = "Photon File Editor",
+        description = "Photon File Editor Slicer v2",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
         executables = [Executable(script="PhotonEditor.py", base=base,icon="PhotonEditor.ico",)]
 	 )
-
-
-
