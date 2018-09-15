@@ -50,6 +50,18 @@ except ImportError as err:
     pyopenglIsAvailable = False
 
 #TODO LIST
+#todo: Check if numpy.memmaps (Create a memory-map to an array stored in a binary file on disk) helps
+#todo: Redefine Photon File Editor is
+#           - layer editor
+#       `   - enhance with fill/gyroid infill
+#           - preview 3d model... not edit in 3d
+#           - slice?
+# 1. Improve layer editor
+# 2. Show islands in each layer, so we can manually insert a support column
+# 3. 3D Inspection should show a slice of n layers, so total nr of triangles < Q
+# 4. Implement infill plugin for gyroid
+#todo: Import of transparent pngs fails (all black)
+#todo: Check if SciPy is easy to distribute... some say it is not.
 #todo: Check if faster/newer pc can handle larger stl's (slice) and photonfiles (voxelviewer)
 #todo: Voxel viewer np.unique works with axis argument. 
 #todo: Slicer stalls with large models on slice (F5)
@@ -1136,6 +1148,9 @@ def readPlugins():
 
 
 def openPlugin(pluginfilename):
+    # Check if photonfile is loaded to prevent errors when operating on empty photonfile
+    if not checkLoadedPhotonfile("No photon file loaded!", "There is no .photon file loaded."): return
+
     # BEWARE: IT IS NORMAL THIS DOES NOT RUN IN PYCHARM!!!
     filepath="plugins/"+pluginfilename
     ifile = open(filepath, "r", encoding="Latin-1")  # Latin-1 handles special characters
@@ -1262,7 +1277,7 @@ def createMenu():
         else:
             menubar.addItem("View", "Disable OGL", setOpenGL, False)
             #menubar.addItem("View", "3D", showFramed3D)
-            menubar.addItem("View", "Full 3D", showFull3D)
+            menubar.addItem("View", "3D Preview", showFull3D)
         menubar.addItem("View", "----")
     menubar.addItem("View", "Basic settings",setFrameMode,MODEBASIC)
     menubar.addItem("View", "Advanced settings",setFrameMode,MODEADVANCED)
@@ -3076,3 +3091,4 @@ init()
 
 # write to stdout
 #im.save("slicer/slice__0001b.png", "PNG")
+

@@ -956,9 +956,13 @@ class GL():
          #   print (err)
           #  return None
 
-
-
-
-
-
+"""
+tstart=time.time()
+print ((2560*1440*1000) / (1024*1024*1024),"GB")
+print ("Limit (for 32 bit process is 4GB")
+a=numpy.full((2560, 1440,500), 1,dtype=numpy.uint8)
+a-=1 #a=a+1 creates a new array, a+=1 does add in place
+print ("elapsed",(time.time()-tstart))
+quit()
+"""
 
