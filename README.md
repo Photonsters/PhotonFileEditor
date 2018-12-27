@@ -15,6 +15,7 @@ For Windows an easy install package is available. For Linux and OSX you have to 
 
 ### Windows:
 - Download the MSI file and run it.
+- - If you want to run the latest version check the step-by-step in issue [#24](https://github.com/Photonsters/PhotonFileEditor/issues/24)
 
 ### OSX/Linux:
 0) Download the source code in zip or tar.gz.
