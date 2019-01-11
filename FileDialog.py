@@ -6,6 +6,7 @@ __version__ = "alpha"
 __author__ = "Nard Janssens, Vinicius Silva, Robert Gowans, Ivan Antalec, Leonardo Marques - See Github PhotonFileUtils"
 
 import os
+import sys
 
 import pygame
 from pygame.locals import *
@@ -43,6 +44,7 @@ class FileDialog():
     controls=[]
     ext="*"
     startdir=""
+    dirsep="\\"
     selFilename="None selected"
     selDirectory = "None selected"
     showFilenames=True
@@ -63,17 +65,25 @@ class FileDialog():
         self.tbFilename.rect =GRect(self.winrect.x+self.margins.x,self.footerTop+self.margins.x,self.winrect.width-4*self.margins.x-2*self.buttonWidth,self.buttonHeight)
 
 
-    def __init__(self, pyscreen, pos, height=300,startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
+    def __init__(self, flipFunc,pyscreen, pos, height=300,startdir=None, title="Open File Dialog",defFilename="newfile.txt", dfontname=defFontName, dfontsize=defFontSize, ext="*",parentRedraw=None):
         """ Saves all values to internal variables and calculates some extra internal vars. """
         # Save variables
+        self.flipFunc = flipFunc
         self.pyscreen = pyscreen
         self.parentRedraw=parentRedraw
-        if startdir==None: self.startdir=os.getcwd()
+        if startdir==None:startdir=os.getcwd()
+        self.startdir=startdir
+        if isinstance(ext,str): ext=(ext,) # forces it into a list
         self.ext=ext
         self.winrect=GRect(pos[0], pos[1], 350, height)
         self.title=title
         self.defFilename=defFilename
         self.font = pygame.font.SysFont(dfontname, dfontsize)
+
+        # Check which path seperator we need
+        if sys.platform == "win32":self.dirsep = "\\"
+        elif sys.platform.startswith("linux"):self.dirsep = "/"
+        elif sys.platform == "darwin":self.dirsep = "/"
 
         # Calculate extra variables
         dummy, textheight = self.font.size("MinimalText")
@@ -153,6 +163,27 @@ class FileDialog():
     def readDirectory(self):
         """ Read content of directory and update self.dirsandfiles variable to use on redraw. """
 
+        # If in root check if we need to add drives
+        if self.startdir=="DRIVELIST":
+            self.startdir=""
+            drives = []
+            #print (self.startdir)
+            #print(os.listdir(self.startdir))
+            if sys.platform=="win32":
+                for d in range(0,26):
+                    drivepath=chr(65+d)+":\\"
+                    if os.path.isdir(drivepath):
+                        drives.append(drivepath)
+            elif sys.platform.startswith("linux"):
+                print("inroot")
+                drives.append('/')
+                drives.append('/home/'+os.environ['USER']+"/")
+                drives.append('/dev/media/')
+            elif sys.platform=="darwin":
+                print ("inroot")
+            self.dirsandfiles=drives
+            return
+
         # Always make sure we can go back
         dirs = [".."]
 
@@ -164,13 +195,19 @@ class FileDialog():
             return
 
         # Read dirs and files
-        direntries = os.listdir(self.startdir)
+        try:
+          direntries = os.listdir(self.startdir)
+        except Exception as err:
+            print("User has no access to " + self.startdir)
+            print (err)
+            self.dirsandfiles = dirs
+            return
 
         # Extract dirs
         for entry in direntries:
             if not entry.startswith("$"):   # recycle bin in windows
                 fullname = os.path.join(self.startdir, entry)
-                if os.path.isdir(fullname): dirs.append(entry + "/")
+                if os.path.isdir(fullname): dirs.append(entry + self.dirsep )
         dirs.sort(key=str.lower)
 
         # Extract files and apply filter
@@ -178,7 +215,10 @@ class FileDialog():
         if self.showFilenames:
             if not self.ext == "*":
                 for entry in direntries:
-                    if entry.endswith(self.ext): files.append(entry)
+                    for ext in self.ext:
+                        if entry.lower().endswith(ext.lower()):
+                            files.append(entry)
+                            #print (ext,entry)
             files.sort(key=str.lower)
 
         # Make one list of dirs and files
@@ -211,6 +251,7 @@ class FileDialog():
         self.btnCancel.redraw()
         self.btnOK.redraw()
         self.tbFilename.redraw()
+        self.flipFunc()
 
 
     def waitforuser(self):
@@ -218,7 +259,6 @@ class FileDialog():
 
         while self.waiting:
             self.redraw()
-            pygame.display.flip()
 
             for event in pygame.event.get():
                 pos = pygame.mouse.get_pos()
@@ -254,7 +294,7 @@ class FileDialog():
                         self.tbFilename.handleKeyDown(event.key, event.unicode)
 
 
-    def handleListboxSelect(self,text):
+    def handleListboxSelect(self,index,text):
         """ If Listbox item selected and directory, we read new directory of if not put filename in textbox. """
 
         #print ("[handleListboxSelect]")
@@ -264,17 +304,29 @@ class FileDialog():
 
         # Check if user wants to go up.
         if text=="..":
-            self.startdir=os.path.dirname(self.startdir)
+            if self.startdir == os.path.dirname(self.startdir):
+                self.startdir="DRIVELIST"
+            else:
+                self.startdir=os.path.dirname(self.startdir)
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
+            self.selFilename=""
+        # Check if user selects root (then we don't want to remove trailing slash
+        elif text=="/" or text.endswith(":\\"):
+            self.startdir=text
+            self.selDirectory = self.startdir
+            self.readDirectory()
+            self.listbox.setItems(self.dirsandfiles)
+            self.selFilename = ""
         # Check if user selects a directory
-        elif text.endswith("/"):
+        elif (text.endswith("/") or text.endswith("\\")):
+            print ("selectdir")
             self.startdir=os.path.join(self.startdir,text[:-1])
             self.selDirectory = self.startdir
             self.readDirectory()
             self.listbox.setItems(self.dirsandfiles)
-            print ("Nav to dir: ",self.selDirectory)
+            self.selFilename = ""
         # Else user selected a file
         else:
             self.tbFilename.text=self.listbox.activeText()

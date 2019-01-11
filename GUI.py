@@ -36,17 +36,49 @@ defBorder=(173,173,173)
 defBorderHover=defHighMenuBackground
 
 
+def drawTextMarkdown(markdown, font, color, surface, pos):
+    """ Takes string of e.g. format 'This [b]word[b] was bold and [i]this[i] italic.'
+        and returns right pos of drawn text
+    """
+    BOLD = chr(1)
+    ITALIC = chr(2)
+    UNDERLINE = chr(3)
+
+    markdown =markdown.replace("[b]",BOLD)
+    markdown =markdown.replace("[/b]", BOLD)
+    markdown =markdown.replace("[i]", ITALIC)
+    markdown =markdown.replace("[/i]", ITALIC)
+    markdown =markdown.replace("[u]", UNDERLINE)
+    markdown =markdown.replace("[/u]", UNDERLINE)
+
+    l=pos[0]
+    t=pos[1]
+    for char in markdown:
+        if char==BOLD:
+            font.set_bold(not font.get_bold())
+        elif char==ITALIC:
+            font.set_italic(not font.get_italic())
+        elif char==UNDERLINE:
+            font.set_underline(not font.get_underline())
+        else:
+            textsurface = font.render(char, True, color, )
+            surface.blit(textsurface, (l, t))
+            l += font.size(char)[0]
+    return (l,t)
+
 ########################################################################################################################
 ## Class MenuBar
 ########################################################################################################################
 
 class MenuBar():
+    # menus array: [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
     menus=[]
+
     margins = GRect(4, 4, 4, 4)
     height = -1
-    spacing = 4
-    minwidth=50
-    isVisible=True
+    spacing = 14
+    minwidth=40
+    visible=True
     textcolor=defMenuForeground
     backcolor=defMenuBackground
     highbackcolor=defHighMenuBackground
@@ -66,6 +98,9 @@ class MenuBar():
         if (height + self.margins.y + self.margins.height) > self.height:
             self.height = height + self.margins.y + self.margins.height
 
+
+    def getHeight(self):
+        return self.height + self.margins.y + self.margins.height
 
     def addMenu(self, menutitle,shortcutChar):
         """ Adds new menu in the menubar (with empty menulist)."""
@@ -102,24 +137,69 @@ class MenuBar():
         self.menus.append(menudata)
 
 
-    def addItem(self, menutitle, menuitem, func_on_click):
-        """ Adds new item to menulist. """
+    def addItem(self, menutitle, menuitem, func_on_click=None,arg=None):
+        """ Adds new item to menulist (or seperator is menutitle='---') """
 
         # Find menu in menus, retrieve menulist and add item
         for menu in self.menus:
             if menu["title"]==menutitle:
                 menulist=menu["menulist"]
-                menulist.addItem(menuitem,func_on_click)
+                menulist.addItem(menuitem,func_on_click,arg)
 
+    def addSubMenu(self, menutitle, submenutitle):
+        # self.menus array: [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+
+        # Make menulist
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                menulist = menudata["menulist"]
+                submenulist=MenuList(pyscreen=self.pyscreen,location=(0,0), fontname = self.fontname, fontsize = self.fontsize, title=submenutitle)
+                menulist.addItem(submenutitle,None,None,submenulist)
+
+    def addSubItem(self, menutitle, submenutitle, submenuitem, func_on_click=None,arg=None):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.addItem(submenuitem,func_on_click,arg)
+
+    def delSubItem(self, menutitle, submenutitle, submenuitem):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.delItem(submenuitem)
+
+    def clearSubItems(self, menutitle, submenutitle):
+        # self.menus array:     [ {'title':str,'left':int,'width':int,'scCharNr':int, 'menulist':MenuList}, ....]
+        # menulist.items array: [ (menuitem, func_on_click, arg, sub_MenuList), ....]
+        # Find correct menu
+        for menudata in self.menus:
+            if menudata["title"] == menutitle:
+                # Find menu item which contains submenu
+                menulist=menudata["menulist"]
+                for (menuitem,_foc,_arg,sub_menulist) in menulist.items:
+                    if menuitem==submenutitle:
+                        sub_menulist.clearItems()
 
     def redraw(self):
         """ Redraws MenuBar. """
 
         # If not visible, nothing to do
-        if not self.isVisible: return
+        if not self.visible: return
 
         # Draw menubar background and border.
-        w, dummy = pygame.display.get_surface().get_size()
+        w, dummy = self.pyscreen.get_size()
         h=self.height+self.margins.y+self.margins.height
         pygame.draw.rect(self.pyscreen, self.backcolor, (0,0,w,h), 0)
         pygame.draw.rect(self.pyscreen, self.bordercolor , (0, h, w, 1),1)
@@ -164,7 +244,10 @@ class MenuBar():
 
 
     def handleMouseDown(self, pos,button):
-        """ Updates menu states if user clicked on menubar. """
+        """ Updates menu states only if user clicked on menubar. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
 
         # If not clicked, nothing to do
         if not button == 1: return
@@ -180,13 +263,13 @@ class MenuBar():
                     if pos[0]>menu["left"] and pos[0]<(menu["left"]+menu["width"]):
                         self.activeMenu=menu
                         menulist=menu["menulist"]
-                        menulist.isVisible=True
+                        menulist.visible=True
                     else:
                         menulist = menu["menulist"]
-                        menulist.isVisible = False
+                        menulist.visible = False
                 return True
             else:
-                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
                 return
 
@@ -197,15 +280,21 @@ class MenuBar():
 
     def handleMouseUp(self, pos,button):
         """ Updates menu states if user clicked on menubar. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # If not left mouse button, nothing to do
         if not button == 1: return
+
         # Call upon menulists to handle mouse (if above menulists). """
         for menu in self.menus:
             # If menulist accepts MouseUp we can close menulist and active item in menubar
             if menu["menulist"].handleMouseUp(pos,button):
                 # We are handling this so clear queue for others
                 pygame.event.clear()
-                self.activeMenu["menulist"].isVisible = False
+                self.activeMenu["menulist"].visible = False
                 self.activeMenu = None
+                print ("close menu True")
                 return True
 
         # If we are below menubar and nothing in menulists (not returned True) then user clicks on workarea of window to hide all menus
@@ -213,12 +302,16 @@ class MenuBar():
             if self.activeMenu:
                 # We are handling this so clear queue for others
                 pygame.event.clear()
-                self.activeMenu["menulist"].isVisible=False
+                self.activeMenu["menulist"].visible=False
                 self.activeMenu=None
+                print("close menu False")
 
 
     def handleMouseMove(self, pos):
         """ Switch open menu if in menubar else call upon menulists to handle mouse (if above menulists). """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # Move activemenu if mouse is moving within menubar area and menu is active
         if pos[1] <= (self.height + self.margins.y + self.margins.height):
             if not self.activeMenu == None:
@@ -226,10 +319,10 @@ class MenuBar():
                     if pos[0] > menu["left"] and pos[0] < (menu["left"] + menu["width"]):
                         self.activeMenu = menu
                         menulist = menu["menulist"]
-                        menulist.isVisible = True
+                        menulist.visible = True
                     else:
                         menulist = menu["menulist"]
-                        menulist.isVisible = False
+                        menulist.visible = False
                 # We are handling this so clear queue for others
                 pygame.event.clear()
                 return True
@@ -240,6 +333,9 @@ class MenuBar():
 
 
     def handleKeyDown(self,key,unicode):
+        # If not visible nothing to do.
+        if not self.visible: return
+
         isAlt = (pygame.key.get_mods() & pygame.KMOD_ALT)
         if isAlt:
             for menu in self.menus:
@@ -251,10 +347,10 @@ class MenuBar():
                 if keyNr == scNr:
                     self.activeMenu=menu
                     menulist=menu["menulist"]
-                    menulist.isVisible=True
+                    menulist.visible=True
                 else:
                     menulist = menu["menulist"]
-                    menulist.isVisible = False
+                    menulist.visible = False
                 # We are handling this so clear queue for others
                 pygame.event.clear()
 
@@ -272,14 +368,15 @@ class MenuBar():
 ########################################################################################################################
 
 class MenuList():
+    # items array: [ (menuitem,func_on_click,arg,sub_MenuList), ....]
+    items=[]
     title=""
     pos=GRect(0, 0, 0, 0)
-    items=[]
     margins=GRect(4, 4, 4, 4)
     rowheight=0
     spacing=4
     activeItem=-1
-    isVisible=False
+    visible=False
     textcolor = defMenuForeground
     backcolor = defMenuBackground
     highbackcolor = defHighMenuBackground
@@ -301,28 +398,75 @@ class MenuList():
         # Enlarge width and height if text does not fit
         width, height = self.font.size("MinimalText")
         l_width = width + self.margins.x + self.margins.width
-        l_height= 1*height++ self.margins.y + self.margins.height
+        l_height= height+ self.margins.y + self.margins.height
         self.pos=GRect(l_x,l_y,l_width,l_height)
         self.rowheight = height
 
+        # Make sure we have caretimg if needed for submenu
+        self.caretimg = pygame.image.load("resources/buttonarrow.png")
+        self.caretimg = pygame.transform.rotate(self.caretimg, -90)
+        self.caretwidth=self.rowheight
+        self.caretimg = pygame.transform.smoothscale(self.caretimg, (self.caretwidth,self.rowheight))
+        self.caretimg.set_colorkey(self.caretimg.get_at((0,0)))
 
-    def addItem(self,menuitem,func_on_click):
+
+    def addItem(self,menuitem,func_on_click,arg,submenulist=None):
         """ Add menulist item and adjust menulist height and width (if needed) """
-        #Add item
-        itemdata = (menuitem,func_on_click)
+
+        # Add item
+        itemdata = (menuitem,func_on_click,arg,submenulist)
         self.items.append(itemdata)
+
+        # Set top of submenu if present
+        if not submenulist==None:
+            submenulist.pos.top=self.pos.bottom-self.margins.bottom+self.margins.top
 
         # Adjust height and width only if needed
         width, height = self.font.size(menuitem)
+        if not submenulist==None: width=width+self.caretwidth # make room for > image
         if (width+self.margins.x+self.margins.width) >self.pos.width: self.pos.width=width+self.margins.x+self.margins.width
         self.pos.height= len(self.items)*(self.rowheight+self.spacing)+ self.margins.y + self.margins.height-self.spacing # extract 1x spacing at the bottom
 
+        # Repos all submenus left for new width of this menu
+        for (menuitem, func_on_click, arg, submenulist)  in self.items:
+            if not submenulist==None:
+                submenulist.pos.left = self.pos.right
+
+    def delItem(self, del_menuitem):
+            """ Delete menulist item and adjust menulist height and width (if needed) """
+
+            # Find and remove item
+            for itemdata in self.items:
+                (menuitem, func_on_click, arg, submenulist) = itemdata
+                if menuitem==del_menuitem:
+                    self.items.remove(itemdata)
+
+            # Adjust height and width only if needed
+            width, height = self.font.size(menuitem)
+            if (width + self.margins.x + self.margins.width) > self.pos.width:
+                self.pos.width = width + self.margins.x + self.margins.width
+            self.pos.height = len(self.items) * (self.rowheight + self.spacing) + self.margins.y + self.margins.height - self.spacing  # extract 1x spacing at the bottom
+
+    def clearItems(self):
+            """ Delete menulist item and adjust menulist height and width (if needed) """
+
+            # Find and remove item
+            self.items.clear()
+
+            # Adjust height and width only if needed
+            width, height = self.font.size("Min width")
+            if (width + self.margins.x + self.margins.width) > self.pos.width:
+                self.pos.width = width + self.margins.x + self.margins.width
+            self.pos.height = len(self.items) * (self.rowheight + self.spacing) + self.margins.y + self.margins.height - self.spacing  # extract 1x spacing at the bottom
+
+    #def itemY(self,itemNr):
+    #    return self.pos.y + self.margins.y + itemNr * (self.rowheight + self.spacing)
 
     def redraw(self):
         """ Redraws MenuList. """
 
         # If not visible nothing to do
-        if not self.isVisible:
+        if not self.visible:
             self.activeItem=-1 # so on reopening we don have floating cursor
             return
 
@@ -331,28 +475,54 @@ class MenuList():
         pygame.draw.rect(self.pyscreen, self.bordercolor, (self.pos.tuple()), 1)
 
         # Draw item text
-        for row,(text,func_on_click) in enumerate(self.items):
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
             rowtop=self.pos.y+self.margins.y+row*(self.rowheight+self.spacing)
-            if row==self.activeItem:
-                pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.pos.x+self.margins.x, rowtop-int(self.spacing/2), self.pos.width-self.margins.x-self.margins.width, self.rowheight), 0)
-                localtextcolor = defHighMenuForeground
+            if not text.startswith("---"):
+                if row==self.activeItem:
+                    pygame.draw.rect(self.pyscreen, self.highbackcolor,(self.pos.x+self.margins.x, rowtop-int(self.spacing/2), self.pos.width-self.margins.x-self.margins.width, self.rowheight), 0)
+                    localtextcolor = defHighMenuForeground
+                else:
+                    localtextcolor = defMenuForeground
+                textsurface = self.font.render(text,True, localtextcolor)
+                self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
+                # Draw > if submenu
+                if not subMenuList==None:
+                    self.pyscreen.blit(self.caretimg, (self.pos.right - self.margins.width - self.caretwidth, rowtop))
             else:
-                localtextcolor = defMenuForeground
-            textsurface = self.font.render(text,True, localtextcolor)
-            self.pyscreen.blit(textsurface, (self.pos.x+self.margins.x, rowtop))
+                pygame.draw.line(self.pyscreen,self.bordercolor,
+                                 (self.pos.x, rowtop-int(self.spacing/2)+int(self.rowheight/2)),
+                                 (self.pos.x+self.pos.width-1, rowtop-int(self.spacing/2)+int(self.rowheight/2) )
+                                )
+        # Draw sub menus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.redraw()
 
 
     def handleMouseMove(self, pos):
         """ Highlights menulist item if mouse hover above."""
-        if not self.isVisible: return
+        if not self.visible: return
 
+        # Hide all submenus, we will set correct submenu to visible below
+        if pos[0] > self.pos.x and pos[0] < (self.pos.x + self.pos.width):
+            for (text, func_on_click, arg, subMenuList) in self.items:
+                if not subMenuList==None: subMenuList.visible=False
+
+        # Find correct menu item and if present submenu
         if pos[0] > self.pos.x and pos[0] < (self.pos.x+self.pos.width) and \
             pos[1] < (self.pos.y + self.pos.height):
             rely=pos[1]-self.pos.y
             self.activeItem=int((rely-self.margins.y)/(self.rowheight+self.spacing))
+            if self.activeItem<len(self.items):
+                (text, func_on_click, arg, subMenuList)=self.items[self.activeItem]
+                if not subMenuList==None:
+                    subMenuList.visible=True
             # We are handling this so clear queue for others
             pygame.event.clear()
             return True
+
+        # Handle submenus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.handleMouseMove(pos)
 
 
     def handleMouseDown(self, pos,button):
@@ -361,17 +531,283 @@ class MenuList():
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked on menu item."""
         if not button == 1: return
-        if not self.isVisible: return
+        if not self.visible: return
+        print ("menulist.mouseUp", self.title)
+
+        # Handle submenus
+        for row,(text,func_on_click,arg,subMenuList) in enumerate(self.items):
+            if not subMenuList==None: subMenuList.handleMouseUp(pos,button)
+
+        # Now handle this menu
         gpos=GPoint.fromTuple(pos)
         if gpos.inGRect(self.pos):
             # We are handling this so clear queue for others
             pygame.event.clear()
-            for row, (item, func_on_click) in enumerate(self.items):
+            for row, (item, func_on_click,arg,subMenuList) in enumerate(self.items):
                 if row == self.activeItem:
+                    print ("handleMouseUp",self.title, item, func_on_click)
                     if not func_on_click==None:
-                        func_on_click()
-                        self.isVisible=False
+                        if arg==None:
+                            print("  func_on_click")
+                            func_on_click()
+                        else:
+                            print("  func_on_click + arg")
+                            func_on_click(arg)
+                        self.visible=False
                         return True
+                    self.visible=False
+
+########################################################################################################################
+## Class Frame
+########################################################################################################################
+
+class Frame():
+    pyscreen=None
+    rect=GRect()
+    drawborder=True
+    text="Frame"
+    bordercolor=defBorder
+    topoffset=0
+    margin=GRect(4,2,4,2)
+    backcolor=defFormBackground
+    drawbackground=False
+    forecolor=defFormForeground
+    __visible=True
+    __vislist=None
+    __controls=None
+    __rects = None
+
+    #LAYOUT
+    LEFTRIGHT=1
+    TOPDOWN=2
+    ABSOLUTEPOSITIONING=9
+    layout=ABSOLUTEPOSITIONING
+    gridsize=-1 # -1: not fixes spacing, but depending on control size
+    spacing= 4  # spacing between controls
+    controlsTop=0 # set in redraw
+    __recalc=False
+
+    def __init__(self, pyscreen, rect=GRect(0,0,80,80),backcolor=defFormBackground, drawbackground=False,
+                 bordercolor=defBorder,drawborder=True,topoffset=0,margin=GRect(4,2,4,2),
+                 text = "Frame", fontname = defFontName,fontsize = defFontSize,textcolor=defFormForeground,
+                 layout=ABSOLUTEPOSITIONING,gridsize=-1,spacing=4,
+                 tag=""):
+        self.pyscreen=pyscreen
+        self.rect=rect
+        self.backcolor=backcolor
+        self.drawbackground=drawbackground
+        self.bordercolor=bordercolor
+        self.topoffset=topoffset
+        self.margin=margin
+        self.drawborder=drawborder
+        self.textcolor=textcolor
+        self.layout=layout
+        self.gridsize=gridsize
+        self.spacing=spacing
+        self.text=text
+        self.font = pygame.font.SysFont(fontname, fontsize)
+        self.font.set_bold(True)
+        # Calculate
+        (twidth,theight)=self.font.size(self.text)
+        self.controlsTop = self.margin.y
+        if not self.text=="":
+            self.controlsTop = self.controlsTop + theight
+        # Create instance specific lists instead of class wide lists
+        self.__vislist = []
+        self.__controls = []
+        self.__rects = []
+        self.tag=tag
+
+    @property
+    def visible(self):return self.__visible
+
+    @visible.setter
+    def visible(self, visible):
+        self.__visible = visible
+        # If make hidden - Store old visible setting and hide all controls
+        """
+        if visible==False:
+            for idx,control in enumerate(self.__controls):
+                self.__vislist[idx]=control.visible
+                control.visible=False
+        #If make visible - Restore old visible setting of controls
+        else:
+            for idx,control in enumerate(self.__controls):
+                control.visible= self.__vislist[idx]
+        """
+    def append(self,control,rect=None):
+        self.__controls.append(control)
+        if not rect==None:
+            self.__rects.append(rect)
+        else:
+            self.__rects.append(GRect((0,0,0,0)))
+        self.__vislist.append(True)
+
+    def setRect(self, rect):
+        self.rect=rect
+        self.__validated=False
+
+    def reposControls(self):
+        """ Reposition the controls (could be shared amongst frames and we want our positions to be set.
+        """
+        for idx in range(0,len(self.__controls)):
+            #print (idx,": ",control.rect,"| ",self.rect,"| ",rect)
+            self.__controls[idx].rect.x = self.rect.x + self.__rects[idx].x
+            self.__controls[idx].rect.y = self.rect.y + self.__rects[idx].y
+
+    def recalcControls(self):
+        """ Depending on direction, reposition the controls
+        """
+        if self.layout==self.TOPDOWN:
+            x=self.margin.x
+            y=self.controlsTop
+            for idx in range(0,len(self.__controls)):
+                self.__rects[idx].x = x
+                self.__rects[idx].y = y
+                if isinstance(self.__controls[idx], Frame): self.__controls[idx].setRect(self.__controls[idx].rect)
+                if self.gridsize==-1: # no fixed spacing, but depending on control size
+                    y=y+self.__controls[idx].rect.height+self.spacing
+                else:            # fixed spacing, margin ignored
+                    y=y+self.gridsize
+
+        elif self.layout==self.LEFTRIGHT:
+            x=self.margin.x
+            y=self.controlsTop
+            for idx in range(0, len(self.__controls)):
+                self.__rects[idx].x = x
+                self.__rects[idx].y = y
+                if isinstance(self.__controls[idx], Frame): self.__controls[idx].setRect(self.__controls[idx].rect)
+                if self.gridsize==-1: # no fixed spacing, but depending on control size
+                    x=x+self.__controls[idx].rect.width+self.spacing
+                else:            # fixed spacing, margin ignored
+                    x=x+self.gridsize
+
+        self.__recalc=True
+
+    """
+    def crop(self):
+        maxX=0
+        maxY=0
+        for control in self.__controls:
+            if isinstance(control,Frame):
+                control.recalcControls()
+                control.crop()
+            maxX = max(control.rect.x + control.rect.width, maxX)
+            maxY = max(control.rect.y + control.rect.height, maxY)
+        self.recalcControls()
+        self.rect.width = self.margin.x+maxX+self.margin.width
+        self.rect.height = self.margin.y + maxY + self.margin.height
+    """
+
+
+    def redraw(self):
+        if not self.__visible: return
+        if not self.__recalc: self.recalcControls()
+        self.reposControls()
+
+        # Calculate border, depending if Title ofsets top
+        (twidth,theight)=self.font.size(self.text)
+        frameRect = self.rect.copy()
+        frameRect.shrink(GRect(0, self.topoffset, 0, 0))
+
+        # Draw background
+        if self.drawbackground:
+            pygame.draw.rect(self.pyscreen, self.backcolor, frameRect.tuple(), 0)
+
+        # Draw border
+        if self.drawborder:
+            pygame.draw.rect(self.pyscreen, self.bordercolor, frameRect.tuple(),1)
+
+        # Draw Frame Title
+        if not self.text == "":
+            # Remove border behind text
+            if self.topoffset > 0:
+                pygame.draw.rect(self.pyscreen, self.backcolor,
+                                 (self.rect.x + self.margin.x-2, frameRect.y,twidth+4,1), 0)
+            # Draw text
+            textsurface = self.font.render(self.text, True, self.textcolor)
+            self.pyscreen.blit(textsurface, (self.rect.x + self.margin.x, self.rect.y+self.margin.y))
+
+        # Draw Controls on top of frame background
+        for control in self.__controls:
+            if not control==None:
+                control.redraw()
+                #if isinstance(control,Combobox):
+                #    print ("combo:",control.rect,control.visible)
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of ImgBox on hover. """
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseMove(pos)
+
+    def handleMouseUp(self, pos,button):
+        """ Calls on user function if clicked."""
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseUp(pos,button)
+
+    def handleMouseDown(self,pos,button):
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleMouseDown(pos,button)
+
+    def handleKeyDown(self,key,unicode):
+        if not self.visible: return
+        #self.reposControls()
+        for control in self.__controls:
+            control.handleKeyDown(key,unicode)
+
+    def handleToolTips(self,lastpos,displaywidth=None):
+        tooltip=None
+        for control in self.__controls:
+            hasToolTip = getattr(control, "handleToolTips", False)
+            if hasToolTip:
+                ret = control.handleToolTips(lastpos,displaywidth)
+                if not ret==None: tooltip=ret
+        return tooltip
+
+
+########################################################################################################################
+## Class ProgressBar
+########################################################################################################################
+
+class ProgressBar():
+    rect=GRect()
+    visible=True
+    drawBorder=False
+    forecolor=defBorderHover
+    progress=0
+    visible=True
+
+    def __init__(self, pyscreen, rect=GRect(0,0,80,20),bordercolor=defBorder,forecolor=defBorderHover,drawBorder=True,progress=0):
+        """ Saves all values to internal variables. """
+        self.rect=rect
+        self.pyscreen = pyscreen
+        self.bordercolor = bordercolor
+        self.forecolor=forecolor
+        self.drawBorder=drawBorder
+        self.progress=progress
+
+    def redraw(self):
+        """ Redraws ImgBox. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Draw progress bar
+        progrect=self.rect.copy()
+        progrect.shrink(GRect(2,2,2,2))
+        progrect.width= progrect.width * self.progress / 100
+        pygame.draw.rect(self.pyscreen, self.forecolor, progrect.tuple(), 0)
+
+        # Drawborder
+        if self.drawBorder:
+            pygame.draw.rect(self.pyscreen,self.bordercolor, self.rect.tuple(), 1)
 
 
 ########################################################################################################################
@@ -379,6 +815,8 @@ class MenuList():
 ########################################################################################################################
 
 class ImgBox():
+    """ Imagebox can be loaded with image from disc of empty canvas to draw on
+    """
     rect=GRect()
     img=None
     hoverimg=None
@@ -393,9 +831,8 @@ class ImgBox():
     firstHoverTime = 0
     firstHoverPos=GPoint(0,0)
 
-    def __init__(self, pyscreen, filename,filename_hover=None, pos=(0,0),bordercolor=defBorder,borderhovercolor=defBorderHover,drawBorder=False,
-                 toolTip="",
-                 resizeto=None,func_on_click=None):
+    def __init__(self, pyscreen, filename=None, filename_hover=None, rect=GRect(0, 0,-1,-1), bordercolor=defBorder,
+                 borderhovercolor=defBorderHover, drawBorder=False,rotate=0,toolTip="",func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.bordercolor = bordercolor
@@ -403,28 +840,27 @@ class ImgBox():
         self.drawBorder=drawBorder
         self.func_on_click=func_on_click
 
-        # Load image and resize to fit
-        self.img=pygame.image.load(filename)
+        if filename==None and (rect.width==-1 or rect.height==-1):
+            raise Exception("Give an image filename or specify the image size!")
+
+        # Load image and rotate
+        if not filename == None:
+            self.img=pygame.image.load(filename)
+            if not rotate==0:self.img=pygame.transform.rotate(self.img,rotate)
+        else: # we make an empty canvas for the user to draw on
+            self.img=pygame.Surface((rect.width, rect.height))
         if not filename_hover==None:
             self.hoverimg = pygame.image.load(filename_hover)
+            if not rotate == 0:self.hoverimg =pygame.transform.rotate(self.hoverimg ,rotate)
 
-        # If user want other size we try to resize
-        try:
-            if not resizeto == None:
-                self.img=pygame.transform.scale(self.img, resizeto)
-                if not filename_hover==None:
-                    self.hoverimg = pygame.transform.scale(self.hoverimg, resizeto)
-        except Exception as err:
-            print(err)
+        # Determine dest size (rescale is done in redraw if necessary)
+        imgrect = self.img.get_rect()
+        if rect.width < 1 or rect.height < 1:
+            rect.width = imgrect[2]
+            rect.height = imgrect[3]
+        self.rect = rect
 
-        # Determine size of control based on image size
-        imgrect=self.img.get_rect()
-        self.rect=GRect(imgrect[0],imgrect[1],imgrect[2],imgrect[3])
-        self.rect.x=pos[0]
-        self.rect.y=pos[1]
-
-        #And setup tooltip
-        # We need to figure out the correct width correct width of tooltip
+        # And setup tooltip - We need to figure out the correct width correct width of tooltip
         if not toolTip=="":
             self.toolTipLabel = Label(pyscreen, rect=GRect(self.rect.right, self.rect.height, 1024, 20),
                                       text=toolTip, drawBorder=True, borderwidth=1, backcolor=defHighEditorBackground,
@@ -437,12 +873,24 @@ class ImgBox():
             self.toolTipLabel.rect.width=max_width+self.toolTipLabel.margin.x+self.toolTipLabel.margin.width
             self.toolTipLabel.visible=False
 
+    def surface(self):
+        """ Returns surface for user to draw on."""
+        return self.img
 
     def redraw(self):
         """ Redraws ImgBox. """
 
         # If not visible nothing to do.
         if not self.visible: return
+
+        # Check if control size changed and we need to rescale image
+        imgrect = self.img.get_rect()
+        rect=self.rect.tuple()
+        if not imgrect[2]==rect[2] or not imgrect[3]==rect[3]:
+            resizeto=(rect[2],rect[3])
+            self.img = pygame.transform.smoothscale(self.img, resizeto)
+            if not self.hoverimg == None:
+                self.hoverimg = pygame.transform.smoothscale(self.hoverimg, resizeto)
 
         # Draw Image to screen
         self.pyscreen.blit(self.img,self.rect.tuple())
@@ -462,6 +910,7 @@ class ImgBox():
 
     def handleMouseMove(self, pos):
         """ Updates state of ImgBox on hover. """
+        if not self.visible: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.hoverActive=True
@@ -472,6 +921,9 @@ class ImgBox():
 
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked."""
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button==1: return
         gpos = GPoint(pos[0], pos[1])
         if gpos.inGRect(self.rect):
@@ -487,10 +939,16 @@ class ImgBox():
         return
 
 
-    def handleToolTips(self,pos):
+    def handleToolTips(self,pos,displaywidth=None):
         """ Returns label control with tooltip if hovered long enough. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
+
+        # if displaywidth not given, we use screen width (in openGL they can differ)
+        if displaywidth==None: displaywidth=self.pyscreen.get_size()[0]
 
         #Check if mouse above control, if not exit
         gpos=GPoint.fromTuple(pos)
@@ -520,7 +978,7 @@ class ImgBox():
             self.toolTipLabel.rect.x = gpos.x
             self.toolTipLabel.rect.y = gpos.y
             #check if tooltip overflow right edge of pyscreen
-            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+            if self.toolTipLabel.rect.right>displaywidth:
                 self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
             return self.toolTipLabel
 
@@ -544,7 +1002,11 @@ class Button():
     borderwidth=1
     visible=True
 
-    def __init__(self, pyscreen, rect=GRect(0,0,60,40),text="Button",  textcolor=(0,0,0),fontname=defFontName, fontsize=defFontSize, backcolor=defButtonBackground,filename=None,filename_hover=None,filename_down=None, bordercolor=defBorder, borderhovercolor=defBorderHover,func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(0,0,60,40),
+                 text="Button",  textcolor=(0,0,0),fontname=defFontName, fontsize=defFontSize,
+                 backcolor=defButtonBackground,filename=None,
+                 filename_hover=None,filename_down=None,
+                 bordercolor=defBorder, borderhovercolor=defBorderHover,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.text=text
@@ -627,6 +1089,9 @@ class Button():
 
     def handleMouseMove(self, pos):
         """ Updates state of Button on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             self.state=self.hover
@@ -638,6 +1103,9 @@ class Button():
 
     def handleMouseUp(self, pos,button):
         """ Calls on user function if clicked."""
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
@@ -649,12 +1117,169 @@ class Button():
 
     def handleMouseDown(self,pos,button):
         """ Updates state of Button on down. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         if not button == 1: return
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             # We are handling this so clear queue for others
             pygame.event.clear()
             self.state=self.down
+
+    def handleKeyDown(self,key,unicode):
+        return
+
+
+########################################################################################################################
+## Class Checkbox
+########################################################################################################################
+
+class Checkbox():
+    """ Check box with dot/cross/images. Can be grouped.
+    """
+
+    # We need 3 states so boolean var does not suffice
+    unselected = 0
+    selected = 1
+    hover_unselected=2
+    hover_selected=3
+    state= unselected
+
+    # We need 2 types
+    radiobutton = 0
+    checkbox = 1
+    image = 2
+    cbtype=radiobutton
+
+    rect=None
+    img=None
+    selectimg = None
+    action=None
+
+    borderwidth=1
+    visible=True
+
+    group=None
+
+    def __init__(self, pyscreen, rect=GRect(0,0,32,32),type=radiobutton,
+                 backcolor=defButtonBackground,forecolor=(0,0,0),
+                 bordercolor=defBorder, borderhovercolor=defBorderHover,
+                 borderwidth=1,selectborderwidth=1,
+                 img=None,selectimg=None,
+                 group=None,
+                 func_on_click=None):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.forecolor=forecolor
+        self.bordercolor = bordercolor
+        self.borderhovercolor=borderhovercolor
+        self.selectborderwidth=selectborderwidth
+        self.borderwidth = borderwidth
+        self.backcolor=backcolor
+        self.func_on_click=func_on_click
+        if func_on_click==None: print ("None")
+        self.rect=rect
+        self.cbtype=type
+        self.img=img
+        self.selectimg=selectimg
+        if not group==None:
+            group.append(self)
+            self.group=group
+        if not self.img==None and selectimg==None: self.selectimg=self.img
+
+
+    def redraw(self):
+        """ Redraws Button. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Draw state symbol
+        if self.cbtype == self.radiobutton:
+            offset=0.2
+        else:
+            offset=0.3
+        shrinkRect=GRect(int(self.rect.width*offset),int(self.rect.height*offset),int(self.rect.width*offset),int(self.rect.height*offset))
+        innerRect=self.rect.copy()
+        innerRect.shrink(shrinkRect)
+        if self.cbtype == self.checkbox:
+            innerRect.x -= 1
+            innerRect.y -= 1
+
+        width = 1+int(innerRect.width/4)
+
+        if self.state==self.selected or self.state==self.hover_selected:
+            if self.cbtype==self.radiobutton:
+                #pygame.draw.circle(self.pyscreen, self.forecolor,(self.rect.x,self.rect.y), radi,0)
+                pygame.draw.ellipse(self.pyscreen, self.forecolor, innerRect.tuple(), 0)
+            elif self.cbtype==self.checkbox:
+                pygame.draw.line(self.pyscreen, self.forecolor, (innerRect.left, innerRect.top),
+                                 (innerRect.right, innerRect.bottom),width )
+                pygame.draw.line(self.pyscreen, self.forecolor, (innerRect.right, innerRect.top),
+                                 (innerRect.left, innerRect.bottom),width )
+
+        if self.cbtype==self.image:
+           if self.state==self.selected or self.state==self.hover_selected:
+                self.pyscreen.blit(self.img,self.rect.tuple())
+           if self.state==self.unselected or self.state==self.hover_unselected:
+                self.pyscreen.blit(self.img,self.rect.tuple())
+
+        # Draw border corresponding to button state
+        if self.state == self.hover_unselected or self.state == self.hover_selected:
+            color=self.borderhovercolor
+        else:
+            color=self.bordercolor
+        if self.state == self.selected or self.state ==self.hover_selected:
+            bwidth=self.selectborderwidth
+        else:
+            bwidth=self.borderwidth
+        if not bwidth==0: #user wants no border
+            pygame.draw.rect(self.pyscreen, color, self.rect.tuple(), bwidth)
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of Button on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            if self.state==self.unselected: self.state=self.hover_unselected
+            if self.state == self.selected: self.state = self.hover_selected
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+        else:
+            if self.state==self.hover_unselected: self.state=self.unselected
+            if self.state == self.hover_selected: self.state = self.selected
+        #print (self.state)
+
+    def handleMouseUp(self,pos,button):
+        return
+
+    def handleMouseDown(self,pos,button):
+        """ Updates state of box on down. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+            if self.state==self.unselected or self.state==self.hover_unselected:
+                self.state=self.hover_selected
+                # If we are in a group we will remove selection on other checkboxes in group
+                if not self.group == None:
+                    print ("remove selection:")
+                    for checkbox in self.group:
+                        if not checkbox==self:
+                            checkbox.state=self.unselected
+                # Send action
+                self.func_on_click(True)
+            elif self.state==self.selected or self.state==self.hover_selected:
+                self.state=self.hover_unselected
+                self.func_on_click(False)
+
 
     def handleKeyDown(self,key,unicode):
         return
@@ -677,7 +1302,7 @@ class ScrollBarV():
     visible = True
 
     #todo: replace forecolor with def constant
-    def __init__(self, pyscreen, rect=GRect(0, 0, 60, 40), forecolor=(0,0,0), sfontsize=defFontSize, sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover, func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
+    def __init__(self, pyscreen, rect=GRect(0, 0, 24, 40), forecolor=(0,0,0), sfontsize=defFontSize, sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover, func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect=rect
@@ -693,10 +1318,18 @@ class ScrollBarV():
         self.largeScroll=largeScroll
 
         # Add up and down button
-        self.btnUp = Button(pyscreen, text="^", bordercolor=sbordercolor, borderhovercolor=sborderhovercolor,
-                            textcolor=forecolor, func_on_click=self.scrollUp)
-        self.btnDown = Button(pyscreen, text="v", bordercolor=sbordercolor, borderhovercolor=sborderhovercolor,
-                              textcolor=forecolor, func_on_click=self.scrollDown)
+        self.btnUp=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=0,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollUp)
+        self.btnDown=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=180,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollDown)
 
 
     def scrollDown(self,isLargeScroll=False):
@@ -772,6 +1405,9 @@ class ScrollBarV():
 
     def handleMouseMove(self, pos):
         """ Updates state of Scroll Area and Up and Down buttons on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         gpos=GPoint(pos[0],pos[1])
         if gpos.inGRect(self.rect):
             # We are handling this so clear queue for others
@@ -786,6 +1422,8 @@ class ScrollBarV():
 
     def handleMouseUp(self, pos,button):
         """ Transmits MouseUp to up and down button. """
+        # If not visible nothing to do.
+        if not self.visible: return
 
         #If not left mousebutton then nothing to do
         if not button == 1: return
@@ -796,6 +1434,8 @@ class ScrollBarV():
 
     def handleMouseDown(self,pos,button):
         """ Updates state of Scroll Area and Up and Down buttons on mousedown. """
+        # If not visible nothing to do.
+        if not self.visible: return
 
         #If not left mousebutton then nothing to do
         if not button == 1: return
@@ -833,6 +1473,200 @@ class ScrollBarV():
 
 
 ########################################################################################################################
+## Class ScrollBarH
+########################################################################################################################
+
+class ScrollBarH():
+    # We need 3 buttonstates so boolean var does not suffice
+    normal=0
+    hover=1
+    down=2
+    state= False
+
+    rect = None
+    action = None
+    borderwidth = 1
+    visible = True
+
+    #todo: replace forecolor with def constant
+    def __init__(self, pyscreen, rect=GRect(0, 0, 40, 24), forecolor=(0,0,0),
+                 fontname=defFontName,fontsize=defFontSize,
+                 sbackcolor=defButtonBackground, sbordercolor=defBorder, sborderhovercolor=defBorderHover,
+                 func_on_click=None,minScroll=0, maxScroll=128,curScroll=0,smallScroll=1, largeScroll=8):
+        """ Saves all values to internal variables. """
+        self.pyscreen = pyscreen
+        self.rect=rect
+        self.bordercolor = sbordercolor
+        self.borderhovercolor = sborderhovercolor
+        self.backcolor = sbackcolor
+        self.forecolor=forecolor
+        self.func_on_click = func_on_click
+        self.minScroll=minScroll
+        self.maxScroll=maxScroll
+        self.curScroll = curScroll
+        self.smallScroll=smallScroll
+        self.largeScroll=largeScroll
+
+        # Add up and down button
+        self.btnLeft=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=90,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollDown)
+        self.btnRight=ImgBox(pyscreen,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=-90,
+                     bordercolor=sbordercolor,borderhovercolor=sborderhovercolor, drawBorder=True,
+                     toolTip="",func_on_click=self.scrollUp)
+
+        self.label=Label(pyscreen,center=True,istransparent=True,fontname=fontname,fontsize=fontsize)
+
+    def scrollUp(self,isLargeScroll=False):
+        """ Decreases current scroll value. """
+
+        # Check if we have to take a small step or a large step
+        if not isLargeScroll:
+            self.curScroll=self.curScroll+self.smallScroll
+        else:
+            self.curScroll = self.curScroll + self.largeScroll
+        if self.curScroll>self.maxScroll: self.curScroll=self.maxScroll
+
+        # Send curScroll to parent
+        if not self.func_on_click ==None: self.func_on_click(self.curScroll)
+        #print("scroll Up: ",self.curScroll)
+
+
+    def scrollDown(self,isLargeScroll=False):
+        """ Inreases current scroll value. """
+
+        # Check if we have to take a small step or a large step
+        if not isLargeScroll:
+            self.curScroll = self.curScroll - self.smallScroll
+        else:
+            self.curScroll=self.curScroll - self.largeScroll
+        if self.curScroll < self.minScroll: self.curScroll = self.minScroll
+
+        # Send curScroll to parent
+        if not self.func_on_click==None: self.func_on_click(self.curScroll)
+        #print("scroll Down: ", self.curScroll, isLargeScroll, self.smallScroll)
+
+
+    def redraw(self):
+        """ Redraws ScrollBarV. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        # Position up and down buttons
+        self.btnLeft.rect= GRect(self.rect.x, self.rect.y, self.rect.height, self.rect.height)
+        self.btnRight.rect = GRect(self.rect.x+ self.rect.width - self.rect.height, self.rect.y , self.rect.height, self.rect.height)
+
+        # Draw background
+        pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
+
+        # Determine scroll area between up and down buttons
+        innerRect=self.rect.copy()
+        innerRect.x=self.rect.x+self.btnLeft.rect.width
+        innerRect.width=self.rect.width-self.btnLeft.rect.width-self.btnRight.rect.width
+        self.label.rect=innerRect
+        self.label.setText(str(self.curScroll))
+
+        # Determine at what percentage of this area we clicked
+        indXrel=(self.curScroll-self.minScroll)/(self.maxScroll-self.minScroll)
+        #indY=innerRect.bottom-indYrel*innerRect.height
+        indX=innerRect.left+indXrel*innerRect.width
+
+        # Draw indicator at the height we clicked.
+        indRect=self.rect.copy()
+        indRect.x=indX-1
+        indRect.width=3
+        pygame.draw.rect(self.pyscreen, self.forecolor, indRect.tuple(), 0)
+
+        # Draw border depending on state of ScrollbarV.
+        if self.borderwidth == 1:
+            if self.state == self.down or self.state == self.hover:
+                pygame.draw.rect(self.pyscreen, self.borderhovercolor, self.rect.tuple(), 1)
+            else:
+                pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), 1)
+
+        # Call upon up and down buttons to redraw themselves
+        self.btnLeft.redraw()
+        self.btnRight.redraw()
+        self.label.redraw()
+
+
+    def handleMouseMove(self, pos):
+        """ Updates state of Scroll Area and Up and Down buttons on hover. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        gpos=GPoint(pos[0],pos[1])
+        if gpos.inGRect(self.rect):
+            # We are handling this so clear queue for others
+            pygame.event.clear()
+            self.state=self.hover
+        else:
+            self.state=self.normal
+
+        # Call upon buttons to check if MouseMove (hover) above them
+        self.btnLeft.handleMouseMove(pos)
+        self.btnRight.handleMouseMove(pos)
+
+    def handleMouseUp(self, pos,button):
+        """ Transmits MouseUp to up and down button. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        #If not left mousebutton then nothing to do
+        if not button == 1: return
+
+        # Call upon buttons to check for MouseUp above them
+        self.btnLeft.handleMouseUp(pos,button)
+        self.btnRight.handleMouseUp(pos, button)
+
+    def handleMouseDown(self,pos,button):
+        """ Updates state of Scroll Area and Up and Down buttons on mousedown. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
+        #If not left mousebutton then nothing to do
+        if not button == 1: return
+
+        #Check if in rect
+        gpos=GPoint(pos[0],pos[1])
+        if not gpos.inGRect(self.rect): return
+
+        # We are handling this so clear queue for others
+        pygame.event.clear()
+
+        # Set state if clicked within area
+        self.state=self.down
+
+        # Determine scroll area between up and down buttons
+        innerRect = self.rect.copy()
+        innerRect.x = self.rect.x + self.btnLeft.rect.width
+        innerRect.width= self.rect.width- self.btnLeft.rect.width- self.btnRight.rect.width
+
+        # Check if mouseclick inside scroll area
+        if gpos.inGRect(innerRect):
+            # Determine at what screen position the scroll indicator is.
+            indXrel = (self.curScroll - self.minScroll) / (self.maxScroll - self.minScroll)
+            indX = innerRect.left + indXrel * innerRect.width
+            # If clicked above indicator we scroll up and vice versa
+            if gpos.x > indX: self.scrollUp(True)
+            if gpos.x < indX: self.scrollDown(True)
+
+        # Call upon buttons to check for MouseDown above them
+        self.btnLeft.handleMouseDown(pos, button)
+        self.btnRight.handleMouseDown(pos, button)
+
+    def handleKeyDown(self,key,unicode):
+        return
+
+
+########################################################################################################################
 ## Class ListBox
 ########################################################################################################################
 
@@ -840,7 +1674,7 @@ class ListBox():
     items=[]
     rect = GRect(0, 0, 80, 32)
     margins = GRect(4, 4, 4, 4)
-    bordercolor = (128, 128, 128)
+    bordercolor = defBorder
     backcolor = defEditorBackground
     textcolor = defEditorForeground
     highbackcolor = defHighSelectBackground
@@ -853,6 +1687,7 @@ class ListBox():
     spacing=4
     offset=0
     visible=True
+    func_on_click=None
 
     def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         """ Saves all values to internal variables. """
@@ -883,7 +1718,6 @@ class ListBox():
     def items(self):
         """ Return items in ListBox """
         return self.items
-
 
     def scrollItems(self,curScroll):
         """ Sets first listitem to show ListBox to curScroll"""
@@ -920,11 +1754,12 @@ class ListBox():
                     textsurface = self.font.render(item, True, self.hightextcolor)
                 else:
                     textsurface = self.font.render(item, True, self.textcolor)
-                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)),(0,0,self.rect.width,self.rowheight+self.spacing))
+                self.pyscreen.blit(textsurface, (self.rect.x + self.margins.x, self.rect.y + self.margins.y+row*(self.rowheight+self.spacing)),
+                                                (0,0,self.rect.width-self.scrollbarV.rect.width,self.rowheight+self.spacing))
 
         # Position scrollbar and call upon scrollbarV to redraw itself
         scrollRect = self.rect.copy()
-        scrollRect.width = self.fontsize
+        scrollRect.width = int(self.fontsize*1.2)
         scrollRect.x = self.rect.right - scrollRect.width
         self.scrollbarV.rect=scrollRect
         self.scrollbarV.maxScroll = len(self.items)-self.nritems
@@ -941,9 +1776,14 @@ class ListBox():
             print ("Error from ListBox.activeText()")
             return ""
 
+    def activeIndex(self):
+        return self.activeItem
 
     def handleMouseDown(self,pos,button):
         """ Handles scroll with mousewheel and mousedown on item in ListBox. """
+
+        # If not visible nothing to do.
+        if not self.visible: return
 
         # Check if we clicked inside the area where the items are displayed
         gpos=GPoint.fromTuple(pos)
@@ -962,9 +1802,13 @@ class ListBox():
                 self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
             # Mousewheel Down, so scroll down by setting offset (first item to be displayed)
             if button==5:
-                self.offset = self.offset + 1
-                if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
-                self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
+                if len(self.items)<self.nritems: # only scroll (set offset) if items in memory is larger than nritems displayed
+                    self.offset=0
+                else:
+                    #print ("button 5", self.offset, len(self.items),self.nritems)
+                    self.offset = self.offset + 1
+                    if self.offset>(len(self.items)-self.nritems): self.offset=len(self.items)-self.nritems
+                    self.scrollbarV.curScroll = self.offset # Tell scrollBarV our new position.
             # We are handling this so clear queue for others
             pygame.event.clear()
         # Else ask to check if clicked on scrollbarV
@@ -978,6 +1822,9 @@ class ListBox():
         # Check if we clicked with left mouse button
         if not button == 1: return
 
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # Check if we clicked inside the area where the items are displayed
         gpos=GPoint.fromTuple(pos)
         innerRect=self.rect.copy()
@@ -985,13 +1832,16 @@ class ListBox():
         if gpos.inGRect(innerRect):
             # We are handling this so clear queue for others
             pygame.event.clear()
-            if not self.func_on_click==None: self.func_on_click(self.activeText())
+            if not self.func_on_click==None: self.func_on_click(self.activeItem,self.activeText())
         else:
             # Else ask to check if clicked on scrollbarV
             self.scrollbarV.handleMouseUp(pos,button)
 
     def handleMouseMove(self,pos):
         """ Calls upon scrollbarV to handle MouseMove if needed """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         self.scrollbarV.handleMouseMove(pos)
         return
 
@@ -1005,8 +1855,12 @@ class ListBox():
 
 class Combobox():
     items=[]
+    label=None
+    button=None
+    listbox=None
     rect = GRect(0, 0, 80, 32)
     margins = GRect(4, 4, 4, 4)
+    expandHeight = 40
     font=None
     fontname = "Consolas"
     fontsize = 16
@@ -1018,10 +1872,11 @@ class Combobox():
     text="" #stores text if clicked
     func_on_click=None
 
-    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
+    def __init__(self, pyscreen, rect=GRect(100, 40, 80, 80), expandHeight=130, items=None,defitemnr=0,fontname=defFontName, fontsize=defFontSize,func_on_click=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect=rect
+        self.expandHeight=expandHeight
         self.items=items
         self.font = pygame.font.SysFont(fontname, fontsize)
         text_width, text_height = self.font.size("M[].j")
@@ -1034,9 +1889,9 @@ class Combobox():
         fsize=fontsize
 
         # Calc positions
-        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
-        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
-        listboxRect=GRect(rect.left,rect.bottom,rect.width,120)
+        labelRect=GRect(rect.left,rect.top,rect.width-self.fontsize*1.2,rect.height)
+        buttonRect=GRect(rect.right-rect.height,rect.top,self.fontsize*1.2,rect.height)
+        listboxRect=GRect(rect.left,rect.bottom,rect.width,expandHeight)
         # Add Label
         defitem=items[defitemnr]
         self.label=Label(pyscreen,rect=labelRect,text=defitem,fontname=fname,fontsize=fsize,autowrap=False)
@@ -1050,45 +1905,67 @@ class Combobox():
         self.label.rect.width=rect.width-self.label.rect.height
         buttonRect.height=self.label.rect.height
         buttonRect.left=self.label.rect.right
-        buttonRect.width=self.label.rect.height
+        buttonRect.width=int(self.fontsize*1.2)#self.label.rect.height
         listboxRect.top=labelRect.bottom
         # Add Button
-        self.button=Button(pyscreen,rect=buttonRect,text="V",fontname=fname,fontsize=fsize,func_on_click=self.buttonClick)
+        self.button=ImgBox(pyscreen, rect=buttonRect,
+                     filename="resources/buttonarrow.png",
+                     filename_hover=None,
+                     rotate=180,
+                     bordercolor=defBorder,borderhovercolor=defBorderHover, drawBorder=True,
+                     toolTip="",func_on_click=self.buttonClick)
+
         # Add Listbox
         self.listbox=ListBox(pyscreen,rect=listboxRect,items=items,fontname=fname,fontsize=fsize,func_on_click=self.listClick)
+        # Calc expanded size of listBox
+        nritems = int(expandHeight / (self.listbox.rowheight + self.listbox.spacing))
+        self.expandHeight=nritems*(self.listbox.rowheight + self.listbox.spacing)
 
         # Initially combobox is not expanded / listbox is not visible
         self.listbox.visible=False
 
-    """ 
-    def reposControls(self): #called after winrect is moved
-        # Recalculates all positions after moving dialog box. 
+    def reposControls(self):
+        if self.label==None or self.button==None or self.listbox==None:return
+
         rect=self.rect
-        #buttons is as wide as height
-        labelRect=GRect(rect.left,rect.top,rect.width-rect.height,rect.height)
-        buttonRect=GRect(rect.right-rect.height,rect.top,rect.height,rect.height)
-        listboxRect=GRect(rect.left,rect.bottom,rect.width,40)
-        self.button.rect=buttonRect
+        text_width, text_height = self.font.size("M[].j")
+        self.rowheight=text_height
+
+        labelRect = GRect(rect.left, rect.top, rect.width - self.fontsize*1.2, rect.height)
+        buttonRect = GRect(labelRect.right, rect.top, self.fontsize*1.2, rect.height)
+        listboxRect = GRect(rect.left, rect.bottom, rect.width, self.expandHeight)
         self.label.rect=labelRect
-        #todo: listbox below label, but this should depend on room
+        labelRect = self.label.rect
+
+        # Label will resize itself in height
+        self.label.rect.width = rect.width - buttonRect.width
+        buttonRect.height = self.label.rect.height
+        buttonRect.left = self.label.rect.right
+        buttonRect.width = int(self.fontsize * 1.2)  # self.label.rect.height
+        listboxRect.top = labelRect.bottom
+        self.button.rect = buttonRect
         self.listbox.rect=listboxRect
-    """
+
 
     def redraw(self):
+        # In case user changed self.rect or self.rect.x or self.rect.y we need to repos children
+        self.reposControls()
         self.label.redraw()
         self.button.redraw()
         self.listbox.redraw()
 
 
-    def listClick(self,clickedtext):
-        print (clickedtext,self.listbox.activeText())
+    def listClick(self,clickeditem,clickedtext):
+        #print ("Combobox:",clickedtext,self.listbox.activeText())
+        self.text=clickedtext
+        self.index=clickeditem
         self.label.setText(clickedtext)
         self.listbox.visible=False
-        self.text=clickedtext
-        if not self.func_on_click==None: self.func_on_click(clickedtext)
+        if not self.func_on_click==None: self.func_on_click(self.index,self.text)
 
     def buttonClick(self):
         self.listbox.visible= not self.listbox.visible
+        #print ("listbox",self.listbox.rect,self.listbox.visible)
 
 
     def handleMouseUp(self,pos,button):
@@ -1288,6 +2165,12 @@ class TextBox():
     visible=True
     allSelected=False
 
+    #Hover
+    normal=0
+    hover=1
+    state= False
+
+
     #Tooltip vars
     toolTipLabel=None
     firstHoverTime = 0
@@ -1301,17 +2184,18 @@ class TextBox():
     inputType=TEXT
 
     def __init__(self, pyscreen, rect=GRect(0, 0, 80, 32), margin=GRect(4, 4, 4, 4),
-                 bordercolor=defBorder, backcolor=defEditorBackground, textcolor=defEditorForeground,
+                 bordercolor=defBorder, borderhovercolor=defBorderHover, backcolor=defEditorBackground, textcolor=defEditorForeground,
                  borderwidth=1, drawBorder=True,
                  text="text", maxlength=-1, fontname=defFontName, fontsize=defFontSize, editable=True,
                  inputType=TEXT,
                  toolTip="",
-                 onEnter=None, linkedData=None):
+                 onEnter=None, onLostFocus=None,linkedData=None):
         """ Saves all values to internal variables. """
         self.pyscreen = pyscreen
         self.rect = rect
         self.margin=margin
         self.bordercolor=bordercolor
+        self.borderhovercolor=borderhovercolor
         self.backcolor=backcolor
         self.textcolor=textcolor
         self.borderwidth=borderwidth
@@ -1325,6 +2209,7 @@ class TextBox():
         self.inputType=inputType
         self.drawBorder=drawBorder
         self.onEnter=onEnter
+        self.onLostFocus = onLostFocus
         self.linkedData=linkedData
 
         # We truncate text if larger than allowed maximum length given by user
@@ -1363,7 +2248,12 @@ class TextBox():
 
         # Draw background and border if needed
         pygame.draw.rect(self.pyscreen, self.backcolor, self.rect.tuple(), 0)
-        if self.drawBorder: pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
+        if self.drawBorder:
+            if self.borderwidth == 1:
+                if self.state==self.hover:
+                    pygame.draw.rect(self.pyscreen, self.borderhovercolor, self.rect.tuple(), self.borderwidth)
+                else:
+                    pygame.draw.rect(self.pyscreen, self.bordercolor, self.rect.tuple(), self.borderwidth)
 
         # Draw text
         # If all selected we need to draw with hightlighted background
@@ -1392,9 +2282,10 @@ class TextBox():
     def handleMouseUp(self,pos,button):
         """ Set cursor / edit of TextBox """
 
+        # If not visible nothing to do.
+        if not self.visible: return
         # If not left button nothing to do
         if not button == 1: return
-
         # If not left button nothing to do
         if not self.editable: return
 
@@ -1425,22 +2316,42 @@ class TextBox():
                 if relx>(text_width+self.margin.x):
                     self.cursorChar=self.cursorChar+1
         else:
+            if self.cursorActive:
+                if not self.onLostFocus==None:
+                    self.onLostFocus(self, self.text,self.linkedData)
             self.cursorActive = False
             self.allSelected=False
 
+
+    def setFocus(self, focus):
+        if self.cursorActive:
+            if not focus:
+                if not self.onLostFocus == None:
+                    self.onLostFocus(self, self.text, self.linkedData)
+        self.cursorActive=focus
 
     def handleMouseDown(self,pos,button):
         return
 
 
     def handleMouseMove(self,pos):
-        return
+        gpos=GPoint.fromTuple(pos)
+        if gpos.inGRect(self.rect) and self.editable:
+            self.state = self.hover
+        else:
+            self.state = self.normal
 
 
-    def handleToolTips(self,pos):
+    def handleToolTips(self,pos, displaywidth=None):
         """ Returns label control with tooltip if hovered long enough. """
+        # If not visible nothing to do.
+        if not self.visible: return
+
         # if user did not set a tooltip nothing to do
         if self.toolTipLabel==None: return None
+
+        # if displaywidth not given, we use screen width (in openGL they can differ)
+        if displaywidth==None: displaywidth=self.pyscreen.get_size()[0]
 
         #Check if mouse above control, if not exit
         gpos=GPoint.fromTuple(pos)
@@ -1465,18 +2376,21 @@ class TextBox():
 
         #Check if hovered enough time and return tooltip
         timeHovered=time.time()-self.firstHoverTime
-        if timeHovered>1.5 and not self.toolTipLabel.text=="" :
-            self.toolTipLabel.visible=True
-            self.toolTipLabel.rect.x = gpos.x
-            self.toolTipLabel.rect.y = gpos.y
+        if timeHovered>1.5 and not self.toolTipLabel.text=="":
+            self.toolTipLabel.visible = True
+            self.toolTipLabel.rect.x  = gpos.x
+            self.toolTipLabel.rect.y  = gpos.y
             #check if tooltip overflow right edge of pyscreen
-            if self.toolTipLabel.rect.right>self.pyscreen.get_size()[0]:
+            if self.toolTipLabel.rect.right>displaywidth:
                 self.toolTipLabel.rect.x=gpos.x-self.toolTipLabel.rect.width
             return self.toolTipLabel
 
 
     def handleKeyDown(self,key,unicode):
         """ Handles keypresses and determine which keys are valid for TextBox input type """
+
+        # If not visible nothing to do.
+        if not self.visible: return
 
         # If not editable nothing to do
         if not self.editable: return
