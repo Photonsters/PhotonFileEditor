@@ -69,14 +69,14 @@ class PhotonFile:
         ("Layer height (mm)",   4, tpFloat, True,  "Default layer height."),
         ("Exp. time (s)",       4, tpFloat, True,  "Default exposure time."),
         ("Exp. bottom (s)",     4, tpFloat, True,  "Exposure time for bottom layers."),
-        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers."),
+        ("Off time (s)",        4, tpFloat, True,  "Time UV is turned of between layers. \n Minimum is 6.5 sec, the time to rise the \n build plate and dip back in the resin."),
         ("# Bottom Layers",     4, tpInt,   True,  "Number of bottom layers.\n (These have different exposure time.)"),
         ("Resolution X",        4, tpInt,   True,  "X-Resolution of the screen through \n which the layer image is projected."),
         ("Resolution Y",        4, tpInt,   True,  "Y-Resolution of the screen through \n which the layer image is projected." ),
         ("Preview 0 (addr)",    4, tpInt,   False, "Address where the metadata \n of the High Res preview image can be found."),  # start of preview 0
         ("Layer Defs (addr)",   4, tpInt,   False, "Address where the metadata \n for the layer images can be found."),  # start of layerDefs
         (nrLayersString,        4, tpInt,   False, "Number of layers this file has."),
-        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata \n of the Low Res preview image can be found."),  # start of preview 1
+        ("Preview 1 (addr)",    4, tpInt,   False, "Address where the metadata of the \n Low Res preview image can be found."),  # start of preview 1
         ("unknown6",            4, tpInt,   False, ""),
         ("Proj.type-Cast/Mirror", 4, tpInt, False, "LightCuring/Projection type:\n 1=LCD_X_MIRROR \n 0=CAST"),   #LightCuring/Projection type // (1=LCD_X_MIRROR, 0=CAST)
         ("padding1",        6 * 4, tpByte,  False, "")  # 6 ints
@@ -85,17 +85,18 @@ class PhotonFile:
     pfStruct_Previews = [
         ("Resolution X",        4, tpInt,   False, "X-Resolution of preview pictures."),
         ("Resolution Y",        4, tpInt,   False, "Y-Resolution of preview pictures."),
-        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),  # start of rawData0
-        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  # size of rawData0
+        ("Image Address",       4, tpInt,   False, "Address where the raw \n image can be found."),  # start of rawData0
+        ("Data Length",         4, tpInt,   False, "Size (in bytes) of the \n raw image."),  # size of rawData0
         ("padding",         4 * 4, tpByte,  False, ""),  # 4 ints
         ("Image Data",         -1, tpByte,  False, "The raw image."),
     ]
 
+    # The exposure time and off times are ignored by Photon printer, layerheight not and is cumulative
     pfStruct_LayerDef = [
-        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer should be printed."),
-        ("Exp. time (s)",       4, tpFloat, True,  "Exposure time for this layer."),
-        ("Off time (s)",        4, tpFloat, True,  "Off time for this layer."),
-        ("Image Address",       4, tpInt,   False, "Address where the raw image can be found."),#dataStartPos -> Image Address
+        ("Layer height (mm)",   4, tpFloat, True,  "Height at which this layer \n should be printed."),
+        ("Exp. time (s)",       4, tpFloat, False, "Exposure time for this layer.\n (Based on General Info.)"),
+        ("Off time (s)",        4, tpFloat, False, "Off time for this layer.\n (Based on General Info.)"),
+        ("Image Address",       4, tpInt,   False, "Address where the raw image \n can be found."),#dataStartPos -> Image Address
         ("Data Length",         4, tpInt,   False, "Size (in bytes) of the raw image."),  #size of rawData+lastByte(1)
         ("padding",         4 * 4, tpByte,  False, "") # 4 ints
     ]
@@ -305,11 +306,10 @@ class PhotonFile:
                     if bTitle == "Image Data": bNr = dataSize
                     self.Previews[previewNr][bTitle] = binary_file.read(bNr)
                     if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
-	    
-            layerDefAddr=PhotonFile.bytes_to_int(self.Header["Layer Defs (addr)"])
-            binary_file.seek(layerDefAddr)
 
             # Read LAYERDEFS settings
+            layerDefAddr=PhotonFile.bytes_to_int(self.Header["Layer Defs (addr)"])
+            binary_file.seek(layerDefAddr)
             nLayers = PhotonFile.bytes_to_int(self.Header[self.nrLayersString])
             self.LayerDefs = [dict() for x in range(nLayers)]
             # print("nLayers:", nLayers)
@@ -326,8 +326,9 @@ class PhotonFile:
             self.LayerData = [dict() for x in range(nLayers)]
             for lNr in range(0, nLayers):
                 rawDataAddr = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Image Address"])
-                rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Data Length"])
                 binary_file.seek(rawDataAddr)
+
+                rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Data Length"])
                 # print("  layer: ", lNr, " size: ",rawDataSize)
                 self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1) # b'}}}}}}}}}}
                 # -1 because we don count byte for endOfLayer
@@ -380,7 +381,7 @@ class PhotonFile:
     ## Encoding
     ########################################################################################################################
 
-    def encodedBitmap_Bytes_withnumpy(filename):
+    def encodedBitmap_Bytes_withnumpy(surfOrFile):
         """ Converts image data from file on disk to RLE encoded byte string.
             Uses Numpy library - Fast
             Based on https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
@@ -389,8 +390,13 @@ class PhotonFile:
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
 
-        # Load image and check if size is correct (1440 x 2560)
-        imgsurf = pygame.image.load(filename)
+        # Check if we got a string and if so load image
+        if isinstance(surfOrFile, str):
+            imgsurf = pygame.image.load(surfOrFile)
+        else:
+            imgsurf = surfOrFile
+
+        # Check if size is correct size (1440 x 2560)
         (width, height) = imgsurf.get_size()
         if not (width, height) == (1440, 2560):
             raise Exception("Your image dimensions are off and should be 1440x2560")
@@ -415,7 +421,7 @@ class PhotonFile:
         # Reduce repetitions of color to max 0x7D/125 and store in bytearray
         rleData = bytearray()
         for (nr, col) in zip(lengths,values):
-            color = (col>0)
+            color = (abs(col)>1)
             while nr > 0x7D:
                 encValue = (color << 7) | 0x7D
                 rleData.append(encValue)
@@ -427,7 +433,7 @@ class PhotonFile:
         return bytes(rleData)
 
 
-    def encodedBitmap_Bytes_nonumpy(filename):
+    def encodedBitmap_Bytes_nonumpy(surfOrFile):
         """ Converts image data from file on disk to RLE encoded byte string.
             Processes pixels one at a time (pygame.get_at) - Slow
             Encoding scheme:
@@ -435,8 +441,13 @@ class PhotonFile:
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
 
-        # Load image and check if size is correct (1440 x 2560)
-        imgsurf = pygame.image.load(filename)
+        # Check if we got a string and if so load image
+        if isinstance(surfOrFile, str):
+            imgsurf = pygame.image.load(surfOrFile)
+        else:
+            imgsurf = surfOrFile
+
+        # Check if size is correct size (1440 x 2560)
         #bitDepth = imgsurf.get_bitsize()
         #bytePerPixel = imgsurf.get_bytesize()
         (width, height) = imgsurf.get_size()
@@ -471,18 +482,91 @@ class PhotonFile:
         return bytes(rleData)
 
 
-    def encodedBitmap_Bytes(filename):
+    def encodedBitmap_Bytes(surfOrFile):
         """ Depening on availability of Numpy, calls upon correct Encoding method."""
         if numpyAvailable:
-            return PhotonFile.encodedBitmap_Bytes_withnumpy(filename)
+            return PhotonFile.encodedBitmap_Bytes_withnumpy(surfOrFile)
         else:
-            return PhotonFile.encodedBitmap_Bytes_nonumpy(filename)
+            return PhotonFile.encodedBitmap_Bytes_nonumpy(surfOrFile)
+
+
+    def encodedPreviewBitmap_Bytes_nonumpy(filename,checkSizeForNr=0):
+        """ Converts image data from file on disk to RLE encoded byte string.
+            Processes pixels one at a time (pygame.get_at) - Slow
+            Encoding scheme:
+                The color (R,G,B) of a pixel spans 2 bytes (little endian) and each color component is 5 bits: RRRRR GGG GG X BBBBB
+                If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
+        """
+
+        imgsurf = pygame.image.load(filename)
+        # bitDepth = imgsurf.get_bitsize()
+        # bytePerPixel = imgsurf.get_bytesize()
+        (width, height) = imgsurf.get_size()
+        print ("Size:", width, height)
+
+        #Preview images tend to have different sizes. Check on size is thus not possible.
+        #if checkSizeForNr==0 and not (width, height) == (360,186):
+        #    raise Exception("Your image dimensions are off and should be 360x186 for the 1st preview.")
+        #if checkSizeForNr==1 and not (width, height) == (198,101):
+        #    raise Exception("Your image dimensions are off and should be 198x101 for the 1st preview.")
+
+        # Count number of pixels with same color up until 0x7D/125 repetitions
+        rleData = bytearray()
+        color = 0
+        black = 0
+        white = 1
+        nrOfColor = 0
+        prevColor = None
+        for y in range(height):
+            for x in range(width):
+                #print (x,y)
+                # print (imgsurf.get_at((x, y)))
+                color = imgsurf.get_at((x, y)) # (r, g, b, a)
+                if prevColor == None: prevColor = color
+                isLastPixel = (x == (width - 1) and y == (height - 1))
+                if color == prevColor and nrOfColor < 0x0FFF and not isLastPixel:
+                    nrOfColor = nrOfColor + 1
+                else:
+                    # print (color,nrOfColor,nrOfColor<<1)
+                    R=prevColor[0]
+                    G=prevColor[1]
+                    B=prevColor[2]
+                    if nrOfColor>1:
+                        X=1
+                    else:
+                        X=0
+                    # build 2 or 4 bytes (depending on X
+                    # The color (R,G,B) of a pixel spans 2 bytes (little endian) and
+                    # each color component is 5 bits: RRRRR GGG GG X BBBBB
+                    R = round(R / 255 * 31)
+                    G = round(G / 255 * 31)
+                    B = round(B / 255 * 31)
+                    encValue0=R<<3 | G>>2
+                    encValue1=(((G & 0b00000011)<<6) | X<<5 | B)
+                    if X==1:
+                        nrOfColor=nrOfColor-1 # write one less than nr of pixels
+                        encValue2=nrOfColor>>8
+                        encValue3=nrOfColor & 0b000000011111111
+                        #seems like nr bytes pixels have 0011 as start
+                        encValue2=encValue2 | 0b00110000
+
+                    # save bytes
+                    rleData.append(encValue1)
+                    rleData.append(encValue0)
+                    if X==1:
+                        rleData.append(encValue3)
+                        rleData.append(encValue2)
+
+                    # search next color
+                    prevColor = color
+                    nrOfColor = 1
+        #print ("len",len(rleData))
+        return (width,height,bytes(rleData))
 
 
     ########################################################################################################################
     ## Decoding
     ########################################################################################################################
-
     def getBitmap_withnumpy(self, layerNr, forecolor=(128,255,128), backcolor=(0,0,0),scale=(0.25,0.25)):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.
             Based on: https://gist.github.com/itdaniher/3f57be9f95fce8daaa5a56e44dd13de5
@@ -490,10 +574,22 @@ class PhotonFile:
                 Highest bit of each byte is color (black or white)
                 Lowest 7 bits of each byte is repetition of that color, with max of 125 / 0x7D
         """
+        #tStart=pygame.time.get_ticks()
+
+        # Colors are stored reversed and we count on alpha bit (size of int does not matter for numpy speed)
+        isAlpha=False
+        if len(forecolor)==4 or len(backcolor)==4:isAlpha = True
+        if   len(forecolor) == 3:forecolor = (255,forecolor[0], forecolor[1], forecolor[2])
+        elif len(forecolor) == 4:forecolor = (forecolor[3], forecolor[0], forecolor[1],forecolor[2])
+        if   len(backcolor) == 3:backcolor = (255,backcolor[0], backcolor[1], backcolor[2])
+        elif len(backcolor) == 4:backcolor=(backcolor[3], backcolor[0], backcolor[1],backcolor[2])
+
+        # If no layers return
+        if self.nrLayers()==0:#could occur if loading new file
+            memory=pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])),24)
+            return memory
 
         # Tell PhotonFile we are drawing so GUI can prevent too many calls on getBitmap
-        memory = pygame.Surface((int(1440 * scale[0]), int(2560 * scale[1])))
-        if self.nrLayers()==0: return memory #could occur if loading new file
         self.isDrawing = True
 
         # Retrieve raw image data and add last byte to complete the byte array
@@ -510,8 +606,8 @@ class PhotonFile:
         nr = bN & ~(1 << 7)  # turn highest bit of
 
         # Replace 0's en 1's with correct colors
-        forecolor_int = (forecolor[0] << 16) + (forecolor[1] << 8) + forecolor[2]
-        backcolor_int = backcolor[0] << 16 + backcolor[1] << 8 + backcolor[2]
+        forecolor_int = (forecolor[0] << 24) + (forecolor[1] << 16) + (forecolor[2] << 8) + forecolor[3]
+        backcolor_int = (backcolor[0] << 24) + (backcolor[1] << 16) + (backcolor[2] << 8) + backcolor[3]
         val = numpy.array([{0: backcolor_int, 1: forecolor_int}[x] for x in valbin])
 
         # Make a 2d array like [ [3,0] [2,1], [nr_i,val_i]...] using the colorvalues (val) and repetitions(nr)
@@ -535,14 +631,22 @@ class PhotonFile:
             x=numpy.append(x,(0,))
 
         # Convert 1-dim array to matrix
-        rgb2d=x.reshape((2560,1440))                # data is stored in rows of 2560
+        rgb2d = x.reshape((2560,1440))              # data is stored in rows of 2560
         rgb2d = numpy.rot90(rgb2d, axes=(1, 0))     # we need 1440x2560
-        rgb2d = numpy.fliplr(rgb2d)                 # however data us mirrored along x axis
-        picture=pygame.surfarray.make_surface(rgb2d)# convert numpy array to pygame surface
-        memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
-
+        rgb2d = numpy.fliplr(rgb2d)                 # however data is mirrored along x axis
+        #picture=pygame.surfarray.make_surface(rgb2d)# convert numpy array to pygame surface
+        #memory=pygame.transform.scale(picture, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
+        if isAlpha:
+            temp = pygame.Surface((1440, 2560), depth=32,flags=pygame.SRCALPHA)
+        else:
+            temp = pygame.Surface((1440, 2560), depth=24)
+        pygame.surfarray.blit_array(temp,rgb2d)
+        memory=pygame.transform.scale(temp, (int(1440*scale[0]), int(2560*scale[1]))) # rescale for display in window
         # Done drawing so next caller knows that next call can be made.
         self.isDrawing = False
+
+        #tDelta = pygame.time.get_ticks()-tStart
+        #print ("elaps:",tDelta)
         return memory
 
 
@@ -607,15 +711,46 @@ class PhotonFile:
         return memory
 
 
-    def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(0.25, 0.25)):
+    def getBitmap(self, layerNr, forecolor=(128, 255, 128), backcolor=(0, 0, 0), scale=(1, 1)):
         """ Depending on availability of Numpy, calls upon correct Decoding method."""
         if numpyAvailable:
             return self.getBitmap_withnumpy(layerNr,forecolor,backcolor,scale)
         else:
             return self.getBitmap_nonumpy(layerNr,forecolor,backcolor,scale)
 
+    def volume(self,progressDialog=None):
+        nLayers=self.nrLayers()
+        nrPixels=0
+        #numpyAvailable=False
+        for layerNr in range(0,nLayers):
+            img=self.getBitmap(layerNr,forecolor=(255,255,255,255),backcolor=(0,0,0,0),scale=(1,1))
+            pixarray = pygame.surfarray.pixels2d(img)
+            pixelsInLayer=0
 
-    def getPreviewBitmap(self, prevNr):
+            if numpyAvailable:
+                pixelsInLayer=((pixarray>0).sum())
+            else:
+                for row in pixarray:
+                    for color in row:
+                        if color>0:pixelsInLayer+=1
+
+            nrPixels=nrPixels+pixelsInLayer
+
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr)+"/"+str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel: return False
+
+        #pixel is 0.047mm x 0.047mm x layer height
+        print (nrPixels)
+        pixVolume=0.047*0.047*self.bytes_to_float(self.Header["Layer height (mm)"])
+        volume=pixVolume*nrPixels
+        return volume
+
+
+    def getPreviewBitmap(self, prevNr, scaleToWidth=1440/4):
         """ Decodes a RLE byte array from PhotonFile object to a pygame surface.
             Based on https://github.com/Reonarudo/pcb2photon/issues/2
             Encoding scheme:
@@ -630,7 +765,12 @@ class PhotonFile:
         w = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution X"])
         h = PhotonFile.bytes_to_int(self.Previews[prevNr]["Resolution Y"])
         s = PhotonFile.bytes_to_int(self.Previews[prevNr]["Data Length"])
-        scale = ((1440 / 4) / w, (1440 / 4) / w)
+
+        if scaleToWidth==0:
+            scale=(1,1)
+        else:
+            scale = (scaleToWidth / w, scaleToWidth / w)
+
         memory = pygame.Surface((int(w), int(h)))
         if w == 0 or h == 0: return memory # if size is (0,0) we return empty surface
 
@@ -645,9 +785,12 @@ class PhotonFile:
             b12 = bA[idx + 1] << 8 | bA[idx + 0]
             idx += 2
             # Retrieve colr components and make pygame color tuple
-            red = math.floor(((b12 >> 11) & 0x1F) / 31 * 255)
-            green = math.floor(((b12 >> 6) & 0x1F) / 31 * 255)
-            blue = math.floor(((b12 >> 0) & 0x1F) / 31 * 255)
+            #red = round(((b12 >> 11) & 0x1F) / 31 * 255)
+            red = round(((b12 >> 11) & 0x1F) << 3 )
+            #green = round(((b12 >> 6) & 0x1F) / 31 * 255)
+            green = round(((b12 >> 6) & 0x1F) << 3 )
+            #blue = round(((b12 >> 0) & 0x1F) / 31 * 255)
+            blue = round((b12 & 0x1F) << 3 )
             col = (red, green, blue)
 
             # If the X bit is set, then the next 2 bytes (little endian) masked with 0xFFF represents how many more times to repeat that pixel.
@@ -850,7 +993,7 @@ class PhotonFile:
             self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
 
-    def replaceBitmaps(self, dirPath):
+    def replaceBitmaps(self, dirPath, progressDialog=None):
         """ Delete all images in PhotonFile object and add images in directory."""
 
         # Get all files, filter png-files and sort them alphabetically
@@ -934,12 +1077,60 @@ class PhotonFile:
             curLayerHeight= curLayerHeight+deltaLayerHeight
             print("                New DataPos", rawDataStartPos)
 
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr) + "/" + str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel:
+                    #  Reset total number of layers to last layer we processes
+                    self.Header["# Layers"] = self.int_to_bytes(layerNr+1)
+                    return False
+        return True
 
-    def exportBitmaps(self,dirPath,filepre):
+
+    def exportBitmap(self,dirPath,filepre,layerNr):
+        """ Saves specified images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
+
+        # Make filename
+        nrStr="%04d" % layerNr
+        filename=filepre+"_"+ nrStr+".png"
+        #print ("filename: ",filename)
+        fullfilename=os.path.join(dirPath,filename)
+        # Retrieve decode pygame image surface
+        imgSurf=self.getBitmap(layerNr, (255, 255, 255), (0, 0, 0), (1, 1))
+        # Save layer image to disk
+        pygame.image.save(imgSurf,fullfilename)
+
+        print ("Exported slice ",layerNr)
+        # Check if user canceled
+
+        return
+
+
+    def exportPreviewBitmap(self, dirPath, previewNr):
+        """ Saves specified preview image in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
+
+        #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
+        barefilename = (os.path.basename(self.filename))
+        barefilename=barefilename.split(sep=".")[0]
+        filename = "_"+barefilename + "_preview_"+str(previewNr)+".png"
+        fullfilename = os.path.join(dirPath, filename)
+
+        #  Get the preview images
+        prevSurf = self.getPreviewBitmap(previewNr, 0)  # 0 is don't scale
+        #  Save preview image to disk
+        pygame.image.save(prevSurf, fullfilename)
+        return
+
+
+    def exportBitmaps(self,dirPath,filepre,progressDialog=None):
         """ Save all images in PhotonFile object as (decoded) png files in specified directory and with file precursor"""
 
+        nLayers=self.nrLayers()
+
         # Traverse all layers
-        for layerNr in range(0,self.nrLayers()):
+        for layerNr in range(0,nLayers):
             # Make filename
             nrStr="%04d" % layerNr
             filename=filepre+"_"+ nrStr+".png"
@@ -950,17 +1141,76 @@ class PhotonFile:
             # Save layer image to disk
             pygame.image.save(imgSurf,fullfilename)
 
-        # Also save 1st preview image
-        prevSurf=self.getPreviewBitmap(0)
-        #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
-        barefilename = (os.path.basename(self.filename))
-        barefilename=barefilename.split(sep=".")[0]
-        filename = "_"+barefilename + "_preview.png"
-        fullfilename = os.path.join(dirPath, filename)
-        #   Save preview image to disk
-        pygame.image.save(prevSurf, fullfilename)
+            print ("Exported slice ",layerNr,"/",nLayers)
+            # Check if user canceled
+            if not progressDialog==None:
+                progressDialog.setProgress(100*layerNr/nLayers)
+                progressDialog.setProgressLabel(str(layerNr)+"/"+str(nLayers))
+                progressDialog.handleEvents()
+                if progressDialog.cancel: return False
 
-        return
+        # Also save the preview images
+        for i in range (0,2):
+            prevSurf=self.getPreviewBitmap(i,0) # 0 is don't scale
+            #   Make filename beginning with _ so PhotonFile.importBitmaps will skip this on import layer images.
+            barefilename = (os.path.basename(self.filename))
+            barefilename=barefilename.split(sep=".")[0]
+            filename = "_"+barefilename + "_preview_"+str(i)+".png"
+            fullfilename = os.path.join(dirPath, filename)
+            #   Save preview image to disk
+            pygame.image.save(prevSurf, fullfilename)
+
+        return True
+
+    def replacePreview(self, previewNr,filePath, saveToHistory=True):
+        """ Replace image data in PhotonFile object with new (encoded data of) image on disk."""
+
+        print("Replace Preview", previewNr, " - ", filePath)
+
+        # Store all data to history
+        # *** not yet implemented for preview images ***
+        # if saveToHistory: self.saveToHistory("replace prev",previewNr)
+
+        # Get/encode raw data
+        (width,height,rawData) = PhotonFile.encodedPreviewBitmap_Bytes_nonumpy(filePath)
+        if len(rawData)==0:
+            raise Exception ("Could not import Preview image.")
+            return
+
+        # Get change in image rawData size so we can correct starting addresses of higher layer images
+        oldLength=self.bytes_to_int(self.Previews[previewNr]["Data Length"]) #"Data Length" = len(rawData)+len(EndOfLayer)
+        newLength=len(rawData)
+        deltaLength=newLength-oldLength
+        #print ("old, new, delta:",oldLength,newLength,deltaLength)
+
+        # Update image settings and raw data of layer to be replaced
+        self.Previews[previewNr]["Resolution X"]= self.int_to_bytes(width)
+        self.Previews[previewNr]["Resolution Y"]= self.int_to_bytes(height)
+
+        self.Previews[previewNr]["Data Length"] = self.int_to_bytes(len(rawData))
+        self.Previews[previewNr]["Image Data"] = rawData
+
+        # Update Header info about "Preview 1 (addr)"
+        if previewNr==0: # then the "Preview 1 (addr)" shifts
+            curAddr=self.bytes_to_int(self.Header["Preview 1 (addr)"])
+            newAddr = curAddr + deltaLength
+            self.Header["Preview 1 (addr)"]=self.int_to_bytes(newAddr)
+        # Update Preview[1] info about "Preview 1 (addr)"
+            curAddr=self.bytes_to_int(self.Previews[1]["Image Address"])
+            newAddr = curAddr + deltaLength
+            self.Previews[1]["Image Address"]=self.int_to_bytes(newAddr)
+
+        #Always Header info about layerdefs shifts
+        curAddr = self.bytes_to_int(self.Header["Layer Defs (addr)"])
+        newAddr = curAddr + deltaLength
+        self.Header["Layer Defs (addr)"] = self.int_to_bytes(newAddr)
+
+        # Update start addresses of RawData of all following images
+        nLayers=self.nrLayers()
+        for rLayerNr in range(0,nLayers):
+            curAddr=self.bytes_to_int(self.LayerDefs[rLayerNr]["Image Address"])
+            newAddr=curAddr+deltaLength
+            self.LayerDefs[rLayerNr]["Image Address"]= self.int_to_bytes(newAddr)
 
 
 
