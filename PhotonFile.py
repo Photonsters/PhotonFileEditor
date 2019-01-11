@@ -294,12 +294,20 @@ class PhotonFile:
                 self.Header[bTitle] = binary_file.read(bNr)
 
             # Read PREVIEWS settings and raw image data
+            prevAddr=[]
+            prevAddr.append(PhotonFile.bytes_to_int(self.Header["Preview 0 (addr)"]))
+            prevAddr.append(PhotonFile.bytes_to_int(self.Header["Preview 1 (addr)"]))
+
             for previewNr in (0,1):
+                binary_file.seek(prevAddr[previewNr])
                 for bTitle, bNr, bType, bEditable, bHint in self.pfStruct_Previews:
                     # if rawData0 or rawData1 the number bytes to read is given bij dataSize0 and dataSize1
                     if bTitle == "Image Data": bNr = dataSize
                     self.Previews[previewNr][bTitle] = binary_file.read(bNr)
                     if bTitle == "Data Length": dataSize = PhotonFile.bytes_to_int(self.Previews[previewNr][bTitle])
+	    
+            layerDefAddr=PhotonFile.bytes_to_int(self.Header["Layer Defs (addr)"])
+            binary_file.seek(layerDefAddr)
 
             # Read LAYERDEFS settings
             nLayers = PhotonFile.bytes_to_int(self.Header[self.nrLayersString])
@@ -317,7 +325,9 @@ class PhotonFile:
             # print("Reading layer image-info")
             self.LayerData = [dict() for x in range(nLayers)]
             for lNr in range(0, nLayers):
+                rawDataAddr = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Image Address"])
                 rawDataSize = PhotonFile.bytes_to_int(self.LayerDefs[lNr]["Data Length"])
+                binary_file.seek(rawDataAddr)
                 # print("  layer: ", lNr, " size: ",rawDataSize)
                 self.LayerData[lNr]["Raw"] = binary_file.read(rawDataSize - 1) # b'}}}}}}}}}}
                 # -1 because we don count byte for endOfLayer
