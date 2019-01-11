@@ -50,7 +50,7 @@ shortcut_table = [
      "",						                              	# Icon
      0,															# IconIndex
      None,															# ShowCmd
-     'TARGETDIR'               										# WkDir
+     'TARGETDIR',               										# WkDir
      )
     ]
 
@@ -80,8 +80,8 @@ setup(  name = "PhotonFileEditor",
         version = "0.1",
 		author= "Photonsters",
 		url="https://github.com/Photonsters",
-        description = "Photon File Editor",
+        description = "Photon File Editor v0.1c",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
-        executables = [Executable("PhotonEditor.py", base=base,)])
+        executables = [Executable("PhotonEditor.py", base=base,icon="PhotonEditor.ico",)])
 
 # Added missing dependencies
