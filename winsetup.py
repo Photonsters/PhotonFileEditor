@@ -47,8 +47,8 @@ shortcut_table = [
      None,															# Arguments
      None,															# Description
      None,															# Hotkey
-     "C:\PhotonFileEditor\photonsters.ico",							# Icon
-     None,															# IconIndex
+     "",						                              	# Icon
+     0,															# IconIndex
      None,															# ShowCmd
      'TARGETDIR'               										# WkDir
      )
@@ -72,10 +72,10 @@ os.environ['TK_LIBRARY'] = os.path.join(PYTHON_INSTALL_DIR, 'tcl', 'tk8.6')
 base = None
 if sys.platform == "win32":
     base = "Win32GUI"
-	
+
 if 'bdist_msi' in sys.argv:
     sys.argv += ['--initial-target-dir', 'c:\PhotonFileEditor']
-	
+
 setup(  name = "PhotonFileEditor",
         version = "0.1",
 		author= "Photonsters",
@@ -83,5 +83,5 @@ setup(  name = "PhotonFileEditor",
         description = "Photon File Editor",
         options = {"build_exe": build_exe_options,"bdist_msi": bdist_msi_options},
         executables = [Executable("PhotonEditor.py", base=base,)])
-		
+
 # Added missing dependencies

@@ -9,7 +9,7 @@ Bepaal van ieder punt de normaal als gemiddelde van de driehoeken waarvan de pun
 Gebruik deze normalen om iedere driehoek de gewenste wanddikte naar binnen de extruden. De max. wanddikte wordt bepaald door:
 -      Of ze convergeren en de driehoeksnormaal draait om
 -      Of 1 van de drie hoekpunten snijdt het vlak van een andere driehoek binnen de drie punten
-Dit genereert een nieuwe driehoek die samen met de basisdriehoek een prisma vormt. 
+Dit genereert een nieuwe driehoek die samen met de basisdriehoek een prisma vormt.
 Sla de basisdriekhoek en de nieuwe driehoek op in een nieuwe class prism
 
 Bepaal van iedere driehoek de doorsnedes met ieder xz-vlak op laagste hoogte y tot en hoogste hoogte y en een interval gelijk aan de laagdikte van de 3d printer
@@ -48,9 +48,10 @@ class Slicer:
         aGL = oglengine
         stl=self.stl
         stl=STLFile()
+        print ("Filename",filename)
         if filename==None:
             #stl.load_binary_stl('resources/SliceTester.stl', 1)
-            filename='SamplePhotonFiles/STLs/test_cube.stl'
+            #filename='SamplePhotonFiles/STLs/test_cube.stl'
             #stl.load_binary_stl('resources/HollowCube.stl', 1)
             # self.load_stl('resources/Door-handle-ascii.stl',0.03)
             # self.load_stl('resources/Door-handle.stl', 0.03)
@@ -60,12 +61,14 @@ class Slicer:
             # self.load_binary_stl('resources/OrientationCube.stl',1)
             # self.load_text_stl('resources/test.stl', 0.03)
             # self.load_binary_+-stl('resources/knight.stl', 0.3)
+            None
 
-        print ("load...")
-        stl.load_binary_stl(filename, 1)
+        if not filename==None:
+            print ("load...")
+            stl.load_binary_stl(filename, 1)
 
-        print ("setModel...")
-        aGL.setModel(stl.points, stl.model)
+            print ("setModel...")
+            aGL.setModel(stl.points, stl.model)
 
         self.stl=stl
         print ("done...")
@@ -113,8 +116,3 @@ class Slicer:
         print (List2Str(stl.points))
         #print ("-0-------")
         #print (List2Str(stl.innerpoints))
-
-
-
-
-

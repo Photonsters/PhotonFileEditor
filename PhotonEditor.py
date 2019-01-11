@@ -1027,7 +1027,7 @@ def validateLayerHeight():
     # Check deviation of General Layer Height from optimum
     msg1=""
     deviation=lHmicro % 10
-    if deviation> 2: # This deviation is not due to rounding errors of Anycubic Photon Slicer, but user caused
+    if deviation> 1: # This deviation is not due to rounding errors of Anycubic Photon Slicer, but user caused
         msg1="You selected an incompatible layer height!\n"
 
     # Check cumulative layerheights in Layer Defs against optimal layerheight
@@ -1037,7 +1037,7 @@ def validateLayerHeight():
         cumHmicro = cumHeight * 1000
         calcHmicro=lNr*nHmicro
         deviation=cumHmicro-calcHmicro
-        if deviation>2: # Due to storage error (think 0.02999999) this added up to large deviation in this layer
+        if deviation>1: # Due to storage error (think 0.02999999) this added up to large deviation in this layer
             msg2="Your General Layerheight was propogated with rounding errors in the print!\n"
 
     # Ask user wat to do
@@ -1841,12 +1841,20 @@ def loadUserPrefs():
     global peelTime
     global pyopenglIsAvailable
 
+
+
+    # If we are not in Win32 we load locally, else we save in Documents
+    dir=os.getcwd()
+    if sys.platform == "win32": dir=os.path.expanduser("~\\Documents\PhotonFileEditor\\")
+    path=os.path.join(dir,"settings.ini")
+
+    # Set default lastLoadDir
     lastLoadDir=os.getcwd()
 
     # Settings.ini could be absent or wrongly edited by user
     try:
         parser = configparser.ConfigParser()
-        parser.read("settings.ini")
+        parser.read(path)
         if parser.has_option("General","UserMode"): frameMode=parser.getint("General","UserMode")
         settingsMode = frameMode
         if parser.has_option("General", "DisableOpenGL"):disableOpenGL=parser.getboolean("General","DisableOpenGL")
@@ -1883,7 +1891,18 @@ def saveUserPrefs():
         recStr="Recent"+str(idx)
         parser.set("General", recStr, recent)
 
-    file=open("settings.ini",'w')
+    # If we are not in Win32 we save locally, else we save in Documents
+    dir=os.getcwd()
+    if sys.platform == "win32":
+        dir = os.path.expanduser("~\\Documents\PhotonFileEditor\\")
+        if not os.path.isdir(dir):
+            try:
+                os.mkdir(dir)
+            except Exception as err:
+                print (err)
+    path=os.path.join(dir,"settings.ini")
+    file=open(path,'w')
+
     parser.write(file)
     file.close()
 
