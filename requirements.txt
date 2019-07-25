@@ -1,0 +1,7 @@
+# cat requirements.txt 
+# USAGE: pip install -r requirements.txt 
+pygame
+opencv-python
+numpy
+PyOpenGL
+scipy
